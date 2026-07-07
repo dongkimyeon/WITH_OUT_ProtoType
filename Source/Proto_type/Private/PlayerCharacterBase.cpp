@@ -3,6 +3,9 @@
 
 #include "PlayerCharacterBase.h"
 
+#include "PlayerStatWidget.h"
+#include "Blueprint/UserWidget.h"
+
 // Sets default values
 APlayerCharacterBase::APlayerCharacterBase()
 {
@@ -15,6 +18,15 @@ APlayerCharacterBase::APlayerCharacterBase()
 void APlayerCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	if (not PlayerController) return;
+	
+	if (StatWidgetClass)
+	{
+		StatWidget = CreateWidget<UPlayerStatWidget>(PlayerController, StatWidgetClass);
+		if (StatWidget)
+			StatWidget->AddToViewport();
+	}
 	
 }
 

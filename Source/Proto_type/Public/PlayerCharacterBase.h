@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "PlayerStatWidget.h"
 #include "PlayerCharacterBase.generated.h"
 
 UCLASS()
@@ -14,7 +15,12 @@ class PROTO_TYPE_API APlayerCharacterBase : public APawn
 public:
 	// Sets default values for this character's properties
 	APlayerCharacterBase();
+	
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UPlayerStatWidget> StatWidgetClass;   // 에디터에서 WBP_PlayerStat 할당
 
+	UPROPERTY()
+	UPlayerStatWidget* StatWidget;
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
