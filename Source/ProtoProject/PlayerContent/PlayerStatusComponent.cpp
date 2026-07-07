@@ -14,6 +14,36 @@ UPlayerStatusComponent::UPlayerStatusComponent()
 }
 
 
+void UPlayerStatusComponent::SetMaxHealth(float newMaxHealth)
+{
+	MaxHealth = newMaxHealth;
+}
+
+void UPlayerStatusComponent::SetHealth(float newHealth)
+{
+	Health = newHealth;
+}
+
+void UPlayerStatusComponent::SetInfection(float newInfection)
+{
+	Infection = newInfection;
+}
+
+void UPlayerStatusComponent::SetHunger(float newHunger)
+{
+	Hunger = newHunger;
+}
+
+void UPlayerStatusComponent::SetThirst(float newThirst)
+{
+	Thirst = newThirst;
+}
+
+void UPlayerStatusComponent::SetStamina(float newStamina)
+{
+	Stamina = newStamina;
+}
+
 // Called when the game starts
 void UPlayerStatusComponent::BeginPlay()
 {
