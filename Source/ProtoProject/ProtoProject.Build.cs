@@ -8,10 +8,15 @@ public class ProtoProject : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
-
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
+		
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
-
+		
+		// 기존 코드 아래에 이 구문을 추가합니다.
+		PublicIncludePaths.AddRange(new string[] {
+			"ProtoProject/PlayerContent/Inventory",
+			"ProtoProject/PlayerContent/Item"
+		});
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 		

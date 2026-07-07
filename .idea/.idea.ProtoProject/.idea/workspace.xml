@@ -15,25 +15,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ArmorItemData.cpp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ArmorItemData.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ConsumableItemData.cpp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ConsumableItemData.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/EquipmentItemData.cpp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/EquipmentItemData.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemDataBase.cpp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemDataBase.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/WeaponItemData.cpp" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/WeaponItemData.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Config/DefaultEngine.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Config/DefaultEngine.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/BP_GameMode.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/BP_Player.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/TestMap.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/TestMap.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProtoProject.slnx" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.slnx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/PlayerStatusComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/PlayerStatusComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/PlayerStatusComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/PlayerStatusComponent.h" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.cpp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/ProtoProject.Build.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/ProtoProject.Build.cs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -47,6 +32,8 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.cpp" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ArmorItemData.cpp" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ArmorItemData.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/EquipmentItemData.cpp" root0="FORCE_HIGHLIGHTING" />
@@ -62,61 +49,61 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0000005676196393" />
-      <entry key="MS500" value="1.0704492902686626" />
-      <entry key="S2" value="1.8318933121325944" />
-      <entry key="S5" value="2.410094919969703" />
-      <entry key="S10" value="2.7914931984426334" />
-      <entry key="S30" value="4.152372585128801" />
-      <entry key="S60" value="7.337084474656916" />
-      <entry key="M2" value="13.036132694987643" />
-      <entry key="M5" value="21.831027756777885" />
-      <entry key="M10" value="27.192409250099246" />
-      <entry key="M15" value="29.463064711569345" />
-      <entry key="M30" value="32.04694789772118" />
-      <entry key="H1" value="33.4734147057838" />
-      <entry key="H2" value="34.223662903946625" />
-      <entry key="H4" value="34.60850141535022" />
-      <entry key="D1" value="34.934281749448566" />
-      <entry key="W1" value="34.99060012645841" />
+      <entry key="MS100" value="1.0000000000000002" />
+      <entry key="MS500" value="1.0007390706996921" />
+      <entry key="S2" value="1.1648813354270389" />
+      <entry key="S5" value="1.4862749773602681" />
+      <entry key="S10" value="1.703983580190395" />
+      <entry key="S30" value="2.2777444744216298" />
+      <entry key="S60" value="3.0253497824811815" />
+      <entry key="M2" value="3.9265258130094294" />
+      <entry key="M5" value="8.924693830698978" />
+      <entry key="M10" value="19.375130142596035" />
+      <entry key="M15" value="26.765832469777248" />
+      <entry key="M30" value="37.951271326366104" />
+      <entry key="H1" value="45.57378900455301" />
+      <entry key="H2" value="50.035883061617675" />
+      <entry key="H4" value="52.45166671000858" />
+      <entry key="D1" value="54.56575731082304" />
+      <entry key="W1" value="54.93772794206066" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="1.0014500312154837E-110" />
-      <entry key="MS500" value="1.0003284236756703E-22" />
-      <entry key="S2" value="3.411740042225241E-6" />
-      <entry key="S5" value="0.00859366029464527" />
-      <entry key="S10" value="0.12765392781144733" />
-      <entry key="S30" value="0.8683573910823996" />
-      <entry key="S60" value="1.538305557827075" />
-      <entry key="M2" value="2.203906881429542" />
-      <entry key="M5" value="3.166356214979882" />
-      <entry key="M10" value="3.8516728350081912" />
-      <entry key="M15" value="4.167822852027658" />
-      <entry key="M30" value="4.545661705969974" />
-      <entry key="H1" value="4.762206759636667" />
-      <entry key="H2" value="4.87830118140916" />
-      <entry key="H4" value="4.938430853007258" />
-      <entry key="D1" value="4.989636838776167" />
-      <entry key="W1" value="4.998517037209632" />
+      <entry key="MS100" value="6.506552146439328E-224" />
+      <entry key="MS500" value="2.304996036541227E-45" />
+      <entry key="S2" value="6.9289518875181505E-12" />
+      <entry key="S5" value="3.437692433881138E-5" />
+      <entry key="S10" value="0.005863183805647865" />
+      <entry key="S30" value="0.1803202782833432" />
+      <entry key="S60" value="0.4249971008305064" />
+      <entry key="M2" value="0.7036396099078188" />
+      <entry key="M5" value="2.0246085842294534" />
+      <entry key="M10" value="4.436759546447191" />
+      <entry key="M15" value="6.056138186224422" />
+      <entry key="M30" value="8.44356928288622" />
+      <entry key="H1" value="10.042950429997557" />
+      <entry key="H2" value="10.97181730663689" />
+      <entry key="H4" value="11.472811432580365" />
+      <entry key="D1" value="11.910254959581726" />
+      <entry key="W1" value="11.987132410882282" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.0025596856884720605" />
-      <entry key="MS500" value="0.3640425997610614" />
-      <entry key="S2" value="1.5363267948557828" />
-      <entry key="S5" value="2.2761612833629363" />
-      <entry key="S10" value="2.820170578315223" />
-      <entry key="S30" value="4.934194155288787" />
-      <entry key="S60" value="8.802939081700552" />
-      <entry key="M2" value="15.185469337810515" />
-      <entry key="M5" value="24.963602527048526" />
-      <entry key="M10" value="31.022992871401296" />
-      <entry key="M15" value="33.615561815080014" />
-      <entry key="M30" value="36.58419954854234" />
-      <entry key="H1" value="38.23120446322522" />
-      <entry key="H2" value="39.09969906019568" />
-      <entry key="H4" value="39.54578515707592" />
-      <entry key="D1" value="39.92372533442708" />
-      <entry key="W1" value="39.9890895047801" />
+      <entry key="MS100" value="3.2525439902036995E-6" />
+      <entry key="MS500" value="0.07997372219765839" />
+      <entry key="S2" value="0.6297050671225751" />
+      <entry key="S5" value="1.1717289499089192" />
+      <entry key="S10" value="1.5193156578684135" />
+      <entry key="S30" value="2.3457737843808024" />
+      <entry key="S60" value="3.361302506270845" />
+      <entry key="M2" value="4.568911185314967" />
+      <entry key="M5" value="10.910900475218595" />
+      <entry key="M10" value="23.782163848519616" />
+      <entry key="M15" value="32.79744213175404" />
+      <entry key="M30" value="46.37906871631663" />
+      <entry key="H1" value="55.607667305499774" />
+      <entry key="H2" value="61.002817972969105" />
+      <entry key="H4" value="63.921943278255526" />
+      <entry key="D1" value="66.4755761376228" />
+      <entry key="W1" value="66.9247977050966" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
@@ -187,7 +174,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1783435521435</updated>
-      <workItem from="1783435524958" duration="3189000" />
+      <workItem from="1783435524958" duration="4560000" />
     </task>
     <servers />
   </component>
