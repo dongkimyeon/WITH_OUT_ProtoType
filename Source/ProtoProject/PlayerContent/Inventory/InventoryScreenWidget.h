@@ -1,33 +1,58 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "InventoryItemWidget.h"
+#include "InventorySlotWidget.h"
 #include "InventoryScreenWidget.generated.h"
 
-// 전방 선언을 통해 컴파일 속도를 최적화합니다.
-class UUniformGridPanel;
 class UInventoryGridComponent;
 class UGridPanel;
+class UItemDataBase;
 UCLASS()
 class PROTOPROJECT_API UInventoryScreenWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
 public:
-	// 외부(캐릭터 등)에서 인벤토리 컴포넌트를 넘겨받아 격자를 생성하는 함수
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
 	void InitializeGrid(UInventoryGridComponent* InInventoryComponent);
 
+	void OnItemHoverBegin(int32 ItemIndex);
+	void OnItemHoverEnd(int32 ItemIndex);
+	bool OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition);
+	FVector2D GetCellPixelSize() const { return SlotPixelSize; }
+	void UpdateDragHighlight(const FIntPoint& TargetTopLeft, UItemDataBase* ItemData, bool bRotated, int32 IgnoreIndex);
+	void ClearDragHighlight();
+	
 protected:
-	// 2. 바인딩 변수 타입 변경
+	virtual void NativeConstruct() override;
+	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+
 	UPROPERTY(meta = (BindWidget))
-	UGridPanel* InventoryGridPanel; // (기존 UUniformGridPanel 에서 변경)
-	
-	// 격자를 채울 '한 칸짜리 슬롯'의 위젯 클래스 에셋 (에디터 블루프린트에서 지정)
+	UGridPanel* InventoryGridPanel;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
-	TSubclassOf<UUserWidget> SlotWidgetClass;
-	
+	TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
-	TSubclassOf<UUserWidget> ItemWidgetClass;
+	TSubclassOf<UInventoryItemWidget> ItemWidgetClass;
+
+	// WBP_InventorySlot의 슬롯 1칸 픽셀 크기 (WidthOverride/HeightOverride 값과 동일하게 설정)
+	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
+	FVector2D SlotPixelSize = FVector2D(75.f, 75.f);
+
+private:
+	void RefreshItemWidget(int32 ItemIndex);
+
+	UPROPERTY()
+	UInventoryGridComponent* CachedInventoryComponent = nullptr;
+
+	UPROPERTY()
+	TArray<UInventoryItemWidget*> ItemWidgets;
+
+	UPROPERTY()
+	TMap<FIntPoint, UInventorySlotWidget*> SlotWidgetMap;
 	
+	int32 HoveredItemIndex = INDEX_NONE;
 };

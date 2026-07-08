@@ -1,7 +1,73 @@
-﻿#include "InventoryScreenWidget.h"
-#include "Components/GridPanel.h"     // 일반 GridPanel용
-#include "Components/GridSlot.h"      // Span 기능이 있는 일반 GridSlot용
-#include "InventoryGridComponent.h"   // 가방 데이터 접근용
+#include "InventoryScreenWidget.h"
+#include "Components/GridPanel.h"
+#include "Components/GridSlot.h"
+#include "InventoryGridComponent.h"
+#include "InputCoreTypes.h"
+
+void UInventoryScreenWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+	SetIsFocusable(true);
+}
+
+
+void UInventoryScreenWidget::OnItemHoverBegin(int32 ItemIndex)
+{
+	HoveredItemIndex = ItemIndex;
+}
+
+void UInventoryScreenWidget::OnItemHoverEnd(int32 ItemIndex)
+{
+	if (HoveredItemIndex == ItemIndex)
+	{
+		HoveredItemIndex = INDEX_NONE;
+	}
+}
+
+bool UInventoryScreenWidget::OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition)
+{
+	if (!CachedInventoryComponent) return false;
+
+	if (CachedInventoryComponent->MoveItem(ItemIndex, TargetPosition))
+	{
+		RefreshItemWidget(ItemIndex);
+		return true;
+	}
+	return false;
+}
+
+FReply UInventoryScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (InKeyEvent.GetKey() == EKeys::R && HoveredItemIndex != INDEX_NONE)
+	{
+		if (CachedInventoryComponent && CachedInventoryComponent->RotateItem(HoveredItemIndex))
+		{
+			RefreshItemWidget(HoveredItemIndex);
+		}
+		return FReply::Handled();
+	}
+	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+}
+
+void UInventoryScreenWidget::RefreshItemWidget(int32 ItemIndex)
+{
+	if (!CachedInventoryComponent || !ItemWidgets.IsValidIndex(ItemIndex)) return;
+	UInventoryItemWidget* Widget = ItemWidgets[ItemIndex];
+	if (!Widget) return;
+	UGridSlot* GridSlot = Cast<UGridSlot>(Widget->Slot);
+	if (!GridSlot) return;
+
+	const FInventoryItemInstance& Item = CachedInventoryComponent->Items[ItemIndex];
+	FIntPoint Size = Item.GetEffectiveSize();
+
+	GridSlot->SetColumn(Item.GridPosition.X);
+	GridSlot->SetRow(Item.GridPosition.Y);
+	GridSlot->SetColumnSpan(Size.X);
+	GridSlot->SetRowSpan(Size.Y);
+
+	Widget->SetVisibility(ESlateVisibility::Visible);
+	Widget->RefreshVisual();
+}
 
 void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventoryComponent)
 {
@@ -10,6 +76,10 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 		return;
 	}
 
+	CachedInventoryComponent = InInventoryComponent;
+	HoveredItemIndex = INDEX_NONE;
+	ItemWidgets.Empty();
+	SlotWidgetMap.Empty(); 
 	InventoryGridPanel->ClearChildren();
 
 	int32 Rows = InInventoryComponent->GridRows;
@@ -19,21 +89,20 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 	{
 		for (int32 x = 0; x < Columns; ++x)
 		{
-			// 3-A. 빈칸 슬롯 위젯 인스턴스 동적 생성
-			UUserWidget* NewSlotWidget = CreateWidget<UUserWidget>(GetWorld(), SlotWidgetClass);
-            
+			UInventorySlotWidget* NewSlotWidget = CreateWidget<UInventorySlotWidget>(GetWorld(), SlotWidgetClass);
 			if (NewSlotWidget)
 			{
-				// 3-B. 그리드 패널의 자식으로 밀어 넣고 GridSlot으로 받습니다.
+				NewSlotWidget->InitSlot(this, FIntPoint(x, y));
+				
+				// 생성된 슬롯을 Map에 기억해 둡니다.
+				SlotWidgetMap.Add(FIntPoint(x, y), NewSlotWidget);
+
 				UGridSlot* GridSlot = InventoryGridPanel->AddChildToGrid(NewSlotWidget);
-                
 				if (GridSlot)
 				{
 					GridSlot->SetRow(y);
 					GridSlot->SetColumn(x);
-					
 					GridSlot->SetPadding(FMargin(1.2f));
-					
 					GridSlot->SetHorizontalAlignment(HAlign_Fill);
 					GridSlot->SetVerticalAlignment(VAlign_Fill);
 				}
@@ -41,37 +110,64 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 		}
 	}
 
-	// 4. 아이템 위젯이 설정되어 있는지 확인
 	if (!ItemWidgetClass)
 	{
 		return;
 	}
 
-	// 5. 가방 안의 아이템 렌더링 (대망의 Span 기능 적용)
-	for (const FInventoryItemInstance& Item : InInventoryComponent->Items)
+	for (int32 i = 0; i < InInventoryComponent->Items.Num(); ++i)
 	{
-		// 5-A. 아이템 위젯 생성
-		UUserWidget* NewItemWidget = CreateWidget<UUserWidget>(GetWorld(), ItemWidgetClass);
+		const FInventoryItemInstance& Item = InInventoryComponent->Items[i];
+
+		UInventoryItemWidget* NewItemWidget = CreateWidget<UInventoryItemWidget>(GetWorld(), ItemWidgetClass);
 		if (NewItemWidget)
 		{
-			// 5-B. 패널에 자식으로 추가
+			NewItemWidget->InitItem(this, InInventoryComponent, i);
+			ItemWidgets.Add(NewItemWidget);
+
 			UGridSlot* ItemGridSlot = InventoryGridPanel->AddChildToGrid(NewItemWidget);
 			if (ItemGridSlot)
 			{
 				ItemGridSlot->SetColumn(Item.GridPosition.X);
 				ItemGridSlot->SetRow(Item.GridPosition.Y);
-                
+
 				FIntPoint ItemSize = Item.GetEffectiveSize();
 				ItemGridSlot->SetColumnSpan(ItemSize.X);
 				ItemGridSlot->SetRowSpan(ItemSize.Y);
-				
+
 				ItemGridSlot->SetPadding(FMargin(1.0f));
-				
 				ItemGridSlot->SetLayer(1);
-                
 				ItemGridSlot->SetHorizontalAlignment(HAlign_Fill);
 				ItemGridSlot->SetVerticalAlignment(VAlign_Fill);
 			}
 		}
+	}
+}
+void UInventoryScreenWidget::UpdateDragHighlight(const FIntPoint& TargetTopLeft, UItemDataBase* ItemData, bool bRotated, int32 IgnoreIndex)
+{
+	ClearDragHighlight();
+	if (!CachedInventoryComponent || !ItemData) return;
+
+	FIntPoint Size = bRotated ? FIntPoint(ItemData->GridHeight, ItemData->GridWidth) : FIntPoint(ItemData->GridWidth, ItemData->GridHeight);
+	bool bIsValid = CachedInventoryComponent->CanPlaceAt(TargetTopLeft, Size, IgnoreIndex);
+
+	for (int x = 0; x < Size.X; ++x)
+	{
+		for (int y = 0; y < Size.Y; ++y)
+		{
+			FIntPoint CheckPos(TargetTopLeft.X + x, TargetTopLeft.Y + y);
+			if (UInventorySlotWidget** FoundSlot = SlotWidgetMap.Find(CheckPos))
+			{
+				(*FoundSlot)->SetHighlight(true, bIsValid);
+			}
+		}
+	}
+}
+// 하이라이트를 지웁니다.
+void UInventoryScreenWidget::ClearDragHighlight()
+{
+	for (auto& Pair : SlotWidgetMap)
+	{
+		Pair.Value->SetHighlight(false, false);
 	}
 }

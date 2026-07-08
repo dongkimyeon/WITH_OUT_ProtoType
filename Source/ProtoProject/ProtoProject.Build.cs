@@ -10,7 +10,7 @@ public class ProtoProject : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
 		
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 		
 		// 기존 코드 아래에 이 구문을 추가합니다.
 		PublicIncludePaths.AddRange(new string[] {

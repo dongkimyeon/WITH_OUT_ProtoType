@@ -144,7 +144,6 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
             InventoryWidgetInstance->AddToViewport();
             bIsInvetoryOpened = true;
 
-            // [수정된 코드] 이제 바로 InventoryComponent를 던져주면 끝납니다!
             if (UInventoryScreenWidget* InvUI = Cast<UInventoryScreenWidget>(InventoryWidgetInstance))
             {
                 InvUI->InitializeGrid(InventoryComponent);
@@ -157,6 +156,8 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
                 InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
                 InputMode.SetHideCursorDuringCapture(false);
                 PlayerController->SetInputMode(InputMode);
+                // NativeOnKeyDown이 위젯으로 전달되려면 키보드 포커스가 명시적으로 필요합니다.
+                InventoryWidgetInstance->SetUserFocus(PlayerController);
             }
         }
         
