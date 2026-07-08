@@ -121,7 +121,8 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
     {
         InventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
     }
-    
+    UE_LOG(LogTemp, Warning, TEXT("I 키 입력"));
+
     if (InventoryWidgetInstance != nullptr)
     {
         APlayerController* PlayerController = Cast<APlayerController>(Controller);
