@@ -1,11 +1,16 @@
 #include "ProtoCharacter.h"
-#include "EnhancedInputComponent.h"      // 향상된 입력 컴포넌트
-#include "EnhancedInputSubsystems.h"   // 로컬 플레이어 서브시스템
+#include "EnhancedInputComponent.h"      
+#include "EnhancedInputSubsystems.h"  
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Blueprint/UserWidget.h"
+#include "InventoryScreenWidget.h"
+#include "InventoryGridComponent.h"
+#include "Item/ItemDataBase.h"
 
 AProtoCharacter::AProtoCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
+    InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
 }
 
 void AProtoCharacter::BeginPlay()
@@ -19,6 +24,15 @@ void AProtoCharacter::BeginPlay()
             Subsystem->AddMappingContext(DefaultMappingContext, 0);
         }
     }
+    
+    if (InventoryComponent)
+    {
+        if (TestArmor) InventoryComponent->AddItem(TestArmor);   // 2x2
+        if (TestRifle) InventoryComponent->AddItem(TestRifle);   // 3x1
+        if (TestBandage) InventoryComponent->AddItem(TestBandage); // 1x1
+        if (TestBandage) InventoryComponent->AddItem(TestBandage); 
+    }
+    
 }
 
 void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -39,6 +53,8 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
         // Shift 키를 누를 때와 뗄 때 같은 함수를 부르도록 세팅합니다.
         EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &AProtoCharacter::Sprint);
         EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AProtoCharacter::Sprint);
+        
+        EnhancedInputComponent->BindAction(ToggleInventoryAction, ETriggerEvent::Started, this, &AProtoCharacter::ToggleInventory);
     }
 }
 
@@ -63,15 +79,20 @@ void AProtoCharacter::Move(const FInputActionValue& Value)
 
 void AProtoCharacter::Look(const FInputActionValue& Value)
 {
+    if (bIsInvetoryOpened)
+    {
+        return;
+    }
     // 마우스 이동값을 2D 벡터로 가져옵니다.
     FVector2D LookAxisVector = Value.Get<FVector2D>();
 
     if (Controller != nullptr)
     {
-        // 컨트롤러의 Yaw(좌우)와 Pitch(상하) 회전값을 더해줍니다.
         AddControllerYawInput(LookAxisVector.X);
         AddControllerPitchInput(LookAxisVector.Y);
     }
+    
+   
 }
 
 
@@ -92,4 +113,53 @@ void AProtoCharacter::Sprint(const FInputActionValue& Value)
     }
     
     
+}
+
+void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
+{
+    if (InventoryWidgetInstance == nullptr && InventoryWidgetClass != nullptr)
+    {
+        InventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
+    }
+    
+    if (InventoryWidgetInstance != nullptr)
+    {
+        APlayerController* PlayerController = Cast<APlayerController>(Controller);
+        
+        
+        if (InventoryWidgetInstance->IsInViewport()) //닫기
+        {
+            bIsInvetoryOpened = false;
+            InventoryWidgetInstance->RemoveFromParent();
+            if (PlayerController)
+            {
+                PlayerController->SetShowMouseCursor(false);
+                
+                FInputModeGameOnly InputMode;   
+                PlayerController->SetInputMode(InputMode);
+            }
+        }
+        else
+        {
+            InventoryWidgetInstance->AddToViewport();
+            bIsInvetoryOpened = true;
+
+            // [수정된 코드] 이제 바로 InventoryComponent를 던져주면 끝납니다!
+            if (UInventoryScreenWidget* InvUI = Cast<UInventoryScreenWidget>(InventoryWidgetInstance))
+            {
+                InvUI->InitializeGrid(InventoryComponent);
+            }
+
+            if (PlayerController)
+            {
+                PlayerController->SetShowMouseCursor(true);
+                FInputModeGameAndUI InputMode;
+                InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
+                InputMode.SetHideCursorDuringCapture(false);
+                PlayerController->SetInputMode(InputMode);
+            }
+        }
+        
+        
+    }
 }

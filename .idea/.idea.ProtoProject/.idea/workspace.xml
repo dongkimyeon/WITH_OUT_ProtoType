@@ -15,7 +15,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.cpp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Automation_ProtoProject.slnx" beforeDir="false" afterPath="$PROJECT_DIR$/Automation_ProtoProject.slnx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/BP_ProtoCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/BP_ProtoCharacter.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Input/IMC_PlayerMovement.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Input/IMC_PlayerMovement.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProtoProject.slnx" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.slnx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -25,12 +33,18 @@
   <component name="DpaMonitoringSettings">
     <option name="firstShow" value="false" />
   </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="12437" />
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="cidr-memory-view://0" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.cpp" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.h" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.cpp" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ArmorItemData.cpp" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ArmorItemData.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/EquipmentItemData.cpp" root0="FORCE_HIGHLIGHTING" />
@@ -46,94 +60,94 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0000000021135202" />
-      <entry key="MS500" value="1.0374696651616282" />
-      <entry key="S2" value="2.165244549353857" />
-      <entry key="S5" value="4.263989367989616" />
-      <entry key="S10" value="6.7237917389656525" />
-      <entry key="S30" value="10.293352052193464" />
-      <entry key="S60" value="12.032002922088806" />
-      <entry key="M2" value="13.52143864856217" />
-      <entry key="M5" value="16.002623074449712" />
-      <entry key="M10" value="22.438869325927186" />
-      <entry key="M15" value="29.23755218678971" />
-      <entry key="M30" value="42.899443142890405" />
-      <entry key="H1" value="54.41362486796359" />
-      <entry key="H2" value="61.94792785147399" />
-      <entry key="H4" value="66.26588602745109" />
-      <entry key="D1" value="70.18037502772563" />
-      <entry key="W1" value="70.88213785880548" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.000000000000019" />
+      <entry key="S5" value="1.000006273936304" />
+      <entry key="S10" value="1.004336800300283" />
+      <entry key="S30" value="1.3595632041318395" />
+      <entry key="S60" value="2.289607891671934" />
+      <entry key="M2" value="3.7944085648713863" />
+      <entry key="M5" value="5.756610741623762" />
+      <entry key="M10" value="6.877263609087862" />
+      <entry key="M15" value="8.411191662029927" />
+      <entry key="M30" value="21.71359152746748" />
+      <entry key="H1" value="57.16287571284721" />
+      <entry key="H2" value="101.4240530002001" />
+      <entry key="H4" value="137.1647491358554" />
+      <entry key="D1" value="177.49604702014835" />
+      <entry key="W1" value="185.60956881347832" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="2.9078643510201483E-84" />
-      <entry key="S2" value="1.3058507289232311E-21" />
-      <entry key="S5" value="4.4295276228993585E-9" />
-      <entry key="S10" value="6.655469647515012E-5" />
-      <entry key="S30" value="0.040525300054002754" />
-      <entry key="S60" value="0.20132673510869414" />
-      <entry key="M2" value="0.45322447108243574" />
-      <entry key="M5" value="0.9952500329914494" />
-      <entry key="M10" value="2.470699155964637" />
-      <entry key="M15" value="3.990948353548121" />
-      <entry key="M30" value="6.981465141946495" />
-      <entry key="H1" value="9.463149953458732" />
-      <entry key="H2" value="11.074363840953511" />
-      <entry key="H4" value="11.994167050177342" />
-      <entry key="D1" value="12.826042325813132" />
-      <entry key="W1" value="12.974989449347508" />
+      <entry key="MS100" value="9.263571810875287E-6" />
+      <entry key="MS500" value="0.09848173575616827" />
+      <entry key="S2" value="0.5601946070970879" />
+      <entry key="S5" value="0.7931139148344362" />
+      <entry key="S10" value="0.8905694633882578" />
+      <entry key="S30" value="0.9670576180216175" />
+      <entry key="S60" value="1.080376542570932" />
+      <entry key="M2" value="1.4364809616191405" />
+      <entry key="M5" value="2.0940224945135277" />
+      <entry key="M10" value="2.5795644012116474" />
+      <entry key="M15" value="3.40749166710737" />
+      <entry key="M30" value="9.631462821198056" />
+      <entry key="H1" value="24.323408930131702" />
+      <entry key="H2" value="41.470910166194734" />
+      <entry key="H4" value="54.83221423454843" />
+      <entry key="D1" value="69.56915265785418" />
+      <entry key="W1" value="72.49895804291259" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.8766057226660409" />
-      <entry key="MS500" value="1.0088361409566058" />
-      <entry key="S2" value="2.140124311691418" />
-      <entry key="S5" value="4.231666331357926" />
-      <entry key="S10" value="6.688255405441167" />
-      <entry key="S30" value="10.307644049808735" />
-      <entry key="S60" value="12.209538446964883" />
-      <entry key="M2" value="13.954622507448008" />
-      <entry key="M5" value="16.98138906239933" />
-      <entry key="M10" value="24.89222655909418" />
-      <entry key="M15" value="33.21144421872388" />
-      <entry key="M30" value="49.867265848225856" />
-      <entry key="H1" value="63.86789203617038" />
-      <entry key="H2" value="73.01718870561913" />
-      <entry key="H4" value="78.25731368269682" />
-      <entry key="D1" value="83.00593254452379" />
-      <entry key="W1" value="83.85705732833033" />
+      <entry key="MS100" value="5.16146805766328E-4" />
+      <entry key="MS500" value="0.25016668757891736" />
+      <entry key="S2" value="1.101448709477223" />
+      <entry key="S5" value="1.563989383409107" />
+      <entry key="S10" value="1.7707401636638311" />
+      <entry key="S30" value="2.2819936087801627" />
+      <entry key="S60" value="3.3440495515172715" />
+      <entry key="M2" value="5.21258827782568" />
+      <entry key="M5" value="7.839478297376782" />
+      <entry key="M10" value="9.449829550589417" />
+      <entry key="M15" value="11.812216274140608" />
+      <entry key="M30" value="31.334353189133104" />
+      <entry key="H1" value="81.47166869608532" />
+      <entry key="H2" value="142.8821102948875" />
+      <entry key="H4" value="191.9883486416615" />
+      <entry key="D1" value="247.06335835101018" />
+      <entry key="W1" value="258.10825224390555" />
     </decayedShown>
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "customColor": "",
-  "associatedIndex": 1
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 1
+}</component>
   <component name="ProjectId" id="3GBCLbTH16pdze3zz1labf616N2" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "C/C++ Project.ProtoProject.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.MCP Project settings loaded": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "cidr.known.project.marker": "true",
-    "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "main",
-    "ignore.virus.scanning.warn.message": "true",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;C/C++ Project.ProtoProject.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager" selected="C/C++ Project.ProtoProject">
     <configuration name="ProtoProject" type="CppProject" factoryName="C++ Project">
       <configuration_1 setup="1">
@@ -172,6 +186,8 @@
       <option name="presentableId" value="Default" />
       <updated>1783435521435</updated>
       <workItem from="1783435524958" duration="4915000" />
+      <workItem from="1783502656942" duration="13000" />
+      <workItem from="1783518794373" duration="6510000" />
     </task>
     <servers />
   </component>
