@@ -157,7 +157,7 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
                 InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
                 InputMode.SetHideCursorDuringCapture(false);
                 PlayerController->SetInputMode(InputMode);
-                // NativeOnKeyDown이 위젯으로 전달되려면 키보드 포커스가 명시적으로 필요합니다.
+                    
                 InventoryWidgetInstance->SetUserFocus(PlayerController);
             }
         }

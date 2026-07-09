@@ -49,7 +49,6 @@ void UInventoryItemWidget::RefreshVisual()
 	const FInventoryItemInstance& Item = InventoryComponent->Items[ItemIndex];
 	if (!Item.ItemData || !ItemImage) return;
 
-	// 머티리얼 rotation 파라미터로 UV 회전 처리 (0 = 정방향, 0.25 = 90도)
 	if (IconMatInst)
 	{
 		IconMatInst->SetScalarParameterValue(FName("rotation"), Item.bIsRotated ? -0.25f : 0.f);
