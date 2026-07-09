@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Image.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "InventoryItemWidget.generated.h"
 
 class UInventoryScreenWidget;
@@ -20,6 +21,9 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UImage* ItemImage;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
+	UMaterialInterface* IconBaseMaterial = nullptr;
+
 	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 	virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
@@ -33,5 +37,10 @@ private:
 	UPROPERTY()
 	UInventoryGridComponent* InventoryComponent = nullptr;
 
+	UPROPERTY()
+	UMaterialInstanceDynamic* IconMatInst = nullptr;
+
 	int32 ItemIndex = INDEX_NONE;
+
+	void ApplyIconMaterial(UImage* TargetImage, UTexture2D* Texture, bool bRotated);
 };

@@ -145,6 +145,26 @@ bool UInventoryGridComponent::RotateItem(int32 ItemIndex)
     return false;
 }
 
+bool UInventoryGridComponent::PlaceItem(int32 ItemIndex, const FIntPoint& NewPosition, bool bNewRotated)
+{
+    if (!Items.IsValidIndex(ItemIndex)) return false;
+
+    FInventoryItemInstance& Item = Items[ItemIndex];
+    if (!Item.ItemData) return false;
+
+    FIntPoint NewSize = bNewRotated
+        ? FIntPoint(Item.ItemData->GridHeight, Item.ItemData->GridWidth)
+        : FIntPoint(Item.ItemData->GridWidth,  Item.ItemData->GridHeight);
+
+    if (CanPlaceAt(NewPosition, NewSize, ItemIndex))
+    {
+        Item.GridPosition = NewPosition;
+        Item.bIsRotated = bNewRotated;
+        return true;
+    }
+    return false;
+}
+
 bool UInventoryGridComponent::AddItem(UItemDataBase* NewItem)
 {
     if (!NewItem) return false;

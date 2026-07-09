@@ -4,6 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "InventoryItemWidget.h"
 #include "InventorySlotWidget.h"
+#include "ItemDragDropOperation.h"
 #include "InventoryScreenWidget.generated.h"
 
 class UInventoryGridComponent;
@@ -20,10 +21,11 @@ public:
 
 	void OnItemHoverBegin(int32 ItemIndex);
 	void OnItemHoverEnd(int32 ItemIndex);
-	bool OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition);
+	bool OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition, bool bDropRotated);
 	FVector2D GetCellPixelSize() const { return SlotPixelSize; }
 	void UpdateDragHighlight(const FIntPoint& TargetTopLeft, UItemDataBase* ItemData, bool bRotated, int32 IgnoreIndex);
 	void ClearDragHighlight();
+	void SetActiveDragOperation(UItemDragDropOperation* InDragOp);
 	
 protected:
 	virtual void NativeConstruct() override;
@@ -55,4 +57,7 @@ private:
 	TMap<FIntPoint, UInventorySlotWidget*> SlotWidgetMap;
 	
 	int32 HoveredItemIndex = INDEX_NONE;
+
+	UPROPERTY()
+	UItemDragDropOperation* ActiveDragOp = nullptr;
 };

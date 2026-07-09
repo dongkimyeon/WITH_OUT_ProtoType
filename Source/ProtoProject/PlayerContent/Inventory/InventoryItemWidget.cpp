@@ -6,6 +6,18 @@
 #include "Engine/Texture2D.h"
 #include "Components/SizeBox.h"
 #include "Components/SizeBoxSlot.h"
+#include "Materials/Material.h"
+
+void UInventoryItemWidget::ApplyIconMaterial(UImage* TargetImage, UTexture2D* Texture, bool bRotated)
+{
+	if (!TargetImage || !Texture || !IconBaseMaterial) return;
+
+	UMaterialInstanceDynamic* MatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, this);
+	MatInst->SetTextureParameterValue(FName("image"), Texture);
+	MatInst->SetScalarParameterValue(FName("rotation"), bRotated ? -0.25f : 0.f);
+
+	TargetImage->SetBrushFromMaterial(MatInst);
+}
 
 void UInventoryItemWidget::InitItem(UInventoryScreenWidget* InParentScreen, UInventoryGridComponent* InComponent, int32 InItemIndex)
 {
@@ -13,13 +25,17 @@ void UInventoryItemWidget::InitItem(UInventoryScreenWidget* InParentScreen, UInv
 	InventoryComponent = InComponent;
 	ItemIndex = InItemIndex;
 
-	if (ItemImage && InComponent && InComponent->Items.IsValidIndex(InItemIndex))
+	if (!InComponent || !InComponent->Items.IsValidIndex(InItemIndex)) return;
+
+	if (UItemDataBase* Data = InComponent->Items[InItemIndex].ItemData)
 	{
-		if (UItemDataBase* Data = InComponent->Items[InItemIndex].ItemData)
+		if (UTexture2D* Texture = Data->Icon.LoadSynchronous())
 		{
-			if (UTexture2D* Texture = Data->Icon.LoadSynchronous())
+			if (IconBaseMaterial)
 			{
-				ItemImage->SetBrushFromTexture(Texture, false);
+				IconMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, this);
+				IconMatInst->SetTextureParameterValue(FName("image"), Texture);
+				ItemImage->SetBrushFromMaterial(IconMatInst);
 			}
 		}
 	}
@@ -33,11 +49,11 @@ void UInventoryItemWidget::RefreshVisual()
 	const FInventoryItemInstance& Item = InventoryComponent->Items[ItemIndex];
 	if (!Item.ItemData || !ItemImage) return;
 
-	FVector2D CellPixelSize = ParentScreen ? ParentScreen->GetCellPixelSize() : FVector2D(75.f, 75.f);
-	
-	FVector2D OriginalPixelSize(Item.ItemData->GridWidth * CellPixelSize.X, Item.ItemData->GridHeight * CellPixelSize.Y);
-	ItemImage->SetBrushSize(OriginalPixelSize);
-	ItemImage->SetRenderTransformAngle(Item.bIsRotated ? 90.f : 0.f);
+	// 머티리얼 rotation 파라미터로 UV 회전 처리 (0 = 정방향, 0.25 = 90도)
+	if (IconMatInst)
+	{
+		IconMatInst->SetScalarParameterValue(FName("rotation"), Item.bIsRotated ? -0.25f : 0.f);
+	}
 }
 
 FReply UInventoryItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
@@ -55,19 +71,22 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 
 	const FInventoryItemInstance& Item = InventoryComponent->Items[ItemIndex];
 
+	FVector2D CellPixelSize = ParentScreen ? ParentScreen->GetCellPixelSize() : FVector2D(75.f, 75.f);
+
 	UItemDragDropOperation* DragOp = NewObject<UItemDragDropOperation>(this);
 	DragOp->ItemIndex = ItemIndex;
 	DragOp->DraggedItemData = Item.ItemData;
 	DragOp->OriginalPosition = Item.GridPosition;
 	DragOp->bOriginalRotated = Item.bIsRotated;
+	DragOp->bCurrentRotated = Item.bIsRotated;
+	DragOp->CellPixelSize = CellPixelSize;
 
-	FVector2D CellPixelSize = ParentScreen ? ParentScreen->GetCellPixelSize() : FVector2D(75.f, 75.f);
 	FIntPoint ItemGridSize = Item.GetEffectiveSize();
 
 	FVector2D LocalClickPos = InGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
 	int32 ClickedX = FMath::Clamp(FMath::FloorToInt(LocalClickPos.X / CellPixelSize.X), 0, ItemGridSize.X - 1);
 	int32 ClickedY = FMath::Clamp(FMath::FloorToInt(LocalClickPos.Y / CellPixelSize.Y), 0, ItemGridSize.Y - 1);
-	
+
 	DragOp->DragOffset = FIntPoint(ClickedX, ClickedY);
 
 	FVector2D VisualSize(CellPixelSize.X * ItemGridSize.X, CellPixelSize.Y * ItemGridSize.Y);
@@ -77,10 +96,14 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 	{
 		if (UTexture2D* Texture = Item.ItemData->Icon.LoadSynchronous())
 		{
-			DragVisual->ItemImage->SetBrushFromTexture(Texture, false);
-			FVector2D OriginalPixelSize(Item.ItemData->GridWidth * CellPixelSize.X, Item.ItemData->GridHeight * CellPixelSize.Y);
-			DragVisual->ItemImage->SetBrushSize(OriginalPixelSize);
-			DragVisual->ItemImage->SetRenderTransformAngle(Item.bIsRotated ? 90.f : 0.f);
+			if (IconBaseMaterial)
+			{
+				UMaterialInstanceDynamic* DragMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, DragVisual);
+				DragMatInst->SetTextureParameterValue(FName("image"), Texture);
+				DragMatInst->SetScalarParameterValue(FName("rotation"), Item.bIsRotated ? -0.25f : 0.f);
+				DragVisual->ItemImage->SetBrushFromMaterial(DragMatInst);
+				DragOp->DragVisualMatInst = DragMatInst;
+			}
 		}
 	}
 
@@ -94,9 +117,12 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 		WrapperSlot->SetVerticalAlignment(VAlign_Fill);
 	}
 
+	DragOp->DragVisualImage = DragVisual ? DragVisual->ItemImage : nullptr;
+	DragOp->DragVisualWrapper = DragWrapper;
 	DragOp->DefaultDragVisual = DragWrapper;
 	DragOp->Pivot = EDragPivot::MouseDown;
 	SetVisibility(ESlateVisibility::Hidden);
+	if (ParentScreen) ParentScreen->SetActiveDragOperation(DragOp);
 	OutOperation = DragOp;
 }
 
@@ -104,6 +130,7 @@ void UInventoryItemWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDro
 {
 	Super::NativeOnDragCancelled(InDragDropEvent, InOperation);
 	SetVisibility(ESlateVisibility::Visible);
+	if (ParentScreen) ParentScreen->SetActiveDragOperation(nullptr);
 }
 
 void UInventoryItemWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)

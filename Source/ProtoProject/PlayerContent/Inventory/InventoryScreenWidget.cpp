@@ -24,27 +24,64 @@ void UInventoryScreenWidget::OnItemHoverEnd(int32 ItemIndex)
 	}
 }
 
-bool UInventoryScreenWidget::OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition)
+bool UInventoryScreenWidget::OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition, bool bDropRotated)
 {
 	if (!CachedInventoryComponent) return false;
 
-	if (CachedInventoryComponent->MoveItem(ItemIndex, TargetPosition))
+	if (CachedInventoryComponent->PlaceItem(ItemIndex, TargetPosition, bDropRotated))
 	{
 		RefreshItemWidget(ItemIndex);
+		ActiveDragOp = nullptr;
 		return true;
 	}
 	return false;
 }
 
+void UInventoryScreenWidget::SetActiveDragOperation(UItemDragDropOperation* InDragOp)
+{
+	ActiveDragOp = InDragOp;
+}
+
 FReply UInventoryScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 {
-	if (InKeyEvent.GetKey() == EKeys::R && HoveredItemIndex != INDEX_NONE)
+	if (InKeyEvent.GetKey() == EKeys::R)
 	{
-		if (CachedInventoryComponent && CachedInventoryComponent->RotateItem(HoveredItemIndex))
+		if (ActiveDragOp && ActiveDragOp->DraggedItemData)
 		{
-			RefreshItemWidget(HoveredItemIndex);
+			// 드래그 중 회전
+			bool bNewRotated = !ActiveDragOp->bCurrentRotated;
+			ActiveDragOp->bCurrentRotated = bNewRotated;
+
+			FIntPoint NewSize = bNewRotated
+				? FIntPoint(ActiveDragOp->DraggedItemData->GridHeight, ActiveDragOp->DraggedItemData->GridWidth)
+				: FIntPoint(ActiveDragOp->DraggedItemData->GridWidth,  ActiveDragOp->DraggedItemData->GridHeight);
+
+			if (ActiveDragOp->DragVisualMatInst)
+			{
+				ActiveDragOp->DragVisualMatInst->SetScalarParameterValue(FName("rotation"), bNewRotated ? -0.25f : 0.f);
+			}
+
+			if (ActiveDragOp->DragVisualWrapper)
+			{
+				ActiveDragOp->DragVisualWrapper->SetWidthOverride(NewSize.X * ActiveDragOp->CellPixelSize.X);
+				ActiveDragOp->DragVisualWrapper->SetHeightOverride(NewSize.Y * ActiveDragOp->CellPixelSize.Y);
+			}
+
+			// DragOffset이 새 크기 범위를 벗어나지 않도록 클램프
+			ActiveDragOp->DragOffset.X = FMath::Clamp(ActiveDragOp->DragOffset.X, 0, NewSize.X - 1);
+			ActiveDragOp->DragOffset.Y = FMath::Clamp(ActiveDragOp->DragOffset.Y, 0, NewSize.Y - 1);
+
+			return FReply::Handled();
 		}
-		return FReply::Handled();
+
+		if (HoveredItemIndex != INDEX_NONE)
+		{
+			if (CachedInventoryComponent && CachedInventoryComponent->RotateItem(HoveredItemIndex))
+			{
+				RefreshItemWidget(HoveredItemIndex);
+			}
+			return FReply::Handled();
+		}
 	}
 	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }

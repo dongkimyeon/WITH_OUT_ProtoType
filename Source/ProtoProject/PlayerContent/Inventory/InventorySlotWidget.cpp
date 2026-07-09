@@ -34,8 +34,7 @@ bool UInventorySlotWidget::NativeOnDragOver(const FGeometry& InGeometry, const F
 	if (DragOp && ParentScreen)
 	{
 		FIntPoint TargetTopLeft = SlotPosition - DragOp->DragOffset;
-		
-		ParentScreen->UpdateDragHighlight(TargetTopLeft, DragOp->DraggedItemData, DragOp->bOriginalRotated, DragOp->ItemIndex);
+		ParentScreen->UpdateDragHighlight(TargetTopLeft, DragOp->DraggedItemData, DragOp->bCurrentRotated, DragOp->ItemIndex);
 		return true;
 	}
 	return false;
@@ -56,9 +55,9 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 	if (DragOp && ParentScreen)
 	{
 		ParentScreen->ClearDragHighlight();
-		
+
 		FIntPoint TargetTopLeft = SlotPosition - DragOp->DragOffset;
-		return ParentScreen->OnItemDropped(DragOp->ItemIndex, TargetTopLeft);
+		return ParentScreen->OnItemDropped(DragOp->ItemIndex, TargetTopLeft, DragOp->bCurrentRotated);
 	}
 	return false;
 }

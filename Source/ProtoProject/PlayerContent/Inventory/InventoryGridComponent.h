@@ -89,4 +89,8 @@ public:
     // 아이템을 새 위치로 이동 (겹침 검사 포함)
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool MoveItem(int32 ItemIndex, const FIntPoint& NewPosition);
+
+    // 위치와 회전을 동시에 적용 (드래그 드롭 완료 시 사용)
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool PlaceItem(int32 ItemIndex, const FIntPoint& NewPosition, bool bNewRotated);
 };
