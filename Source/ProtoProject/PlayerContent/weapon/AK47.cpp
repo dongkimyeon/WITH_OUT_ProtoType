@@ -83,10 +83,14 @@ void AAK47::OnWeaponBeginOverlap(
         true);
     if (!TargetMesh->DoesSocketExist(WeaponSocketName))
     {
-       
+        UE_LOG(LogTemp, Warning, TEXT("Socket '%s' does NOT exist on %s. Attach will still be attempted."),
+            *WeaponSocketName.ToString(),
+            *TargetMesh->GetName());
     }
-    UE_LOG(LogTemp, Error, TEXT("Socket '%s' does NOT exist on skeleton!"), *WeaponSocketName.ToString());
+
     AttachToComponent(TargetMesh, AttachRules, WeaponSocketName);
+    Character->bHasWeapon = true;
+    Character->CurrentWeapon = this;
 
     SetActorEnableCollision(false);
 
@@ -120,5 +124,6 @@ void AAK47::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 }
+
 
 
