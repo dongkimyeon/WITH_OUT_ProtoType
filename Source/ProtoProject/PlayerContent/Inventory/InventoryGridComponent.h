@@ -32,7 +32,7 @@ struct FInventoryItemInstance
         }
 
         return bIsRotated
-            ? FIntPoint(ItemData->GridHeight, ItemData-q>GridWidth)
+            ? FIntPoint(ItemData->GridHeight, ItemData->GridWidth)
             : FIntPoint(ItemData->GridWidth, ItemData->GridHeight);
     }
     
