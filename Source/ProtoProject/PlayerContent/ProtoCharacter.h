@@ -9,7 +9,16 @@ class UInputMappingContext;
 class UInputAction;
 class UUserWidget; 
 class UInventoryGridComponent;
-class AAK47;
+class AWeaponBase;
+
+UENUM(BlueprintType)
+enum class EWeaponType : uint8
+{
+	None UMETA(DisplayName = "None"),
+	Rifle UMETA(DisplayName = "Rifle"),
+	Pistol UMETA(DisplayName = "Pistol"),
+	Melee UMETA(DisplayName = "Melee")
+};
 
 UCLASS()
 class PROTOPROJECT_API AProtoCharacter : public ACharacter
@@ -77,12 +86,18 @@ private:
 	void Look(const FInputActionValue& Value);
 	void Sprint(const FInputActionValue& Value);
 	void ToggleInventory(const FInputActionValue& Value);
+	void SetWeaponTypeNone();
+	void SetWeaponTypeRifle();
+	void FireWeapon();
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
 	bool bHasWeapon = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
-	AAK47* CurrentWeapon = nullptr;
+	AWeaponBase* CurrentWeapon = nullptr;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	EWeaponType CurrentWeaponType = EWeaponType::None;
 
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	float BaseWalkSpeed = 500.f;
@@ -92,3 +107,4 @@ public:
 	private:
 	bool bIsInvetoryOpened = false;
 };
+
