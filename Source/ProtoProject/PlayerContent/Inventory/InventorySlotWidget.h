@@ -7,7 +7,7 @@
 class UInventoryScreenWidget;
 class UBorder;
 
-UCLASS()
+UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UInventorySlotWidget : public UUserWidget
 {
 	GENERATED_BODY()

@@ -6,19 +6,6 @@
 #include "Engine/Texture2D.h"
 #include "Components/SizeBox.h"
 #include "Components/SizeBoxSlot.h"
-#include "Materials/Material.h"
-
-void UInventoryItemWidget::ApplyIconMaterial(UImage* TargetImage, UTexture2D* Texture, bool bRotated)
-{
-	if (!TargetImage || !Texture || !IconBaseMaterial) return;
-
-	UMaterialInstanceDynamic* MatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, this);
-	MatInst->SetTextureParameterValue(FName("image"), Texture);
-	MatInst->SetScalarParameterValue(FName("rotation"), bRotated ? -0.25f : 0.f);
-
-	TargetImage->SetBrushFromMaterial(MatInst);
-}
-
 void UInventoryItemWidget::InitItem(UInventoryScreenWidget* InParentScreen, UInventoryGridComponent* InComponent, int32 InItemIndex)
 {
 	ParentScreen = InParentScreen;

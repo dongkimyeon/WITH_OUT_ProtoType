@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Engine/StaticMesh.h"
 #include "ItemDataBase.generated.h"
 
 UENUM(BlueprintType)
@@ -14,7 +15,7 @@ enum class EItemCategory : uint8
     Bag             // 가방 (인벤토리 확장용)
 };
 
-UCLASS(Abstract, BlueprintType)
+UCLASS(Abstract, BlueprintType, meta = (PrioritizeCategories = "Item"))
 class PROTOPROJECT_API UItemDataBase : public UPrimaryDataAsset
 {
     GENERATED_BODY()
@@ -51,5 +52,8 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     EItemCategory Category = EItemCategory::Material;
 
+    UPROPERTY(EditDefaultsOnly, Category = "Item")
+    TSoftObjectPtr<UStaticMesh> ItemMesh;
+    
     virtual bool IsUsable() const { return false; }
 };

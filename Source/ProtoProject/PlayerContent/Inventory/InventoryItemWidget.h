@@ -9,7 +9,7 @@
 class UInventoryScreenWidget;
 class UInventoryGridComponent;
 
-UCLASS()
+UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UInventoryItemWidget : public UUserWidget
 {
 	GENERATED_BODY()
@@ -42,5 +42,4 @@ private:
 
 	int32 ItemIndex = INDEX_NONE;
 
-	void ApplyIconMaterial(UImage* TargetImage, UTexture2D* Texture, bool bRotated);
 };

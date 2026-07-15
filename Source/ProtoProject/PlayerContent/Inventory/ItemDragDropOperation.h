@@ -9,7 +9,7 @@
 
 class UItemDataBase;
 
-UCLASS()
+UCLASS(meta = (PrioritizeCategories = "Drag and Drop"))
 class PROTOPROJECT_API UItemDragDropOperation : public UDragDropOperation
 {
 	GENERATED_BODY()

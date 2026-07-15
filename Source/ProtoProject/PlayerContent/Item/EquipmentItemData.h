@@ -4,7 +4,7 @@
 #include "ItemDataBase.h"
 #include "EquipmentItemData.generated.h"
 
-UCLASS(Abstract, BlueprintType)
+UCLASS(Abstract, BlueprintType, meta = (PrioritizeCategories = "Item Equipment"))
 class PROTOPROJECT_API UEquipmentItemData : public UItemDataBase
 {
 	GENERATED_BODY()

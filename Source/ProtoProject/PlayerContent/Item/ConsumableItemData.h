@@ -41,7 +41,7 @@ struct FConsumableSideEffect
 
 
 // 4. 소모품 데이터 클래스 본체
-UCLASS(BlueprintType)
+UCLASS(BlueprintType, meta = (PrioritizeCategories = "Item Consumable"))
 class PROTOPROJECT_API UConsumableItemData : public UItemDataBase
 {
     GENERATED_BODY()

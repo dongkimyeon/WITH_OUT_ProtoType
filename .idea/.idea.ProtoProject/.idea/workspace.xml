@@ -17,9 +17,27 @@
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/Blueprint/BP_ProtoCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/BP_ProtoCharacter.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/WBP_InventoryItem.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/WBP_InventoryScreen.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/WBP_InventorySlot.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/WBP_InventoryItem.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/WBP_InventoryItem.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Bandage.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/DA_Item_Bandage.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/DA_Item_Lv1_Vest.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/DA_Item_M1911.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Lv1_Vest.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/M1911A1.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/M_ItemImageMat.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryItemWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryItemWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryItemWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryItemWidget.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventorySlotWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventorySlotWidget.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ItemDragDropOperation.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ItemDragDropOperation.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ArmorItemData.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ArmorItemData.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ConsumableItemData.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ConsumableItemData.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/EquipmentItemData.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/EquipmentItemData.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemDataBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemDataBase.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/WeaponItemData.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/WeaponItemData.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -30,7 +48,7 @@
     <option name="firstShow" value="false" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="12438" />
+    <option name="cachedIndexableFilesCount" value="12439" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -58,61 +76,61 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0853775160471497" />
-      <entry key="MS500" value="1.6113201388460343" />
-      <entry key="S2" value="1.8842339300934983" />
-      <entry key="S5" value="1.9519779084975315" />
-      <entry key="S10" value="1.9756935525551043" />
-      <entry key="S30" value="1.9919391878880415" />
-      <entry key="S60" value="2.021580143055102" />
-      <entry key="M2" value="2.4264121234427023" />
-      <entry key="M5" value="4.9766234462118355" />
-      <entry key="M10" value="9.236357972362285" />
-      <entry key="M15" value="12.792133842872516" />
-      <entry key="M30" value="23.553503582733562" />
-      <entry key="H1" value="52.23930761155799" />
-      <entry key="H2" value="98.28008824223616" />
-      <entry key="H4" value="142.2688432146404" />
-      <entry key="D1" value="198.01453049045978" />
-      <entry key="W1" value="209.93473334659492" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.0" />
+      <entry key="S10" value="1.0" />
+      <entry key="S30" value="1.0" />
+      <entry key="S60" value="1.0000000373875206" />
+      <entry key="M2" value="1.000886119301774" />
+      <entry key="M5" value="1.464273313127393" />
+      <entry key="M10" value="5.530600584865293" />
+      <entry key="M15" value="11.380854802655621" />
+      <entry key="M30" value="28.273004725917836" />
+      <entry key="H1" value="60.267879390314114" />
+      <entry key="H2" value="111.01702331274795" />
+      <entry key="H4" value="163.05728865492878" />
+      <entry key="D1" value="233.59253153858444" />
+      <entry key="W1" value="249.2649962971175" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="2.8874473956806245E-281" />
-      <entry key="S2" value="7.330414290706672E-71" />
-      <entry key="S5" value="8.831844380943625E-29" />
-      <entry key="S10" value="9.397789304383475E-15" />
-      <entry key="S30" value="2.1105433158821534E-5" />
-      <entry key="S60" value="0.004662109147912593" />
-      <entry key="M2" value="0.07945441151935749" />
-      <entry key="M5" value="0.6492902257621186" />
-      <entry key="M10" value="1.7719646037795835" />
-      <entry key="M15" value="2.814392499863962" />
-      <entry key="M30" value="6.784795384570394" />
-      <entry key="H1" value="18.318953723954372" />
-      <entry key="H2" value="36.311966680212244" />
-      <entry key="H4" value="53.047634379438804" />
-      <entry key="D1" value="73.83991600316648" />
-      <entry key="W1" value="78.23924296166103" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="3.138739096982438E-254" />
+      <entry key="S5" value="4.207928400027087E-102" />
+      <entry key="S10" value="2.856750913709325E-51" />
+      <entry key="S30" value="3.641139308946177E-17" />
+      <entry key="S60" value="1.4223783368391354E-8" />
+      <entry key="M2" value="3.23935431108149E-4" />
+      <entry key="M5" value="0.17964116941730124" />
+      <entry key="M10" value="1.7627094781675858" />
+      <entry key="M15" value="3.9944429137752135" />
+      <entry key="M30" value="10.411447071519916" />
+      <entry key="H1" value="22.96436428898392" />
+      <entry key="H2" value="42.737444306265004" />
+      <entry key="H4" value="62.632431926386275" />
+      <entry key="D1" value="89.1471050860788" />
+      <entry key="W1" value="94.98331222687241" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.09028772454137562" />
-      <entry key="MS500" value="0.9566387508819986" />
-      <entry key="S2" value="1.6508095390257713" />
-      <entry key="S5" value="1.8511068945942817" />
-      <entry key="S10" value="1.9239176748472775" />
-      <entry key="S30" value="1.9743923575111646" />
-      <entry key="S60" value="2.0171235195714967" />
-      <entry key="M2" value="2.499019221989812" />
-      <entry key="M5" value="5.6171131447544225" />
-      <entry key="M10" value="10.997892400444" />
-      <entry key="M15" value="15.595924521731517" />
-      <entry key="M30" value="30.327233726227607" />
-      <entry key="H1" value="70.54518793092389" />
-      <entry key="H2" value="134.57966755190947" />
-      <entry key="H4" value="195.30754749761917" />
-      <entry key="D1" value="271.8523884439836" />
-      <entry key="W1" value="288.1736650278484" />
+      <entry key="MS100" value="0.001575472185980715" />
+      <entry key="MS500" value="0.27509465234153424" />
+      <entry key="S2" value="0.7242200382393965" />
+      <entry key="S5" value="0.8789177085994915" />
+      <entry key="S10" value="0.9375061112331436" />
+      <entry key="S30" value="0.9787190369248291" />
+      <entry key="S60" value="0.9893023488833987" />
+      <entry key="M2" value="0.9958376812080304" />
+      <entry key="M5" value="1.639808193898152" />
+      <entry key="M10" value="7.282885844601839" />
+      <entry key="M15" value="15.36059475231738" />
+      <entry key="M30" value="38.666480938800476" />
+      <entry key="H1" value="83.2141048352802" />
+      <entry key="H2" value="153.73864203526844" />
+      <entry key="H4" value="225.6784646580012" />
+      <entry key="D1" value="322.73702133704086" />
+      <entry key="W1" value="344.24791168491515" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -124,30 +142,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;C/C++ Project.ProtoProject.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "C/C++ Project.ProtoProject.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "cidr.known.project.marker": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "editor.preferences.fonts.default",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="C/C++ Project.ProtoProject">
     <configuration name="ProtoProject" type="CppProject" factoryName="C++ Project">
       <configuration_1 setup="1">
@@ -194,6 +212,7 @@
       <workItem from="1783613450052" duration="1657000" />
       <workItem from="1783768327987" duration="172000" />
       <workItem from="1783841650455" duration="658000" />
+      <workItem from="1784018483773" duration="3350000" />
     </task>
     <servers />
   </component>
@@ -221,5 +240,9 @@
         </breakpoint>
       </breakpoints>
     </breakpoint-manager>
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
   </component>
 </project>

@@ -42,7 +42,7 @@ struct FInventoryItemInstance
     }
 };
 
-UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent, PrioritizeCategories = "Inventory"))
 class PROTOPROJECT_API UInventoryGridComponent : public UActorComponent
 {
     GENERATED_BODY()

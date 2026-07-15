@@ -4,7 +4,7 @@
 #include "EquipmentItemData.h" // 부모인 장비 클래스 헤더
 #include "ArmorItemData.generated.h"
 
-UCLASS(BlueprintType)
+UCLASS(BlueprintType, meta = (PrioritizeCategories = "Item Equipment Armor"))
 class PROTOPROJECT_API UArmorItemData : public UEquipmentItemData
 {
 	GENERATED_BODY()

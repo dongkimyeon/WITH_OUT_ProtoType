@@ -10,7 +10,7 @@
 class UInventoryGridComponent;
 class UGridPanel;
 class UItemDataBase;
-UCLASS()
+UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UInventoryScreenWidget : public UUserWidget
 {
 	GENERATED_BODY()

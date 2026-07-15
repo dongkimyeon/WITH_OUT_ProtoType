@@ -126,7 +126,7 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 	{
 		for (int32 x = 0; x < Columns; ++x)
 		{
-			UInventorySlotWidget* NewSlotWidget = CreateWidget<UInventorySlotWidget>(GetWorld(), SlotWidgetClass);
+			UInventorySlotWidget* NewSlotWidget = CreateWidget<UInventorySlotWidget>(GetOwningPlayer(), SlotWidgetClass);
 			if (NewSlotWidget)
 			{
 				NewSlotWidget->InitSlot(this, FIntPoint(x, y));
@@ -156,7 +156,7 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 	{
 		const FInventoryItemInstance& Item = InInventoryComponent->Items[i];
 
-		UInventoryItemWidget* NewItemWidget = CreateWidget<UInventoryItemWidget>(GetWorld(), ItemWidgetClass);
+		UInventoryItemWidget* NewItemWidget = CreateWidget<UInventoryItemWidget>(GetOwningPlayer(), ItemWidgetClass);
 		if (NewItemWidget)
 		{
 			NewItemWidget->InitItem(this, InInventoryComponent, i);
