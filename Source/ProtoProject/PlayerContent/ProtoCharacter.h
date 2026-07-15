@@ -82,7 +82,7 @@ private:
 	UPROPERTY()
 	UPlayerDefalutUI* DefaultUI = nullptr;
 
-	ADropItem* NearbyDropItem = nullptr;
+	TArray<ADropItem*> NearbyDropItems;
 
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
@@ -98,7 +98,7 @@ public:
 	float SprintMultiplier = 2.0f;
 
 	void ShowPickupPrompt(ADropItem* Item);
-	void HidePickupPrompt();
+	void HidePickupPrompt(ADropItem* Item);
 
 	private:
 	bool bIsInvetoryOpened = false;

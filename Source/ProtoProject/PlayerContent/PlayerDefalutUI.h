@@ -8,6 +8,7 @@
 #include "PlayerDefalutUI.generated.h"
 
 class UTextBlock;
+class UCanvasPanel;
 class ADropItem;
 
 UCLASS()
@@ -16,17 +17,17 @@ class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	void ShowPickupPrompt(ADropItem* Item);
-	void HidePickupPrompt();
+	void AddPickupPrompt(ADropItem* Item);
+	void RemovePickupPrompt(ADropItem* Item);
 
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
 
 private:
 	UPROPERTY(meta = (BindWidget))
-	UTextBlock* PickupPromptText;
+	UCanvasPanel* PromptCanvas;
 
 	UPlayerStatusComponent* PlayerStatusComponent;
 
-	ADropItem* FocusedItem = nullptr;
+	TMap<ADropItem*, UTextBlock*> PromptMap;
 };

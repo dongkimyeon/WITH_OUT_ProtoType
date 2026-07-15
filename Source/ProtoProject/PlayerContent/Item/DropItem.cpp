@@ -62,7 +62,7 @@ void ADropItem::OnInteractEndOverlap(UPrimitiveComponent*, AActor* OtherActor,
 	UPrimitiveComponent*, int32)
 {
 	AProtoCharacter* Player = Cast<AProtoCharacter>(OtherActor);
-	if (Player) Player->HidePickupPrompt();
+	if (Player) Player->HidePickupPrompt(this);
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, TEXT("EndOverLap"));
 }
 

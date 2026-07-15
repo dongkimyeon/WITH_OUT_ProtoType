@@ -139,13 +139,7 @@ void AProtoCharacter::Sprint(const FInputActionValue& Value)
 
 void AProtoCharacter::Interact(const FInputActionValue& Value)
 {
-    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Cyan, TEXT("Interact Called"));
-
-    if (!NearbyDropItem)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("NearbyDropItem is NULL"));
-        return;
-    }
+    if (NearbyDropItems.IsEmpty()) return;
 
     APlayerController* PC = Cast<APlayerController>(Controller);
     if (!PC) return;
@@ -158,34 +152,29 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
     FCollisionQueryParams Params;
     Params.AddIgnoredActor(this);
 
-    GetWorld()->LineTraceSingleByChannel(Hit, CamLoc, CamLoc + CamRot.Vector() * 300.f, ECC_Visibility, Params);
-
-    if (Hit.GetActor())
-        GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Yellow, FString::Printf(TEXT("Hit: %s"), *Hit.GetActor()->GetName()));
-    else
-        GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("LineTrace Hit Nothing"));
-
-    if (Cast<ADropItem>(Hit.GetActor()) == NearbyDropItem)
+    FVector TraceStart = CamLoc + CamRot.Vector() * 400.f;
+    FVector TraceEnd = CamLoc + CamRot.Vector() * 700.f;
+    GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+    DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 2.f);
+    ADropItem* HitItem = Cast<ADropItem>(Hit.GetActor());
+    if (IsValid(HitItem) && NearbyDropItems.Contains(HitItem))
     {
-        InventoryComponent->AddItem(NearbyDropItem->ItemData);
-        NearbyDropItem->Destroy();
-        NearbyDropItem = nullptr;
-        HidePickupPrompt();
+        InventoryComponent->AddItem(HitItem->ItemData);
+        HidePickupPrompt(HitItem);
+        HitItem->Destroy();
     }
 }
 
 void AProtoCharacter::ShowPickupPrompt(ADropItem* Item)
 {
-    NearbyDropItem = Item;
-    if (DefaultUI) DefaultUI->ShowPickupPrompt(Item);
-    GEngine->AddOnScreenDebugMessage(-1,3.0f, FColor::Red, TEXT("ShowPickupPrompt"));
+    NearbyDropItems.AddUnique(Item);
+    if (DefaultUI) DefaultUI->AddPickupPrompt(Item);
 }
 
-void AProtoCharacter::HidePickupPrompt()
+void AProtoCharacter::HidePickupPrompt(ADropItem* Item)
 {
-    NearbyDropItem = nullptr;
-    if (DefaultUI) DefaultUI->HidePickupPrompt();
-    GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("HidePickupPrompt"));
+    NearbyDropItems.Remove(Item);
+    if (DefaultUI) DefaultUI->RemovePickupPrompt(Item);
 }
 
 void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
