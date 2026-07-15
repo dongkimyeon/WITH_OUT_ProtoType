@@ -2,109 +2,115 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "InputActionValue.h" // FInputActionValue瑜??곌린 ?꾪빐 ?꾩닔!
+#include "InputActionValue.h"
 #include "ProtoCharacter.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
-class UUserWidget; 
+class UUserWidget;
 class UInventoryGridComponent;
 class AWeaponBase;
+class ADropItem;
+class UPlayerDefalutUI;
 
 UENUM(BlueprintType)
 enum class EWeaponType : uint8
 {
-	None UMETA(DisplayName = "None"),
-	Rifle UMETA(DisplayName = "Rifle"),
-	Pistol UMETA(DisplayName = "Pistol"),
-	Melee UMETA(DisplayName = "Melee")
+    None UMETA(DisplayName = "None"),
+    Rifle UMETA(DisplayName = "Rifle"),
+    Pistol UMETA(DisplayName = "Pistol"),
+    Melee UMETA(DisplayName = "Melee")
 };
 
 UCLASS()
 class PROTOPROJECT_API AProtoCharacter : public ACharacter
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	AProtoCharacter();
-	
+    AProtoCharacter();
+
 protected:
-	virtual void BeginPlay() override;
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+    virtual void BeginPlay() override;
+    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	// -----------------------------------------------------------------------------
-	// ?μ긽???낅젰 (Enhanced Input) ?명똿
-	// -----------------------------------------------------------------------------
 private:
-	// 1. ?낅젰 留ㅽ븨 而⑦뀓?ㅽ듃 (?ㅻ낫??留덉슦???ㅼ젙 臾띠쓬)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	UInputMappingContext* DefaultMappingContext;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    UInputMappingContext* DefaultMappingContext;
 
-	// 2. ?대룞 ?≪뀡 (WASD)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* MoveAction;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    UInputAction* MoveAction;
 
-	// 3. ?쒖젏 ?뚯쟾 ?≪뀡 (留덉슦???대룞)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* LookAction;
-	
-	// 4. ?먰봽 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* JumpAction;
-	
-	// 5. ?щ━湲?
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* SprintAction;
-	
-	// 6. ?몃깽?좊━ 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* ToggleInventoryAction;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UUserWidget> InventoryWidgetClass;
-	
-	UPROPERTY()
-	UUserWidget* InventoryWidgetInstance;
-	
-	// 7. ?몃깽?좊━ 而댄룷?뚰듃 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
-	UInventoryGridComponent* InventoryComponent;
-	
-	//?뚯뒪?몄슜
-	UPROPERTY(EditAnywhere, Category = "Test Inventory")
-	class UItemDataBase* TestBandage;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    UInputAction* LookAction;
 
-	UPROPERTY(EditAnywhere, Category = "Test Inventory")
-	class UItemDataBase* TestArmor;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    UInputAction* JumpAction;
 
-	UPROPERTY(EditAnywhere, Category = "Test Inventory")
-	class UItemDataBase* TestRifle;
-	
-	
-	//?⑥닔 -----------------------------------------------------
-	void Move(const FInputActionValue& Value);
-	void Look(const FInputActionValue& Value);
-	void Sprint(const FInputActionValue& Value);
-	void ToggleInventory(const FInputActionValue& Value);
-	void SetWeaponTypeNone();
-	void SetWeaponTypeRifle();
-	void FireWeapon();
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    UInputAction* SprintAction;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    UInputAction* ToggleInventoryAction;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+    UInputAction* InteractAction;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<UUserWidget> InventoryWidgetClass;
+
+    UPROPERTY()
+    UUserWidget* InventoryWidgetInstance;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
+    UInventoryGridComponent* InventoryComponent;
+
+    UPROPERTY(EditAnywhere, Category = "Test Inventory")
+    class UItemDataBase* TestBandage;
+
+    UPROPERTY(EditAnywhere, Category = "Test Inventory")
+    class UItemDataBase* TestArmor;
+
+    UPROPERTY(EditAnywhere, Category = "Test Inventory")
+    class UItemDataBase* TestRifle;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<UPlayerDefalutUI> DefaultUIClass;
+
+    UPROPERTY()
+    UPlayerDefalutUI* DefaultUI = nullptr;
+
+    UPROPERTY()
+    TArray<ADropItem*> NearbyDropItems;
+
+    void Move(const FInputActionValue& Value);
+    void Look(const FInputActionValue& Value);
+    void Sprint(const FInputActionValue& Value);
+    void ToggleInventory(const FInputActionValue& Value);
+    void Interact(const FInputActionValue& Value);
+    void SetWeaponTypeNone();
+    void SetWeaponTypeRifle();
+    void FireWeapon();
+
 public:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
-	bool bHasWeapon = false;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    bool bHasWeapon = false;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
-	AWeaponBase* CurrentWeapon = nullptr;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    AWeaponBase* CurrentWeapon = nullptr;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
-	EWeaponType CurrentWeaponType = EWeaponType::None;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    EWeaponType CurrentWeaponType = EWeaponType::None;
 
-	UPROPERTY(EditAnywhere, Category = "Movement")
-	float BaseWalkSpeed = 500.f;
+    UPROPERTY(EditAnywhere, Category = "Movement")
+    float BaseWalkSpeed = 500.f;
 
-	UPROPERTY(EditAnywhere, Category = "Movement")
-	float SprintMultiplier = 2.0f;
-	private:
-	bool bIsInvetoryOpened = false;
+    UPROPERTY(EditAnywhere, Category = "Movement")
+    float SprintMultiplier = 2.0f;
+
+    void ShowPickupPrompt(ADropItem* Item);
+    void HidePickupPrompt(ADropItem* Item);
+
+private:
+    bool bIsInvetoryOpened = false;
 };
-

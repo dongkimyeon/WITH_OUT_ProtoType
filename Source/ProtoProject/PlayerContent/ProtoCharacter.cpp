@@ -1,12 +1,16 @@
 ﻿#include "ProtoCharacter.h"
-#include "EnhancedInputComponent.h"      
-#include "EnhancedInputSubsystems.h"  
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenWidget.h"
 #include "InventoryGridComponent.h"
 #include "Item/ItemDataBase.h"
+#include "Item/DropItem.h"
+#include "PlayerDefalutUI.h"
 #include "InputCoreTypes.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/Engine.h"
 #include "weapon/WeaponBase.h"
 
 AProtoCharacter::AProtoCharacter()
@@ -26,37 +30,51 @@ void AProtoCharacter::BeginPlay()
             Subsystem->AddMappingContext(DefaultMappingContext, 0);
         }
     }
-    
+
     if (InventoryComponent)
     {
-        if (TestArmor) InventoryComponent->AddItem(TestArmor);   // 2x2
-        if (TestRifle) InventoryComponent->AddItem(TestRifle);   // 3x1
-        if (TestBandage) InventoryComponent->AddItem(TestBandage); // 1x1
-        if (TestBandage) InventoryComponent->AddItem(TestBandage); 
+        if (TestArmor) InventoryComponent->AddItem(TestArmor);
+        if (TestRifle) InventoryComponent->AddItem(TestRifle);
+        if (TestBandage) InventoryComponent->AddItem(TestBandage);
+        if (TestBandage) InventoryComponent->AddItem(TestBandage);
     }
-    
+
+    if (DefaultUIClass)
+    {
+        DefaultUI = CreateWidget<UPlayerDefalutUI>(GetWorld(), DefaultUIClass);
+        if (DefaultUI)
+        {
+            DefaultUI->AddToViewport();
+        }
+    }
+    else if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("DefaultUIClass is NULL"));
+    }
 }
 
 void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-    // 湲곕낯 InputComponent瑜?EnhancedInputComponent濡?罹먯뒪??
     if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
     {
         EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Move);
         EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Look);
-
-       
-        EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump); //罹먮┃???댁쓽 Jump瑜?諛붾줈 ?몄텧
-        
+        EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
         EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
-
-        // Shift ?ㅻ? ?꾨? ?뚯? ????媛숈? ?⑥닔瑜?遺瑜대룄濡??명똿?⑸땲??
         EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &AProtoCharacter::Sprint);
         EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AProtoCharacter::Sprint);
-        
         EnhancedInputComponent->BindAction(ToggleInventoryAction, ETriggerEvent::Started, this, &AProtoCharacter::ToggleInventory);
+
+        if (InteractAction)
+        {
+            EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AProtoCharacter::Interact);
+        }
+        else if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("InteractAction is NULL"));
+        }
     }
 
     PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
@@ -66,20 +84,18 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 
 void AProtoCharacter::Move(const FInputActionValue& Value)
 {
-    // ?낅젰媛믪쓣 2D 踰≫꽣(X, Y)濡?媛?몄샃?덈떎.
-    FVector2D MovementVector = Value.Get<FVector2D>();
+    const FVector2D MovementVector = Value.Get<FVector2D>();
 
     if (Controller != nullptr)
     {
-        // 移대찓?쇨? 諛붾씪蹂대뒗 諛⑺뼢??湲곗??쇰줈 ????醫??곕? 怨꾩궛?⑸땲??
         const FRotator Rotation = Controller->GetControlRotation();
         const FRotator YawRotation(0, Rotation.Yaw, 0);
 
         const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
         const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-        
-        AddMovementInput(ForwardDirection, MovementVector.X); // ????(W, S)
-        AddMovementInput(RightDirection, MovementVector.Y);   // 醫???(A, D)
+
+        AddMovementInput(ForwardDirection, MovementVector.X);
+        AddMovementInput(RightDirection, MovementVector.Y);
     }
 }
 
@@ -89,36 +105,73 @@ void AProtoCharacter::Look(const FInputActionValue& Value)
     {
         return;
     }
-    // 留덉슦???대룞媛믪쓣 2D 踰≫꽣濡?媛?몄샃?덈떎.
-    FVector2D LookAxisVector = Value.Get<FVector2D>();
+
+    const FVector2D LookAxisVector = Value.Get<FVector2D>();
 
     if (Controller != nullptr)
     {
         AddControllerYawInput(LookAxisVector.X);
         AddControllerPitchInput(LookAxisVector.Y);
     }
-    
-   
 }
-
-
 
 void AProtoCharacter::Sprint(const FInputActionValue& Value)
 {
-    bool bIsSprinting = Value.Get<bool>();
-    
-    if (bIsSprinting)
+    const bool bIsSprinting = Value.Get<bool>();
+    GetCharacterMovement()->MaxWalkSpeed = bIsSprinting ? BaseWalkSpeed * SprintMultiplier : BaseWalkSpeed;
+}
+
+void AProtoCharacter::Interact(const FInputActionValue& Value)
+{
+    if (NearbyDropItems.IsEmpty())
     {
-        // ???뚮뒗 湲곕낯 ?띾룄??諛곗닔瑜?怨깊븳 ?덈?媛믪쓣 ?ｌ뒿?덈떎.
-        GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed * SprintMultiplier;
+        return;
     }
-    else
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (!PC)
     {
-        // ?먯쓣 ?쇰㈃ 臾댁“嫄??덉쟾??湲곕낯 ?띾룄濡???뼱?뚯썎?덈떎.
-        GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+        return;
     }
-    
-    
+
+    FVector CamLoc;
+    FRotator CamRot;
+    PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+    FHitResult Hit;
+    FCollisionQueryParams Params;
+    Params.AddIgnoredActor(this);
+
+    const FVector TraceStart = CamLoc + CamRot.Vector() * 400.f;
+    const FVector TraceEnd = CamLoc + CamRot.Vector() * 700.f;
+    GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+    DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 2.f);
+
+    ADropItem* HitItem = Cast<ADropItem>(Hit.GetActor());
+    if (IsValid(HitItem) && NearbyDropItems.Contains(HitItem))
+    {
+        InventoryComponent->AddItem(HitItem->ItemData);
+        HidePickupPrompt(HitItem);
+        HitItem->Destroy();
+    }
+}
+
+void AProtoCharacter::ShowPickupPrompt(ADropItem* Item)
+{
+    NearbyDropItems.AddUnique(Item);
+    if (DefaultUI)
+    {
+        DefaultUI->AddPickupPrompt(Item);
+    }
+}
+
+void AProtoCharacter::HidePickupPrompt(ADropItem* Item)
+{
+    NearbyDropItems.Remove(Item);
+    if (DefaultUI)
+    {
+        DefaultUI->RemovePickupPrompt(Item);
+    }
 }
 
 void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
@@ -127,22 +180,19 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
     {
         InventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
     }
-    UE_LOG(LogTemp, Warning, TEXT("I ???낅젰"));
 
     if (InventoryWidgetInstance != nullptr)
     {
         APlayerController* PlayerController = Cast<APlayerController>(Controller);
-        
-        
-        if (InventoryWidgetInstance->IsInViewport()) //?リ린
+
+        if (InventoryWidgetInstance->IsInViewport())
         {
             bIsInvetoryOpened = false;
             InventoryWidgetInstance->RemoveFromParent();
             if (PlayerController)
             {
                 PlayerController->SetShowMouseCursor(false);
-                
-                FInputModeGameOnly InputMode;   
+                FInputModeGameOnly InputMode;
                 PlayerController->SetInputMode(InputMode);
             }
         }
@@ -163,12 +213,9 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
                 InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
                 InputMode.SetHideCursorDuringCapture(false);
                 PlayerController->SetInputMode(InputMode);
-                    
                 InventoryWidgetInstance->SetUserFocus(PlayerController);
             }
         }
-        
-        
     }
 }
 
