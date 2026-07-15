@@ -7,9 +7,11 @@
 
 class UInputMappingContext;
 class UInputAction;
-class UUserWidget; 
+class UUserWidget;
 class UInventoryGridComponent;
 class AAK47;
+class ADropItem;
+class UPlayerDefalutUI;
 
 UCLASS()
 class PROTOPROJECT_API AProtoCharacter : public ACharacter
@@ -23,45 +25,40 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	// -----------------------------------------------------------------------------
-	// ?μ긽???낅젰 (Enhanced Input) ?명똿
-	// -----------------------------------------------------------------------------
+
 private:
-	// 1. ?낅젰 留ㅽ븨 而⑦뀓?ㅽ듃 (?ㅻ낫??留덉슦???ㅼ젙 臾띠쓬)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	UInputMappingContext* DefaultMappingContext;
 
-	// 2. ?대룞 ?≪뀡 (WASD)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	UInputAction* MoveAction;
 
-	// 3. ?쒖젏 ?뚯쟾 ?≪뀡 (留덉슦???대룞)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	UInputAction* LookAction;
 	
-	// 4. ?먰봽 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
-	UInputAction* JumpAction;
-	
-	// 5. ?щ━湲?
+	UInputAction* JumpAction; 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	UInputAction* SprintAction;
 	
-	// 6. ?몃깽?좊━ 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
 	UInputAction* ToggleInventoryAction;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
+	UInputAction* InteractAction;
+
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
 	TSubclassOf<UUserWidget> InventoryWidgetClass;
 	
+	
+	
 	UPROPERTY()
 	UUserWidget* InventoryWidgetInstance;
-	
-	// 7. ?몃깽?좊━ 而댄룷?뚰듃 
+	 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryGridComponent* InventoryComponent;
 	
-	//?뚯뒪?몄슜
 	UPROPERTY(EditAnywhere, Category = "Test Inventory")
 	class UItemDataBase* TestBandage;
 
@@ -72,11 +69,21 @@ private:
 	class UItemDataBase* TestRifle;
 	
 	
-	//?⑥닔 -----------------------------------------------------
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void Sprint(const FInputActionValue& Value);
 	void ToggleInventory(const FInputActionValue& Value);
+	void Interact(const FInputActionValue& Value);
+
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<UPlayerDefalutUI> DefaultUIClass;
+
+	UPROPERTY()
+	UPlayerDefalutUI* DefaultUI = nullptr;
+
+	ADropItem* NearbyDropItem = nullptr;
+
 public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
 	bool bHasWeapon = false;
@@ -89,6 +96,10 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Movement")
 	float SprintMultiplier = 2.0f;
+
+	void ShowPickupPrompt(ADropItem* Item);
+	void HidePickupPrompt();
+
 	private:
 	bool bIsInvetoryOpened = false;
 };

@@ -1,11 +1,13 @@
 #include "ProtoCharacter.h"
-#include "EnhancedInputComponent.h"      
-#include "EnhancedInputSubsystems.h"  
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenWidget.h"
 #include "InventoryGridComponent.h"
 #include "Item/ItemDataBase.h"
+#include "Item/DropItem.h"
+#include "PlayerDefalutUI.h"
 
 AProtoCharacter::AProtoCharacter()
 {
@@ -30,9 +32,22 @@ void AProtoCharacter::BeginPlay()
         if (TestArmor) InventoryComponent->AddItem(TestArmor);   // 2x2
         if (TestRifle) InventoryComponent->AddItem(TestRifle);   // 3x1
         if (TestBandage) InventoryComponent->AddItem(TestBandage); // 1x1
-        if (TestBandage) InventoryComponent->AddItem(TestBandage); 
+        if (TestBandage) InventoryComponent->AddItem(TestBandage);
     }
-    
+
+    if (DefaultUIClass)
+    {
+        DefaultUI = CreateWidget<UPlayerDefalutUI>(GetWorld(), DefaultUIClass);
+        if (DefaultUI)
+        {
+            DefaultUI->AddToViewport();
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("DefaultUI Created OK"));
+        }
+    }
+    else
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("DefaultUIClass is NULL - BP에서 할당 안됨"));
+    }
 }
 
 void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -40,8 +55,11 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
     // 기본 InputComponent를 EnhancedInputComponent로 캐스팅
+    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("SetupPlayerInputComponent Called"));
+
     if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
     {
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, TEXT("EnhancedInput Cast OK"));
         EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Move);
         EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Look);
 
@@ -55,6 +73,10 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
         EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AProtoCharacter::Sprint);
         
         EnhancedInputComponent->BindAction(ToggleInventoryAction, ETriggerEvent::Started, this, &AProtoCharacter::ToggleInventory);
+        if (InteractAction)
+            EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AProtoCharacter::Interact);
+        else
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("InteractAction is NULL"));
     }
 }
 
@@ -113,6 +135,57 @@ void AProtoCharacter::Sprint(const FInputActionValue& Value)
     }
     
     
+}
+
+void AProtoCharacter::Interact(const FInputActionValue& Value)
+{
+    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Cyan, TEXT("Interact Called"));
+
+    if (!NearbyDropItem)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("NearbyDropItem is NULL"));
+        return;
+    }
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (!PC) return;
+
+    FVector CamLoc;
+    FRotator CamRot;
+    PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+    FHitResult Hit;
+    FCollisionQueryParams Params;
+    Params.AddIgnoredActor(this);
+
+    GetWorld()->LineTraceSingleByChannel(Hit, CamLoc, CamLoc + CamRot.Vector() * 300.f, ECC_Visibility, Params);
+
+    if (Hit.GetActor())
+        GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Yellow, FString::Printf(TEXT("Hit: %s"), *Hit.GetActor()->GetName()));
+    else
+        GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("LineTrace Hit Nothing"));
+
+    if (Cast<ADropItem>(Hit.GetActor()) == NearbyDropItem)
+    {
+        InventoryComponent->AddItem(NearbyDropItem->ItemData);
+        NearbyDropItem->Destroy();
+        NearbyDropItem = nullptr;
+        HidePickupPrompt();
+    }
+}
+
+void AProtoCharacter::ShowPickupPrompt(ADropItem* Item)
+{
+    NearbyDropItem = Item;
+    if (DefaultUI) DefaultUI->ShowPickupPrompt(Item);
+    GEngine->AddOnScreenDebugMessage(-1,3.0f, FColor::Red, TEXT("ShowPickupPrompt"));
+}
+
+void AProtoCharacter::HidePickupPrompt()
+{
+    NearbyDropItem = nullptr;
+    if (DefaultUI) DefaultUI->HidePickupPrompt();
+    GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("HidePickupPrompt"));
 }
 
 void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
