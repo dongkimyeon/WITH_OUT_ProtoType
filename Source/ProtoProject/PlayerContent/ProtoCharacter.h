@@ -96,6 +96,7 @@ private:
     void SetWeaponTypeNone();
     void SetWeaponTypeRifle();
     void FireWeapon();
+    void AttachCurrentWeaponToSocket(FName SocketName);
 
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")

@@ -1,4 +1,4 @@
-﻿#include "ProtoCharacter.h"
+#include "ProtoCharacter.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -33,7 +33,7 @@ void AProtoCharacter::Tick(float DeltaTime)
         AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
     }
 
-    if (CurrentWeapon && CurrentWeapon->GetRootComponent() && GetMesh())
+    if (bHasWeapon && CurrentWeapon && CurrentWeapon->GetRootComponent() && GetMesh())
     {
         static const FName LeftHandSocketName(TEXT("LeftHandSocket"));
         static const FName RightHandBoneName(TEXT("hand_r"));
@@ -292,19 +292,32 @@ void AProtoCharacter::SetWeaponTypeNone()
 {
     bHasWeapon = false;
     CurrentWeaponType = EWeaponType::None;
+    AttachCurrentWeaponToSocket(TEXT("WeaponStorage"));
+
     if (GEngine)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Yellow, TEXT("Weapon Type: None"));
+        GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Yellow, TEXT("Weapon Stored"));
     }
 }
 
 void AProtoCharacter::SetWeaponTypeRifle()
 {
+    if (!CurrentWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No CurrentWeapon to equip"));
+        }
+        return;
+    }
+
     bHasWeapon = true;
-    CurrentWeaponType = EWeaponType::Rifle;
+    CurrentWeaponType = CurrentWeapon->WeaponType != EWeaponType::None ? CurrentWeapon->WeaponType : EWeaponType::Rifle;
+    AttachCurrentWeaponToSocket(TEXT("WeaponSocket"));
+
     if (GEngine)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Weapon Type: Rifle"));
+        GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Weapon Equipped"));
     }
 }
 
@@ -319,6 +332,32 @@ void AProtoCharacter::FireWeapon()
         return;
     }
     CurrentWeapon->Fire();
+}
+void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
+{
+    if (!CurrentWeapon || !GetMesh())
+    {
+        return;
+    }
+
+    if (!GetMesh()->DoesSocketExist(SocketName))
+    {
+        if (GEngine)
+        {
+            const FString Message = FString::Printf(TEXT("No socket: %s"), *SocketName.ToString());
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, Message);
+        }
+        return;
+    }
+
+    const FAttachmentTransformRules AttachRules(
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::KeepRelative,
+        true);
+
+    CurrentWeapon->AttachToComponent(GetMesh(), AttachRules, SocketName);
+    CurrentWeapon->SetActorEnableCollision(false);
 }
 
 
