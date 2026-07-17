@@ -19,6 +19,17 @@ AProtoCharacter::AProtoCharacter()
     InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
 }
 
+void AProtoCharacter::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    if (Controller)
+    {
+        const float NormalizedPitch = FRotator::NormalizeAxis(Controller->GetControlRotation().Pitch);
+        AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
+    }
+}
+
 void AProtoCharacter::BeginPlay()
 {
     Super::BeginPlay();
@@ -90,10 +101,8 @@ void AProtoCharacter::Move(const FInputActionValue& Value)
     {
         const FRotator Rotation = Controller->GetControlRotation();
         const FRotator YawRotation(0, Rotation.Yaw, 0);
-
         const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
         const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
         AddMovementInput(ForwardDirection, MovementVector.X);
         AddMovementInput(RightDirection, MovementVector.Y);
     }
@@ -184,7 +193,6 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
     if (InventoryWidgetInstance != nullptr)
     {
         APlayerController* PlayerController = Cast<APlayerController>(Controller);
-
         if (InventoryWidgetInstance->IsInViewport())
         {
             bIsInvetoryOpened = false;
@@ -200,12 +208,10 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
         {
             InventoryWidgetInstance->AddToViewport();
             bIsInvetoryOpened = true;
-
             if (UInventoryScreenWidget* InvUI = Cast<UInventoryScreenWidget>(InventoryWidgetInstance))
             {
                 InvUI->InitializeGrid(InventoryComponent);
             }
-
             if (PlayerController)
             {
                 PlayerController->SetShowMouseCursor(true);
@@ -223,7 +229,6 @@ void AProtoCharacter::SetWeaponTypeNone()
 {
     bHasWeapon = false;
     CurrentWeaponType = EWeaponType::None;
-
     if (GEngine)
     {
         GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Yellow, TEXT("Weapon Type: None"));
@@ -234,7 +239,6 @@ void AProtoCharacter::SetWeaponTypeRifle()
 {
     bHasWeapon = true;
     CurrentWeaponType = EWeaponType::Rifle;
-
     if (GEngine)
     {
         GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Weapon Type: Rifle"));
@@ -251,6 +255,5 @@ void AProtoCharacter::FireWeapon()
         }
         return;
     }
-
     CurrentWeapon->Fire();
 }

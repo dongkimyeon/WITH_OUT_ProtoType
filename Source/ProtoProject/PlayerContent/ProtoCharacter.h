@@ -29,6 +29,7 @@ class PROTOPROJECT_API AProtoCharacter : public ACharacter
 
 public:
     AProtoCharacter();
+    virtual void Tick(float DeltaTime) override;
 
 protected:
     virtual void BeginPlay() override;
@@ -101,6 +102,9 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
     EWeaponType CurrentWeaponType = EWeaponType::None;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
+    float AimPitch = 0.0f;
 
     UPROPERTY(EditAnywhere, Category = "Movement")
     float BaseWalkSpeed = 500.f;
