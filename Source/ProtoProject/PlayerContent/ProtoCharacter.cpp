@@ -17,6 +17,10 @@ AProtoCharacter::AProtoCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
     InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
+    bUseControllerRotationYaw = false;
+    bUseControllerRotationPitch = true;
+    GetCharacterMovement()->bOrientRotationToMovement = true;
+    GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
 }
 
 void AProtoCharacter::Tick(float DeltaTime)
@@ -27,6 +31,27 @@ void AProtoCharacter::Tick(float DeltaTime)
     {
         const float NormalizedPitch = FRotator::NormalizeAxis(Controller->GetControlRotation().Pitch);
         AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
+    }
+
+    if (CurrentWeapon && CurrentWeapon->GetRootComponent() && GetMesh())
+    {
+        static const FName LeftHandSocketName(TEXT("LeftHandSocket"));
+        static const FName RightHandBoneName(TEXT("hand_r"));
+
+        const FTransform LeftHandSocketTransform = CurrentWeapon->GetRootComponent()->GetSocketTransform(
+            LeftHandSocketName,
+            RTS_World);
+
+        FVector OutPosition;
+        FRotator OutRotation;
+        GetMesh()->TransformToBoneSpace(
+            RightHandBoneName,
+            LeftHandSocketTransform.GetLocation(),
+            LeftHandSocketTransform.Rotator(),
+            OutPosition,
+            OutRotation);
+
+        LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
     }
 }
 
@@ -91,6 +116,10 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
     PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeRifle);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::FireWeapon);
+    PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Pressed, this, &AProtoCharacter::StartSprint);
+    PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Released, this, &AProtoCharacter::StopSprint);
+    PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
+    PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Released, this, &AProtoCharacter::StopAim);
 }
 
 void AProtoCharacter::Move(const FInputActionValue& Value)
@@ -126,8 +155,42 @@ void AProtoCharacter::Look(const FInputActionValue& Value)
 
 void AProtoCharacter::Sprint(const FInputActionValue& Value)
 {
-    const bool bIsSprinting = Value.Get<bool>();
-    GetCharacterMovement()->MaxWalkSpeed = bIsSprinting ? BaseWalkSpeed * SprintMultiplier : BaseWalkSpeed;
+    if (Value.Get<bool>())
+    {
+        StartSprint();
+    }
+    else
+    {
+        StopSprint();
+    }
+}
+
+void AProtoCharacter::StartSprint()
+{
+    bIsSprint = true;
+    GetCharacterMovement()->MaxWalkSpeed = SprintWalkSpeed;
+}
+
+void AProtoCharacter::StopSprint()
+{
+    bIsSprint = false;
+    GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+}
+
+void AProtoCharacter::StartAim()
+{
+    bIsAiming = true;
+    bUseControllerRotationYaw = true;
+    bUseControllerRotationPitch = false;
+    GetCharacterMovement()->bOrientRotationToMovement = false;
+}
+
+void AProtoCharacter::StopAim()
+{
+    bIsAiming = false;
+    bUseControllerRotationYaw = false;
+    bUseControllerRotationPitch = true;
+    GetCharacterMovement()->bOrientRotationToMovement = true;
 }
 
 void AProtoCharacter::Interact(const FInputActionValue& Value)
@@ -257,3 +320,5 @@ void AProtoCharacter::FireWeapon()
     }
     CurrentWeapon->Fire();
 }
+
+

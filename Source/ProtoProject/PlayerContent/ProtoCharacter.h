@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -87,6 +87,10 @@ private:
     void Move(const FInputActionValue& Value);
     void Look(const FInputActionValue& Value);
     void Sprint(const FInputActionValue& Value);
+    void StartSprint();
+    void StopSprint();
+    void StartAim();
+    void StopAim();
     void ToggleInventory(const FInputActionValue& Value);
     void Interact(const FInputActionValue& Value);
     void SetWeaponTypeNone();
@@ -106,8 +110,20 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
     float AimPitch = 0.0f;
 
-    UPROPERTY(EditAnywhere, Category = "Movement")
-    float BaseWalkSpeed = 500.f;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|IK")
+    FTransform LeftHandTransform = FTransform::Identity;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
+    bool bIsSprint = false;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
+    bool bIsAiming = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+    float BaseWalkSpeed = 300.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+    float SprintWalkSpeed = 600.f;
 
     UPROPERTY(EditAnywhere, Category = "Movement")
     float SprintMultiplier = 2.0f;
