@@ -8,6 +8,8 @@
 #include "ItemDragDropOperation.generated.h"
 
 class UItemDataBase;
+class UInventoryGridComponent;
+class UInventoryScreenWidget;
 
 UCLASS(meta = (PrioritizeCategories = "Drag and Drop"))
 class PROTOPROJECT_API UItemDragDropOperation : public UDragDropOperation
@@ -46,4 +48,11 @@ public:
 	USizeBox* DragVisualWrapper = nullptr;
 
 	FVector2D CellPixelSize = FVector2D(75.f, 75.f);
+
+	// 크로스 그리드 드래그를 위한 출처 참조
+	UPROPERTY()
+	UInventoryGridComponent* SourceInventoryComponent = nullptr;
+
+	UPROPERTY()
+	UInventoryScreenWidget* SourceScreenWidget = nullptr;
 };

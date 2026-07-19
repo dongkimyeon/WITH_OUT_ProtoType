@@ -5,8 +5,10 @@
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenWidget.h"
 #include "InventoryGridComponent.h"
+#include "ContainerScreenWidget.h"
 #include "Item/ItemDataBase.h"
 #include "Item/DropItem.h"
+#include "Item/StorageContainer.h"
 #include "PlayerDefalutUI.h"
 #include "InputCoreTypes.h"
 #include "DrawDebugHelpers.h"
@@ -195,16 +197,20 @@ void AProtoCharacter::StopAim()
 
 void AProtoCharacter::Interact(const FInputActionValue& Value)
 {
-    if (NearbyDropItems.IsEmpty())
+    // 컨테이너 화면이 열려있으면 닫기
+    if (bIsContainerOpened)
+    {
+        CloseContainerScreen();
+        return;
+    }
+
+    if (NearbyDropItems.IsEmpty() && NearbyContainers.IsEmpty())
     {
         return;
     }
 
     APlayerController* PC = Cast<APlayerController>(Controller);
-    if (!PC)
-    {
-        return;
-    }
+    if (!PC) return;
 
     FVector CamLoc;
     FRotator CamRot;
@@ -219,7 +225,16 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
     GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
     DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 2.f);
 
-    ADropItem* HitItem = Cast<ADropItem>(Hit.GetActor());
+    AActor* HitActor = Hit.GetActor();
+
+    AStorageContainer* HitContainer = Cast<AStorageContainer>(HitActor);
+    if (IsValid(HitContainer) && NearbyContainers.Contains(HitContainer))
+    {
+        OpenContainerScreen(HitContainer);
+        return;
+    }
+
+    ADropItem* HitItem = Cast<ADropItem>(HitActor);
     if (IsValid(HitItem) && NearbyDropItems.Contains(HitItem))
     {
         InventoryComponent->AddItem(HitItem->ItemData);
@@ -231,18 +246,67 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
 void AProtoCharacter::ShowPickupPrompt(ADropItem* Item)
 {
     NearbyDropItems.AddUnique(Item);
-    if (DefaultUI)
-    {
-        DefaultUI->AddPickupPrompt(Item);
-    }
+    if (DefaultUI) DefaultUI->AddPickupPrompt(Item);
 }
 
 void AProtoCharacter::HidePickupPrompt(ADropItem* Item)
 {
     NearbyDropItems.Remove(Item);
-    if (DefaultUI)
+    if (DefaultUI) DefaultUI->RemovePickupPrompt(Item);
+}
+
+void AProtoCharacter::ShowContainerPrompt(AStorageContainer* Container)
+{
+    NearbyContainers.AddUnique(Container);
+    if (DefaultUI) DefaultUI->AddContainerPrompt(Container);
+}
+
+void AProtoCharacter::HideContainerPrompt(AStorageContainer* Container)
+{
+    NearbyContainers.Remove(Container);
+    if (DefaultUI) DefaultUI->RemoveContainerPrompt(Container);
+
+    if (bIsContainerOpened) CloseContainerScreen();
+}
+
+void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
+{
+    if (!ContainerWidgetClass) return;
+
+    if (ContainerWidgetInstance == nullptr)
     {
-        DefaultUI->RemovePickupPrompt(Item);
+        ContainerWidgetInstance = CreateWidget<UContainerScreenWidget>(GetWorld(), ContainerWidgetClass);
+    }
+
+    if (!ContainerWidgetInstance) return;
+
+    ContainerWidgetInstance->InitializeScreen(InventoryComponent, Container->ContainerInventory);
+    ContainerWidgetInstance->AddToViewport();
+    bIsContainerOpened = true;
+    bIsInvetoryOpened = true;
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (PC)
+    {
+        PC->SetShowMouseCursor(true);
+        FInputModeGameAndUI InputMode;
+        InputMode.SetWidgetToFocus(ContainerWidgetInstance->TakeWidget());
+        InputMode.SetHideCursorDuringCapture(false);
+        PC->SetInputMode(InputMode);
+    }
+}
+
+void AProtoCharacter::CloseContainerScreen()
+{
+    if (ContainerWidgetInstance) ContainerWidgetInstance->RemoveFromParent();
+    bIsContainerOpened = false;
+    bIsInvetoryOpened = false;
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (PC)
+    {
+        PC->SetShowMouseCursor(false);
+        PC->SetInputMode(FInputModeGameOnly());
     }
 }
 

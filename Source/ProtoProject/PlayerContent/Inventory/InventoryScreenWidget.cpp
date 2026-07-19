@@ -2,6 +2,7 @@
 #include "Components/GridPanel.h"
 #include "Components/GridSlot.h"
 #include "InventoryGridComponent.h"
+#include "ItemDragDropOperation.h"
 #include "InputCoreTypes.h"
 
 void UInventoryScreenWidget::NativeConstruct()
@@ -35,6 +36,32 @@ bool UInventoryScreenWidget::OnItemDropped(int32 ItemIndex, const FIntPoint& Tar
 		return true;
 	}
 	return false;
+}
+
+bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* DragOp, const FIntPoint& TargetPosition, bool bDropRotated)
+{
+	if (!CachedInventoryComponent || !DragOp || !DragOp->SourceInventoryComponent) return false;
+
+	UItemDataBase* ItemData = DragOp->DraggedItemData;
+	if (!ItemData) return false;
+
+	FIntPoint ItemSize = bDropRotated
+		? FIntPoint(ItemData->GridHeight, ItemData->GridWidth)
+		: FIntPoint(ItemData->GridWidth,  ItemData->GridHeight);
+
+	if (!CachedInventoryComponent->CanPlaceAt(TargetPosition, ItemSize)) return false;
+
+	DragOp->SourceInventoryComponent->RemoveItemAt(DragOp->ItemIndex);
+	CachedInventoryComponent->AddItemAt(ItemData, TargetPosition, bDropRotated);
+
+	if (DragOp->SourceScreenWidget)
+	{
+		DragOp->SourceScreenWidget->InitializeGrid(DragOp->SourceInventoryComponent);
+	}
+	InitializeGrid(CachedInventoryComponent);
+
+	ActiveDragOp = nullptr;
+	return true;
 }
 
 void UInventoryScreenWidget::SetActiveDragOperation(UItemDragDropOperation* InDragOp)

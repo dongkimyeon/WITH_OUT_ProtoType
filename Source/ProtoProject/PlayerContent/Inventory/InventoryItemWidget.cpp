@@ -66,6 +66,8 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 	DragOp->bOriginalRotated = Item.bIsRotated;
 	DragOp->bCurrentRotated = Item.bIsRotated;
 	DragOp->CellPixelSize = CellPixelSize;
+	DragOp->SourceInventoryComponent = InventoryComponent;
+	DragOp->SourceScreenWidget = ParentScreen;
 
 	FIntPoint ItemGridSize = Item.GetEffectiveSize();
 

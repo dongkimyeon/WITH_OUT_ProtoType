@@ -10,14 +10,12 @@ ADropItem::ADropItem()
 	StaticMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComp"));
 	RootComponent = StaticMeshComp;
 
-	// 라인트레이스 대상 - Visibility 채널만 블록
 	BoundingBox = CreateDefaultSubobject<UBoxComponent>(TEXT("BoundingBox"));
 	BoundingBox->SetupAttachment(StaticMeshComp);
 	BoundingBox->SetBoxExtent(FVector(30.f, 30.f, 30.f));
 	BoundingBox->SetCollisionResponseToAllChannels(ECR_Ignore);
 	BoundingBox->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
-	// 근접 감지 트리거 - 오버랩 전용
 	InteractBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractBox"));
 	InteractBox->SetupAttachment(StaticMeshComp);
 	InteractBox->SetBoxExtent(FVector(150.f, 150.f, 150.f));

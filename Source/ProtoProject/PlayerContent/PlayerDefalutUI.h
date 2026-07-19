@@ -10,6 +10,7 @@
 class UTextBlock;
 class UCanvasPanel;
 class ADropItem;
+class AStorageContainer;
 
 UCLASS()
 class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
@@ -19,6 +20,9 @@ class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
 public:
 	void AddPickupPrompt(ADropItem* Item);
 	void RemovePickupPrompt(ADropItem* Item);
+
+	void AddContainerPrompt(AStorageContainer* Container);
+	void RemoveContainerPrompt(AStorageContainer* Container);
 
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
@@ -30,4 +34,5 @@ private:
 	UPlayerStatusComponent* PlayerStatusComponent;
 
 	TMap<ADropItem*, UTextBlock*> PromptMap;
+	TMap<AStorageContainer*, UTextBlock*> ContainerPromptMap;
 };

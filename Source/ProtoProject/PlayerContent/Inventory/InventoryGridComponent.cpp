@@ -165,6 +165,14 @@ bool UInventoryGridComponent::PlaceItem(int32 ItemIndex, const FIntPoint& NewPos
     return false;
 }
 
+UItemDataBase* UInventoryGridComponent::RemoveItemAt(int32 ItemIndex)
+{
+    if (!Items.IsValidIndex(ItemIndex)) return nullptr;
+    UItemDataBase* Data = Items[ItemIndex].ItemData;
+    Items.RemoveAt(ItemIndex);
+    return Data;
+}
+
 bool UInventoryGridComponent::AddItem(UItemDataBase* NewItem)
 {
     if (!NewItem) return false;

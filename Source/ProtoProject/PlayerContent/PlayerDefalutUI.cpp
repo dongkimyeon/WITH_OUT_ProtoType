@@ -5,6 +5,7 @@
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Item/DropItem.h"
+#include "Item/StorageContainer.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 
 void UPlayerDefalutUI::AddPickupPrompt(ADropItem* Item)
@@ -29,33 +30,58 @@ void UPlayerDefalutUI::RemovePickupPrompt(ADropItem* Item)
 	PromptMap.Remove(Item);
 }
 
+void UPlayerDefalutUI::AddContainerPrompt(AStorageContainer* Container)
+{
+	if (!PromptCanvas || ContainerPromptMap.Contains(Container)) return;
+
+	UTextBlock* NewText = NewObject<UTextBlock>(this);
+	NewText->SetText(FText::FromString(TEXT("F  열기")));
+
+	UCanvasPanelSlot* CanvasSlot = PromptCanvas->AddChildToCanvas(NewText);
+	CanvasSlot->SetAutoSize(true);
+
+	ContainerPromptMap.Add(Container, NewText);
+}
+
+void UPlayerDefalutUI::RemoveContainerPrompt(AStorageContainer* Container)
+{
+	UTextBlock** Found = ContainerPromptMap.Find(Container);
+	if (!Found) return;
+
+	(*Found)->RemoveFromParent();
+	ContainerPromptMap.Remove(Container);
+}
+
 void UPlayerDefalutUI::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 {
 	Super::NativeTick(MyGeometry, DeltaTime);
 
-	for (auto& Pair : PromptMap)
+	auto UpdatePrompt = [&](AActor* Actor, UTextBlock* Text)
 	{
-		if (!IsValid(Pair.Key) || !Pair.Value) continue;
+		if (!IsValid(Actor) || !Text) return;
 
 		FVector2D ScreenPos;
 		bool bOnScreen = GetOwningPlayer()->ProjectWorldLocationToScreen(
-			Pair.Key->GetActorLocation() + FVector(0.f, 0.f, 100.f), ScreenPos
+			Actor->GetActorLocation() + FVector(0.f, 0.f, 100.f), ScreenPos
 		);
 
 		if (bOnScreen)
 		{
-			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Pair.Value->Slot))
+			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Text->Slot))
 			{
 				float DPIScale = UWidgetLayoutLibrary::GetViewportScale(GetWorld());
 				FVector2D ViewportPos = ScreenPos / DPIScale;
-				FVector2D TextSize = Pair.Value->GetDesiredSize();
+				FVector2D TextSize = Text->GetDesiredSize();
 				CanvasSlot->SetPosition(ViewportPos - TextSize * 0.5f);
 			}
-			Pair.Value->SetVisibility(ESlateVisibility::Visible);
+			Text->SetVisibility(ESlateVisibility::Visible);
 		}
 		else
 		{
-			Pair.Value->SetVisibility(ESlateVisibility::Hidden);
+			Text->SetVisibility(ESlateVisibility::Hidden);
 		}
-	}
+	};
+
+	for (auto& Pair : PromptMap)         UpdatePrompt(Pair.Key, Pair.Value);
+	for (auto& Pair : ContainerPromptMap) UpdatePrompt(Pair.Key, Pair.Value);
 }

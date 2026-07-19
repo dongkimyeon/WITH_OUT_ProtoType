@@ -10,6 +10,7 @@
 class UInventoryGridComponent;
 class UGridPanel;
 class UItemDataBase;
+class UItemDragDropOperation;
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UInventoryScreenWidget : public UUserWidget
 {
@@ -22,7 +23,9 @@ public:
 	void OnItemHoverBegin(int32 ItemIndex);
 	void OnItemHoverEnd(int32 ItemIndex);
 	bool OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition, bool bDropRotated);
+	bool OnItemDroppedFromExternal(UItemDragDropOperation* DragOp, const FIntPoint& TargetPosition, bool bDropRotated);
 	FVector2D GetCellPixelSize() const { return SlotPixelSize; }
+	UInventoryGridComponent* GetCachedInventoryComponent() const { return CachedInventoryComponent; }
 	void UpdateDragHighlight(const FIntPoint& TargetTopLeft, UItemDataBase* ItemData, bool bRotated, int32 IgnoreIndex);
 	void ClearDragHighlight();
 	void SetActiveDragOperation(UItemDragDropOperation* InDragOp);

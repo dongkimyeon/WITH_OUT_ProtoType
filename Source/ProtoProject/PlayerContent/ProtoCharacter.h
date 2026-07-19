@@ -11,7 +11,9 @@ class UUserWidget;
 class UInventoryGridComponent;
 class AWeaponBase;
 class ADropItem;
+class AStorageContainer;
 class UPlayerDefalutUI;
+class UContainerScreenWidget;
 
 UENUM(BlueprintType)
 enum class EWeaponType : uint8
@@ -84,6 +86,20 @@ private:
     UPROPERTY()
     TArray<ADropItem*> NearbyDropItems;
 
+    UPROPERTY()
+    TArray<AStorageContainer*> NearbyContainers;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<UContainerScreenWidget> ContainerWidgetClass;
+
+    UPROPERTY()
+    UContainerScreenWidget* ContainerWidgetInstance = nullptr;
+
+    bool bIsContainerOpened = false;
+
+    void OpenContainerScreen(AStorageContainer* Container);
+    void CloseContainerScreen();
+
     void Move(const FInputActionValue& Value);
     void Look(const FInputActionValue& Value);
     void Sprint(const FInputActionValue& Value);
@@ -131,6 +147,9 @@ public:
 
     void ShowPickupPrompt(ADropItem* Item);
     void HidePickupPrompt(ADropItem* Item);
+
+    void ShowContainerPrompt(AStorageContainer* Container);
+    void HideContainerPrompt(AStorageContainer* Container);
 
 private:
     bool bIsInvetoryOpened = false;

@@ -1,6 +1,7 @@
 #include "InventorySlotWidget.h"
 #include "InventoryScreenWidget.h"
 #include "ItemDragDropOperation.h"
+#include "InventoryGridComponent.h"
 #include "Components/Border.h"
 
 void UInventorySlotWidget::InitSlot(UInventoryScreenWidget* InParentScreen, FIntPoint InSlotPosition)
@@ -34,7 +35,10 @@ bool UInventorySlotWidget::NativeOnDragOver(const FGeometry& InGeometry, const F
 	if (DragOp && ParentScreen)
 	{
 		FIntPoint TargetTopLeft = SlotPosition - DragOp->DragOffset;
-		ParentScreen->UpdateDragHighlight(TargetTopLeft, DragOp->DraggedItemData, DragOp->bCurrentRotated, DragOp->ItemIndex);
+		bool bCrossGrid = DragOp->SourceInventoryComponent
+			&& DragOp->SourceInventoryComponent != ParentScreen->GetCachedInventoryComponent();
+		int32 IgnoreIdx = bCrossGrid ? INDEX_NONE : DragOp->ItemIndex;
+		ParentScreen->UpdateDragHighlight(TargetTopLeft, DragOp->DraggedItemData, DragOp->bCurrentRotated, IgnoreIdx);
 		return true;
 	}
 	return false;
@@ -57,6 +61,13 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 		ParentScreen->ClearDragHighlight();
 
 		FIntPoint TargetTopLeft = SlotPosition - DragOp->DragOffset;
+		bool bCrossGrid = DragOp->SourceInventoryComponent
+			&& DragOp->SourceInventoryComponent != ParentScreen->GetCachedInventoryComponent();
+
+		if (bCrossGrid)
+		{
+			return ParentScreen->OnItemDroppedFromExternal(DragOp, TargetTopLeft, DragOp->bCurrentRotated);
+		}
 		return ParentScreen->OnItemDropped(DragOp->ItemIndex, TargetTopLeft, DragOp->bCurrentRotated);
 	}
 	return false;
