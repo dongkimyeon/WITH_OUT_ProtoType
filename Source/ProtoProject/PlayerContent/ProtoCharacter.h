@@ -130,10 +130,10 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|IK")
     FTransform LeftHandTransform = FTransform::Identity;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     bool bIsSprint = false;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim")
     bool bIsAiming = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")

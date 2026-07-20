@@ -19,9 +19,10 @@ AProtoCharacter::AProtoCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
     InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
-    bUseControllerRotationYaw = false;
-    bUseControllerRotationPitch = true;
-    GetCharacterMovement()->bOrientRotationToMovement = true;
+    bUseControllerRotationYaw = true;
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationRoll = false;
+    GetCharacterMovement()->bOrientRotationToMovement = false;
     GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
 }
 
@@ -60,6 +61,9 @@ void AProtoCharacter::Tick(float DeltaTime)
 void AProtoCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    StopAim();
+    StopSprint();
 
     if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
     {
@@ -190,9 +194,10 @@ void AProtoCharacter::StartAim()
 void AProtoCharacter::StopAim()
 {
     bIsAiming = false;
-    bUseControllerRotationYaw = false;
-    bUseControllerRotationPitch = true;
-    GetCharacterMovement()->bOrientRotationToMovement = true;
+    bUseControllerRotationYaw = true;
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationRoll = false;
+    GetCharacterMovement()->bOrientRotationToMovement = false;
 }
 
 void AProtoCharacter::Interact(const FInputActionValue& Value)
