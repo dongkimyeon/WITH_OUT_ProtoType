@@ -1,4 +1,4 @@
-﻿#include "WeaponBase.h"
+#include "WeaponBase.h"
 #include "Components/BoxComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
@@ -68,6 +68,8 @@ void AWeaponBase::EquipToCharacter(AProtoCharacter* Character)
         true);
 
     AttachToComponent(TargetMesh, AttachRules, WeaponSocketName);
+    SetOwner(Character);
+    SetInstigator(Character);
 
     Character->bHasWeapon = WeaponType != EWeaponType::None;
     Character->CurrentWeapon = this;
