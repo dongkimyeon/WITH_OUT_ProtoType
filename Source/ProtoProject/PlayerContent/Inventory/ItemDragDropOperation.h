@@ -9,7 +9,7 @@
 
 class UItemDataBase;
 class UInventoryGridComponent;
-class UInventoryScreenWidget;
+class UInventoryScreenBase;
 
 UCLASS(meta = (PrioritizeCategories = "Drag and Drop"))
 class PROTOPROJECT_API UItemDragDropOperation : public UDragDropOperation
@@ -54,5 +54,5 @@ public:
 	UInventoryGridComponent* SourceInventoryComponent = nullptr;
 
 	UPROPERTY()
-	UInventoryScreenWidget* SourceScreenWidget = nullptr;
+	UInventoryScreenBase* SourceScreenWidget = nullptr;
 };

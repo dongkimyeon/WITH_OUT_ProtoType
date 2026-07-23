@@ -7,7 +7,6 @@
 #include "InventoryGridComponent.h"
 #include "ContainerScreenWidget.h"
 #include "Item/ItemDataBase.h"
-#include "Item/DropItem.h"
 #include "Item/StorageContainer.h"
 #include "PlayerDefalutUI.h"
 #include "InputCoreTypes.h"
@@ -202,17 +201,13 @@ void AProtoCharacter::StopAim()
 
 void AProtoCharacter::Interact(const FInputActionValue& Value)
 {
-    // 컨테이너 화면이 열려있으면 닫기
     if (bIsContainerOpened)
     {
         CloseContainerScreen();
         return;
     }
 
-    if (NearbyDropItems.IsEmpty() && NearbyContainers.IsEmpty())
-    {
-        return;
-    }
+    if (NearbyInteractables.IsEmpty()) return;
 
     APlayerController* PC = Cast<APlayerController>(Controller);
     if (!PC) return;
@@ -226,50 +221,34 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
     Params.AddIgnoredActor(this);
 
     const FVector TraceStart = CamLoc + CamRot.Vector() * 400.f;
-    const FVector TraceEnd = CamLoc + CamRot.Vector() * 700.f;
+    const FVector TraceEnd   = CamLoc + CamRot.Vector() * 700.f;
     GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
     DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 2.f);
 
     AActor* HitActor = Hit.GetActor();
+    if (!IsValid(HitActor) || !NearbyInteractables.Contains(HitActor)) return;
 
-    AStorageContainer* HitContainer = Cast<AStorageContainer>(HitActor);
-    if (IsValid(HitContainer) && NearbyContainers.Contains(HitContainer))
+    if (HitActor->Implements<UInteractable>() && IInteractable::Execute_CanInteract(HitActor, this))
     {
-        OpenContainerScreen(HitContainer);
-        return;
-    }
-
-    ADropItem* HitItem = Cast<ADropItem>(HitActor);
-    if (IsValid(HitItem) && NearbyDropItems.Contains(HitItem))
-    {
-        InventoryComponent->AddItem(HitItem->ItemData);
-        HidePickupPrompt(HitItem);
-        HitItem->Destroy();
+        IInteractable::Execute_OnInteract(HitActor, this);
     }
 }
 
-void AProtoCharacter::ShowPickupPrompt(ADropItem* Item)
+void AProtoCharacter::OnInteractableEnter(AActor* Actor)
 {
-    NearbyDropItems.AddUnique(Item);
-    if (DefaultUI) DefaultUI->AddPickupPrompt(Item);
+    if (!Actor) return;
+    NearbyInteractables.AddUnique(Actor);
+    if (DefaultUI && Actor->Implements<UInteractable>())
+    {
+        DefaultUI->AddInteractPrompt(Actor, IInteractable::Execute_GetInteractPrompt(Actor));
+    }
 }
 
-void AProtoCharacter::HidePickupPrompt(ADropItem* Item)
+void AProtoCharacter::OnInteractableExit(AActor* Actor)
 {
-    NearbyDropItems.Remove(Item);
-    if (DefaultUI) DefaultUI->RemovePickupPrompt(Item);
-}
-
-void AProtoCharacter::ShowContainerPrompt(AStorageContainer* Container)
-{
-    NearbyContainers.AddUnique(Container);
-    if (DefaultUI) DefaultUI->AddContainerPrompt(Container);
-}
-
-void AProtoCharacter::HideContainerPrompt(AStorageContainer* Container)
-{
-    NearbyContainers.Remove(Container);
-    if (DefaultUI) DefaultUI->RemoveContainerPrompt(Container);
+    if (!Actor) return;
+    NearbyInteractables.Remove(Actor);
+    if (DefaultUI) DefaultUI->RemoveInteractPrompt(Actor);
 
     if (bIsContainerOpened) CloseContainerScreen();
 }
@@ -281,6 +260,7 @@ void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
     if (ContainerWidgetInstance == nullptr)
     {
         ContainerWidgetInstance = CreateWidget<UContainerScreenWidget>(GetWorld(), ContainerWidgetClass);
+        GEngine->AddOnScreenDebugMessage(-1,5.f,FColor::Cyan,"OpenContainerScreen");
     }
 
     if (!ContainerWidgetInstance) return;
@@ -298,6 +278,7 @@ void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
         InputMode.SetWidgetToFocus(ContainerWidgetInstance->TakeWidget());
         InputMode.SetHideCursorDuringCapture(false);
         PC->SetInputMode(InputMode);
+        GEngine->AddOnScreenDebugMessage(-1,5.f,FColor::Cyan,"MouseSetting");
     }
 }
 

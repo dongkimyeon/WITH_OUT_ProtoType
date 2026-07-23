@@ -1,7 +1,6 @@
 #include "InventoryScreenWidget.h"
 #include "Components/GridPanel.h"
 #include "Components/GridSlot.h"
-#include "InventoryGridComponent.h"
 #include "ItemDragDropOperation.h"
 #include "InputCoreTypes.h"
 
@@ -11,13 +10,12 @@ void UInventoryScreenWidget::NativeConstruct()
 	SetIsFocusable(true);
 }
 
-
-void UInventoryScreenWidget::OnItemHoverBegin(int32 ItemIndex)
+void UInventoryScreenWidget::OnItemHoverBegin(int32 ItemIndex, UInventoryGridComponent*)
 {
 	HoveredItemIndex = ItemIndex;
 }
 
-void UInventoryScreenWidget::OnItemHoverEnd(int32 ItemIndex)
+void UInventoryScreenWidget::OnItemHoverEnd(int32 ItemIndex, UInventoryGridComponent*)
 {
 	if (HoveredItemIndex == ItemIndex)
 	{
@@ -25,7 +23,7 @@ void UInventoryScreenWidget::OnItemHoverEnd(int32 ItemIndex)
 	}
 }
 
-bool UInventoryScreenWidget::OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition, bool bDropRotated)
+bool UInventoryScreenWidget::OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition, bool bDropRotated, UInventoryGridComponent*)
 {
 	if (!CachedInventoryComponent) return false;
 
@@ -38,7 +36,7 @@ bool UInventoryScreenWidget::OnItemDropped(int32 ItemIndex, const FIntPoint& Tar
 	return false;
 }
 
-bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* DragOp, const FIntPoint& TargetPosition, bool bDropRotated)
+bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* DragOp, const FIntPoint& TargetPosition, bool bDropRotated, UInventoryGridComponent*)
 {
 	if (!CachedInventoryComponent || !DragOp || !DragOp->SourceInventoryComponent) return false;
 
@@ -56,7 +54,7 @@ bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* D
 
 	if (DragOp->SourceScreenWidget)
 	{
-		DragOp->SourceScreenWidget->InitializeGrid(DragOp->SourceInventoryComponent);
+		DragOp->SourceScreenWidget->RefreshGrid(DragOp->SourceInventoryComponent);
 	}
 	InitializeGrid(CachedInventoryComponent);
 
@@ -69,13 +67,17 @@ void UInventoryScreenWidget::SetActiveDragOperation(UItemDragDropOperation* InDr
 	ActiveDragOp = InDragOp;
 }
 
+void UInventoryScreenWidget::RefreshGrid(UInventoryGridComponent* Component)
+{
+	if (Component) InitializeGrid(Component);
+}
+
 FReply UInventoryScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 {
 	if (InKeyEvent.GetKey() == EKeys::R)
 	{
 		if (ActiveDragOp && ActiveDragOp->DraggedItemData)
 		{
-			// 드래그 중 회전
 			bool bNewRotated = !ActiveDragOp->bCurrentRotated;
 			ActiveDragOp->bCurrentRotated = bNewRotated;
 
@@ -94,7 +96,6 @@ FReply UInventoryScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, cons
 				ActiveDragOp->DragVisualWrapper->SetHeightOverride(NewSize.Y * ActiveDragOp->CellPixelSize.Y);
 			}
 
-			// DragOffset이 새 크기 범위를 벗어나지 않도록 클램프
 			ActiveDragOp->DragOffset.X = FMath::Clamp(ActiveDragOp->DragOffset.X, 0, NewSize.X - 1);
 			ActiveDragOp->DragOffset.Y = FMath::Clamp(ActiveDragOp->DragOffset.Y, 0, NewSize.Y - 1);
 
@@ -143,7 +144,7 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 	CachedInventoryComponent = InInventoryComponent;
 	HoveredItemIndex = INDEX_NONE;
 	ItemWidgets.Empty();
-	SlotWidgetMap.Empty(); 
+	SlotWidgetMap.Empty();
 	InventoryGridPanel->ClearChildren();
 
 	int32 Rows = InInventoryComponent->GridRows;
@@ -156,9 +157,7 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 			UInventorySlotWidget* NewSlotWidget = CreateWidget<UInventorySlotWidget>(GetOwningPlayer(), SlotWidgetClass);
 			if (NewSlotWidget)
 			{
-				NewSlotWidget->InitSlot(this, FIntPoint(x, y));
-				
-				// 생성된 슬롯을 Map에 기억해 둡니다.
+				NewSlotWidget->InitSlot(this, FIntPoint(x, y), InInventoryComponent);
 				SlotWidgetMap.Add(FIntPoint(x, y), NewSlotWidget);
 
 				UGridSlot* GridSlot = InventoryGridPanel->AddChildToGrid(NewSlotWidget);
@@ -207,7 +206,46 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 		}
 	}
 }
-void UInventoryScreenWidget::UpdateDragHighlight(const FIntPoint& TargetTopLeft, UItemDataBase* ItemData, bool bRotated, int32 IgnoreIndex)
+
+void UInventoryScreenWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+
+	if (!IsDesignTime() || !InventoryGridPanel || !SlotWidgetClass) return;
+
+	int32 Columns = 10;
+	int32 Rows = 6;
+
+	if (PreviewGridComponentClass)
+	{
+		const UInventoryGridComponent* CDO = PreviewGridComponentClass->GetDefaultObject<UInventoryGridComponent>();
+		Columns = CDO->GridColumns;
+		Rows = CDO->GridRows;
+	}
+
+	InventoryGridPanel->ClearChildren();
+
+	for (int32 y = 0; y < Rows; ++y)
+	{
+		for (int32 x = 0; x < Columns; ++x)
+		{
+			UInventorySlotWidget* NewSlotWidget = CreateWidget<UInventorySlotWidget>(this, SlotWidgetClass);
+			if (!NewSlotWidget) continue;
+
+			UGridSlot* GridSlot = InventoryGridPanel->AddChildToGrid(NewSlotWidget);
+			if (GridSlot)
+			{
+				GridSlot->SetRow(y);
+				GridSlot->SetColumn(x);
+				GridSlot->SetPadding(FMargin(1.2f));
+				GridSlot->SetHorizontalAlignment(HAlign_Fill);
+				GridSlot->SetVerticalAlignment(VAlign_Fill);
+			}
+		}
+	}
+}
+
+void UInventoryScreenWidget::UpdateDragHighlight(const FIntPoint& TargetTopLeft, UItemDataBase* ItemData, bool bRotated, int32 IgnoreIndex, UInventoryGridComponent*)
 {
 	ClearDragHighlight();
 	if (!CachedInventoryComponent || !ItemData) return;
@@ -227,7 +265,7 @@ void UInventoryScreenWidget::UpdateDragHighlight(const FIntPoint& TargetTopLeft,
 		}
 	}
 }
-// 하이라이트를 지웁니다.
+
 void UInventoryScreenWidget::ClearDragHighlight()
 {
 	for (auto& Pair : SlotWidgetMap)

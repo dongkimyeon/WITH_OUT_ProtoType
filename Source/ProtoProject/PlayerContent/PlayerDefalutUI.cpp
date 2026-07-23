@@ -1,64 +1,40 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #include "PlayerDefalutUI.h"
 #include "Components/TextBlock.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
-#include "Item/DropItem.h"
-#include "Item/StorageContainer.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 
-void UPlayerDefalutUI::AddPickupPrompt(ADropItem* Item)
+void UPlayerDefalutUI::AddInteractPrompt(AActor* Actor, FText Text)
 {
-	if (!PromptCanvas || PromptMap.Contains(Item)) return;
+	if (!PromptCanvas || !Actor || PromptMap.Contains(Actor)) return;
 
 	UTextBlock* NewText = NewObject<UTextBlock>(this);
-	NewText->SetText(FText::FromString(TEXT("F  습득")));
+	NewText->SetText(Text);
 
 	UCanvasPanelSlot* CanvasSlot = PromptCanvas->AddChildToCanvas(NewText);
 	CanvasSlot->SetAutoSize(true);
 
-	PromptMap.Add(Item, NewText);
+	PromptMap.Add(Actor, NewText);
 }
 
-void UPlayerDefalutUI::RemovePickupPrompt(ADropItem* Item)
+void UPlayerDefalutUI::RemoveInteractPrompt(AActor* Actor)
 {
-	UTextBlock** Found = PromptMap.Find(Item);
+	UTextBlock** Found = PromptMap.Find(Actor);
 	if (!Found) return;
 
 	(*Found)->RemoveFromParent();
-	PromptMap.Remove(Item);
-}
-
-void UPlayerDefalutUI::AddContainerPrompt(AStorageContainer* Container)
-{
-	if (!PromptCanvas || ContainerPromptMap.Contains(Container)) return;
-
-	UTextBlock* NewText = NewObject<UTextBlock>(this);
-	NewText->SetText(FText::FromString(TEXT("F  열기")));
-
-	UCanvasPanelSlot* CanvasSlot = PromptCanvas->AddChildToCanvas(NewText);
-	CanvasSlot->SetAutoSize(true);
-
-	ContainerPromptMap.Add(Container, NewText);
-}
-
-void UPlayerDefalutUI::RemoveContainerPrompt(AStorageContainer* Container)
-{
-	UTextBlock** Found = ContainerPromptMap.Find(Container);
-	if (!Found) return;
-
-	(*Found)->RemoveFromParent();
-	ContainerPromptMap.Remove(Container);
+	PromptMap.Remove(Actor);
 }
 
 void UPlayerDefalutUI::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 {
 	Super::NativeTick(MyGeometry, DeltaTime);
 
-	auto UpdatePrompt = [&](AActor* Actor, UTextBlock* Text)
+	for (auto& Pair : PromptMap)
 	{
-		if (!IsValid(Actor) || !Text) return;
+		AActor* Actor = Pair.Key;
+		UTextBlock* Text = Pair.Value;
+		if (!IsValid(Actor) || !Text) continue;
 
 		FVector2D ScreenPos;
 		bool bOnScreen = GetOwningPlayer()->ProjectWorldLocationToScreen(
@@ -80,8 +56,5 @@ void UPlayerDefalutUI::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 		{
 			Text->SetVisibility(ESlateVisibility::Hidden);
 		}
-	};
-
-	for (auto& Pair : PromptMap)         UpdatePrompt(Pair.Key, Pair.Value);
-	for (auto& Pair : ContainerPromptMap) UpdatePrompt(Pair.Key, Pair.Value);
+	}
 }

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/BoxComponent.h"
+#include "../Interactable.h"
 #include "StorageContainer.generated.h"
 
 class UStaticMeshComponent;
@@ -11,7 +12,7 @@ class UItemDataBase;
 class AProtoCharacter;
 
 UCLASS(meta = (PrioritizeCategories = "Container"))
-class PROTOPROJECT_API AStorageContainer : public AActor
+class PROTOPROJECT_API AStorageContainer : public AActor, public IInteractable
 {
 	GENERATED_BODY()
 
@@ -27,12 +28,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UInventoryGridComponent* ContainerInventory;
 
-	// 에디터에서 설정. 비워두면 보관함, 채우면 루팅박스
 	UPROPERTY(EditAnywhere, Category = "Container")
 	TArray<TObjectPtr<UItemDataBase>> DefaultLootItems;
 
 	UPROPERTY(EditAnywhere, Category = "Container")
 	FText ContainerName;
+
+	virtual void OnInteract_Implementation(AProtoCharacter* InPlayer) override;
+	virtual FText GetInteractPrompt_Implementation() const override;
+	virtual bool CanInteract_Implementation(AProtoCharacter* InPlayer) const override;
 
 protected:
 	virtual void BeginPlay() override;

@@ -1,18 +1,17 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/BoxComponent.h"
 #include "ItemDataBase.h"
+#include "../Interactable.h"
 #include "DropItem.generated.h"
 
 class UStaticMeshComponent;
 class AProtoCharacter;
 
 UCLASS(meta = (PrioritizeCategories = "Data"))
-class PROTOPROJECT_API ADropItem : public AActor
+class PROTOPROJECT_API ADropItem : public AActor, public IInteractable
 {
 	GENERATED_BODY()
 
@@ -30,6 +29,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Data")
 	UItemDataBase* ItemData;
+
+	virtual void OnInteract_Implementation(AProtoCharacter* InPlayer) override;
+	virtual FText GetInteractPrompt_Implementation() const override;
+	virtual bool CanInteract_Implementation(AProtoCharacter* InPlayer) const override;
 
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;

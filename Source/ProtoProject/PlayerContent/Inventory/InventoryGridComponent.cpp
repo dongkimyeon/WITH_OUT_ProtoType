@@ -191,7 +191,5 @@ bool UInventoryGridComponent::AddItem(UItemDataBase* NewItem)
         return AddItemAt(NewItem, FoundPosition, true); 
     }
 
-    // 두 번 다 실패했다면 진짜로 가방이 꽉 찬 것입니다.
-    // TODO: "가방이 가득 찼습니다" UI 메시지 띄우기
     return false; 
 }

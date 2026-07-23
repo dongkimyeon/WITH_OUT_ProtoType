@@ -1,12 +1,11 @@
 #include "InventoryItemWidget.h"
-#include "InventoryScreenWidget.h"
 #include "InventoryGridComponent.h"
 #include "ItemDragDropOperation.h"
 #include "ItemDataBase.h"
 #include "Engine/Texture2D.h"
 #include "Components/SizeBox.h"
 #include "Components/SizeBoxSlot.h"
-void UInventoryItemWidget::InitItem(UInventoryScreenWidget* InParentScreen, UInventoryGridComponent* InComponent, int32 InItemIndex)
+void UInventoryItemWidget::InitItem(UInventoryScreenBase* InParentScreen, UInventoryGridComponent* InComponent, int32 InItemIndex)
 {
 	ParentScreen = InParentScreen;
 	InventoryComponent = InComponent;
@@ -124,11 +123,11 @@ void UInventoryItemWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDro
 void UInventoryItemWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
 	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
-	if (ParentScreen) ParentScreen->OnItemHoverBegin(ItemIndex);
+	if (ParentScreen) ParentScreen->OnItemHoverBegin(ItemIndex, InventoryComponent);
 }
 
 void UInventoryItemWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
 {
 	Super::NativeOnMouseLeave(InMouseEvent);
-	if (ParentScreen) ParentScreen->OnItemHoverEnd(ItemIndex);
+	if (ParentScreen) ParentScreen->OnItemHoverEnd(ItemIndex, InventoryComponent);
 }
