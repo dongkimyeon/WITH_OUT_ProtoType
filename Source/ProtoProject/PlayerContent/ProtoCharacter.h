@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "Interactable.h"
 #include "ProtoCharacter.generated.h"
 
 class UInputMappingContext;
@@ -10,7 +11,6 @@ class UInputAction;
 class UUserWidget;
 class UInventoryGridComponent;
 class AWeaponBase;
-class ADropItem;
 class AStorageContainer;
 class UPlayerDefalutUI;
 class UContainerScreenWidget;
@@ -84,10 +84,7 @@ private:
     UPlayerDefalutUI* DefaultUI = nullptr;
 
     UPROPERTY()
-    TArray<ADropItem*> NearbyDropItems;
-
-    UPROPERTY()
-    TArray<AStorageContainer*> NearbyContainers;
+    TArray<AActor*> NearbyInteractables;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UContainerScreenWidget> ContainerWidgetClass;
@@ -97,7 +94,6 @@ private:
 
     bool bIsContainerOpened = false;
 
-    void OpenContainerScreen(AStorageContainer* Container);
     void CloseContainerScreen();
 
     void Move(const FInputActionValue& Value);
@@ -145,11 +141,12 @@ public:
     UPROPERTY(EditAnywhere, Category = "Movement")
     float SprintMultiplier = 2.0f;
 
-    void ShowPickupPrompt(ADropItem* Item);
-    void HidePickupPrompt(ADropItem* Item);
+    void OnInteractableEnter(AActor* Actor);
+    void OnInteractableExit(AActor* Actor);
 
-    void ShowContainerPrompt(AStorageContainer* Container);
-    void HideContainerPrompt(AStorageContainer* Container);
+    void OpenContainerScreen(AStorageContainer* Container);
+
+    UInventoryGridComponent* GetInventoryComponent() const { return InventoryComponent; }
 
 private:
     bool bIsInvetoryOpened = false;

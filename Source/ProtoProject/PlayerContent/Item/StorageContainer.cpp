@@ -38,12 +38,27 @@ void AStorageContainer::OnInteractBeginOverlap(UPrimitiveComponent*, AActor* Oth
 	UPrimitiveComponent*, int32, bool, const FHitResult&)
 {
 	AProtoCharacter* Player = Cast<AProtoCharacter>(OtherActor);
-	if (Player) Player->ShowContainerPrompt(this);
+	if (Player) Player->OnInteractableEnter(this);
 }
 
 void AStorageContainer::OnInteractEndOverlap(UPrimitiveComponent*, AActor* OtherActor,
 	UPrimitiveComponent*, int32)
 {
 	AProtoCharacter* Player = Cast<AProtoCharacter>(OtherActor);
-	if (Player) Player->HideContainerPrompt(this);
+	if (Player) Player->OnInteractableExit(this);
+}
+
+void AStorageContainer::OnInteract_Implementation(AProtoCharacter* InPlayer)
+{
+	if (InPlayer) InPlayer->OpenContainerScreen(this);
+}
+
+FText AStorageContainer::GetInteractPrompt_Implementation() const
+{
+	return FText::Format(FText::FromString(TEXT("F  열기  [{0}]")), ContainerName);
+}
+
+bool AStorageContainer::CanInteract_Implementation(AProtoCharacter* InPlayer) const
+{
+	return true;
 }

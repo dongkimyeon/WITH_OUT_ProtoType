@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -9,8 +7,6 @@
 
 class UTextBlock;
 class UCanvasPanel;
-class ADropItem;
-class AStorageContainer;
 
 UCLASS()
 class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
@@ -18,11 +14,8 @@ class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	void AddPickupPrompt(ADropItem* Item);
-	void RemovePickupPrompt(ADropItem* Item);
-
-	void AddContainerPrompt(AStorageContainer* Container);
-	void RemoveContainerPrompt(AStorageContainer* Container);
+	void AddInteractPrompt(AActor* Actor, FText Text);
+	void RemoveInteractPrompt(AActor* Actor);
 
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
@@ -33,6 +26,5 @@ private:
 
 	UPlayerStatusComponent* PlayerStatusComponent;
 
-	TMap<ADropItem*, UTextBlock*> PromptMap;
-	TMap<AStorageContainer*, UTextBlock*> ContainerPromptMap;
+	TMap<AActor*, UTextBlock*> PromptMap;
 };

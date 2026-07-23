@@ -1,7 +1,6 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #include "DropItem.h"
 #include "../ProtoCharacter.h"
+#include "../Inventory/InventoryGridComponent.h"
 
 ADropItem::ADropItem()
 {
@@ -30,8 +29,7 @@ void ADropItem::OnConstruction(const FTransform& Transform)
 
 	if (ItemData && !ItemData->ItemMesh.IsNull())
 	{
-		UStaticMesh* SelectedMesh = ItemData->ItemMesh.LoadSynchronous();
-		StaticMeshComp->SetStaticMesh(SelectedMesh);
+		StaticMeshComp->SetStaticMesh(ItemData->ItemMesh.LoadSynchronous());
 	}
 	else
 	{
@@ -51,17 +49,35 @@ void ADropItem::OnInteractBeginOverlap(UPrimitiveComponent*, AActor* OtherActor,
 	UPrimitiveComponent*, int32, bool, const FHitResult&)
 {
 	AProtoCharacter* Player = Cast<AProtoCharacter>(OtherActor);
-	if (Player) Player->ShowPickupPrompt(this);
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, TEXT("BeginOverlap"));
-	
+	if (Player) Player->OnInteractableEnter(this);
 }
 
 void ADropItem::OnInteractEndOverlap(UPrimitiveComponent*, AActor* OtherActor,
 	UPrimitiveComponent*, int32)
 {
 	AProtoCharacter* Player = Cast<AProtoCharacter>(OtherActor);
-	if (Player) Player->HidePickupPrompt(this);
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, TEXT("EndOverLap"));
+	if (Player) Player->OnInteractableExit(this);
+}
+
+void ADropItem::OnInteract_Implementation(AProtoCharacter* InPlayer)
+{
+	if (!InPlayer || !ItemData) return;
+	InPlayer->GetInventoryComponent()->AddItem(ItemData);
+	Destroy();
+}
+
+FText ADropItem::GetInteractPrompt_Implementation() const
+{
+	if (ItemData)
+	{
+		return FText::Format(FText::FromString(TEXT("F  줍기  [{0}]")), ItemData->DisplayName);
+	}
+	return FText::FromString(TEXT("F  줍기"));
+}
+
+bool ADropItem::CanInteract_Implementation(AProtoCharacter* InPlayer) const
+{
+	return true;
 }
 
 void ADropItem::Tick(float DeltaTime)
