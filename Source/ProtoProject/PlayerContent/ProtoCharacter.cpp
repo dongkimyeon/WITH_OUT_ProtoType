@@ -235,7 +235,9 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
     AStorageContainer* HitContainer = Cast<AStorageContainer>(HitActor);
     if (IsValid(HitContainer) && NearbyContainers.Contains(HitContainer))
     {
-        OpenContainerScreen(HitContainer);
+        OpenContainerScreen(HitContainer); 
+        
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("OpenContainerScreen"));
         return;
     }
 
@@ -281,6 +283,7 @@ void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
     if (ContainerWidgetInstance == nullptr)
     {
         ContainerWidgetInstance = CreateWidget<UContainerScreenWidget>(GetWorld(), ContainerWidgetClass);
+        GEngine->AddOnScreenDebugMessage(-1,5.f,FColor::Cyan,"OpenContainerScreen");
     }
 
     if (!ContainerWidgetInstance) return;
@@ -298,6 +301,7 @@ void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
         InputMode.SetWidgetToFocus(ContainerWidgetInstance->TakeWidget());
         InputMode.SetHideCursorDuringCapture(false);
         PC->SetInputMode(InputMode);
+        GEngine->AddOnScreenDebugMessage(-1,5.f,FColor::Cyan,"MouseSetting");
     }
 }
 

@@ -4,9 +4,9 @@
 #include "Blueprint/UserWidget.h"
 #include "Components/Image.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "InventoryScreenBase.h"
 #include "InventoryItemWidget.generated.h"
 
-class UInventoryScreenWidget;
 class UInventoryGridComponent;
 
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
@@ -15,7 +15,7 @@ class PROTOPROJECT_API UInventoryItemWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	void InitItem(UInventoryScreenWidget* InParentScreen, UInventoryGridComponent* InComponent, int32 InItemIndex);
+	void InitItem(UInventoryScreenBase* InParentScreen, UInventoryGridComponent* InComponent, int32 InItemIndex);
 	void RefreshVisual();
 protected:
 	UPROPERTY(meta = (BindWidget))
@@ -32,7 +32,7 @@ protected:
 
 private:
 	UPROPERTY()
-	UInventoryScreenWidget* ParentScreen = nullptr;
+	UInventoryScreenBase* ParentScreen = nullptr;
 
 	UPROPERTY()
 	UInventoryGridComponent* InventoryComponent = nullptr;

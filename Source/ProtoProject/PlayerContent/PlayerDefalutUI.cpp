@@ -13,7 +13,7 @@ void UPlayerDefalutUI::AddPickupPrompt(ADropItem* Item)
 	if (!PromptCanvas || PromptMap.Contains(Item)) return;
 
 	UTextBlock* NewText = NewObject<UTextBlock>(this);
-	NewText->SetText(FText::FromString(TEXT("F  습득")));
+	NewText->SetText(FText::FromString(TEXT("F 습득")));
 
 	UCanvasPanelSlot* CanvasSlot = PromptCanvas->AddChildToCanvas(NewText);
 	CanvasSlot->SetAutoSize(true);

@@ -1,13 +1,13 @@
 #include "InventorySlotWidget.h"
-#include "InventoryScreenWidget.h"
 #include "ItemDragDropOperation.h"
 #include "InventoryGridComponent.h"
 #include "Components/Border.h"
 
-void UInventorySlotWidget::InitSlot(UInventoryScreenWidget* InParentScreen, FIntPoint InSlotPosition)
+void UInventorySlotWidget::InitSlot(UInventoryScreenBase* InParentScreen, FIntPoint InSlotPosition, UInventoryGridComponent* InOwningComponent)
 {
 	ParentScreen = InParentScreen;
 	SlotPosition = InSlotPosition;
+	OwningInventoryComponent = InOwningComponent;
 
 	if (SlotBorder)
 	{
@@ -35,10 +35,9 @@ bool UInventorySlotWidget::NativeOnDragOver(const FGeometry& InGeometry, const F
 	if (DragOp && ParentScreen)
 	{
 		FIntPoint TargetTopLeft = SlotPosition - DragOp->DragOffset;
-		bool bCrossGrid = DragOp->SourceInventoryComponent
-			&& DragOp->SourceInventoryComponent != ParentScreen->GetCachedInventoryComponent();
+		bool bCrossGrid = DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != OwningInventoryComponent;
 		int32 IgnoreIdx = bCrossGrid ? INDEX_NONE : DragOp->ItemIndex;
-		ParentScreen->UpdateDragHighlight(TargetTopLeft, DragOp->DraggedItemData, DragOp->bCurrentRotated, IgnoreIdx);
+		ParentScreen->UpdateDragHighlight(TargetTopLeft, DragOp->DraggedItemData, DragOp->bCurrentRotated, IgnoreIdx, OwningInventoryComponent);
 		return true;
 	}
 	return false;
@@ -61,14 +60,13 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 		ParentScreen->ClearDragHighlight();
 
 		FIntPoint TargetTopLeft = SlotPosition - DragOp->DragOffset;
-		bool bCrossGrid = DragOp->SourceInventoryComponent
-			&& DragOp->SourceInventoryComponent != ParentScreen->GetCachedInventoryComponent();
+		bool bCrossGrid = DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != OwningInventoryComponent;
 
 		if (bCrossGrid)
 		{
-			return ParentScreen->OnItemDroppedFromExternal(DragOp, TargetTopLeft, DragOp->bCurrentRotated);
+			return ParentScreen->OnItemDroppedFromExternal(DragOp, TargetTopLeft, DragOp->bCurrentRotated, OwningInventoryComponent);
 		}
-		return ParentScreen->OnItemDropped(DragOp->ItemIndex, TargetTopLeft, DragOp->bCurrentRotated);
+		return ParentScreen->OnItemDropped(DragOp->ItemIndex, TargetTopLeft, DragOp->bCurrentRotated, OwningInventoryComponent);
 	}
 	return false;
 }

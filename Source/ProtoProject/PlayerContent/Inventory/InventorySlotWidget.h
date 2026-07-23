@@ -2,9 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "InventoryScreenBase.h"
 #include "InventorySlotWidget.generated.h"
 
-class UInventoryScreenWidget;
+class UInventoryGridComponent;
 class UBorder;
 
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
@@ -13,7 +14,7 @@ class PROTOPROJECT_API UInventorySlotWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	void InitSlot(UInventoryScreenWidget* InParentScreen, FIntPoint InSlotPosition);
+	void InitSlot(UInventoryScreenBase* InParentScreen, FIntPoint InSlotPosition, UInventoryGridComponent* InOwningComponent);
 	void SetHighlight(bool bShowHighlight, bool bIsValid);
 
 protected:
@@ -37,7 +38,10 @@ protected:
 
 private:
 	UPROPERTY()
-	UInventoryScreenWidget* ParentScreen = nullptr;
+	UInventoryScreenBase* ParentScreen = nullptr;
+
+	UPROPERTY()
+	UInventoryGridComponent* OwningInventoryComponent = nullptr;
 
 	FIntPoint SlotPosition;
 };
