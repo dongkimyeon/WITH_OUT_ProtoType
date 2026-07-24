@@ -37,8 +37,9 @@ void ULevelChangeSelectWidget::OnClickMultiMap2()
 void ULevelChangeSelectWidget::RequestLevelChange(ELevelChangeMode Mode, FName MapName)
 {
 	const FString ModeText = (Mode == ELevelChangeMode::Single) ? TEXT("Single") : TEXT("Multi");
-	const FString Msg = FString::Printf(TEXT("LevelChange requested: %s / %s (travel logic not implemented yet)"), *ModeText, *MapName.ToString());
+	const FString Msg = FString::Printf(TEXT("레벨 변경 요청: %s / %s "),
+		*ModeText, *MapName.ToString());
 
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, Msg);
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, Msg);
 	UE_LOG(LogTemp, Log, TEXT("%s"), *Msg);
 }
