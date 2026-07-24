@@ -15,6 +15,8 @@
 #include "Engine/Engine.h"
 #include "Animation/AnimMontage.h"
 #include "weapon/WeaponBase.h"
+#include "../LevelChange/LevelChanger.h"
+#include "../LevelChange/LevelChangeSelectWidget.h"
 
 AProtoCharacter::AProtoCharacter()
 {
@@ -290,6 +292,12 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
         return;
     }
 
+    if (bIsLevelChangeOpened)
+    {
+        CloseLevelChangeScreen();
+        return;
+    }
+
     if (NearbyInteractables.IsEmpty()) return;
 
     APlayerController* PC = Cast<APlayerController>(Controller);
@@ -334,6 +342,7 @@ void AProtoCharacter::OnInteractableExit(AActor* Actor)
     if (DefaultUI) DefaultUI->RemoveInteractPrompt(Actor);
 
     if (bIsContainerOpened) CloseContainerScreen();
+    if (bIsLevelChangeOpened) CloseLevelChangeScreen();
 }
 
 void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
@@ -370,6 +379,44 @@ void AProtoCharacter::CloseContainerScreen()
     if (ContainerWidgetInstance) ContainerWidgetInstance->RemoveFromParent();
     bIsContainerOpened = false;
     bIsInvetoryOpened = false;
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (PC)
+    {
+        PC->SetShowMouseCursor(false);
+        PC->SetInputMode(FInputModeGameOnly());
+    }
+}
+
+void AProtoCharacter::OpenLevelChangeScreen(ALevelChanger* Changer)
+{
+    if (!LevelChangeWidgetClass) return;
+
+    if (LevelChangeWidgetInstance == nullptr)
+    {
+        LevelChangeWidgetInstance = CreateWidget<ULevelChangeSelectWidget>(GetWorld(), LevelChangeWidgetClass);
+    }
+
+    if (!LevelChangeWidgetInstance) return;
+
+    LevelChangeWidgetInstance->AddToViewport();
+    bIsLevelChangeOpened = true;
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (PC)
+    {
+        PC->SetShowMouseCursor(true);
+        FInputModeGameAndUI InputMode;
+        InputMode.SetWidgetToFocus(LevelChangeWidgetInstance->TakeWidget());
+        InputMode.SetHideCursorDuringCapture(false);
+        PC->SetInputMode(InputMode);
+    }
+}
+
+void AProtoCharacter::CloseLevelChangeScreen()
+{
+    if (LevelChangeWidgetInstance) LevelChangeWidgetInstance->RemoveFromParent();
+    bIsLevelChangeOpened = false;
 
     APlayerController* PC = Cast<APlayerController>(Controller);
     if (PC)

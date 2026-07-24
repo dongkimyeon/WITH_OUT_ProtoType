@@ -16,6 +16,8 @@ class UPlayerDefalutUI;
 class UContainerScreenWidget;
 class UAnimMontage;
 class UPlayerStatusComponent;
+class ULevelChangeSelectWidget;
+class ALevelChanger;
 
 UENUM(BlueprintType)
 enum class EWeaponType : uint8
@@ -100,6 +102,16 @@ private:
     bool bIsContainerOpened = false;
 
     void CloseContainerScreen();
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<ULevelChangeSelectWidget> LevelChangeWidgetClass;
+
+    UPROPERTY()
+    ULevelChangeSelectWidget* LevelChangeWidgetInstance = nullptr;
+
+    bool bIsLevelChangeOpened = false;
+
+    void CloseLevelChangeScreen();
 
     void Move(const FInputActionValue& Value);
     void Look(const FInputActionValue& Value);
@@ -199,6 +211,7 @@ public:
     void OnInteractableExit(AActor* Actor);
 
     void OpenContainerScreen(AStorageContainer* Container);
+    void OpenLevelChangeScreen(ALevelChanger* Changer);
 
     UInventoryGridComponent* GetInventoryComponent() const { return InventoryComponent; }
     UPlayerStatusComponent* GetStatusComponent() const { return StatusComponent; }
