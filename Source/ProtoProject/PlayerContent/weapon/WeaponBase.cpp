@@ -60,20 +60,34 @@ void AWeaponBase::EquipToCharacter(AProtoCharacter* Character)
         return;
     }
 
-    static const FName WeaponSocketName(TEXT("WeaponSocket"));
+    const FName EquipSocketName = WeaponType == EWeaponType::Pistol
+        ? TEXT("PistolSocket")
+        : TEXT("WeaponSocket");
     const FAttachmentTransformRules AttachRules(
         EAttachmentRule::SnapToTarget,
         EAttachmentRule::SnapToTarget,
         EAttachmentRule::KeepRelative,
         true);
 
-    AttachToComponent(TargetMesh, AttachRules, WeaponSocketName);
+    AttachToComponent(TargetMesh, AttachRules, EquipSocketName);
     SetOwner(Character);
     SetInstigator(Character);
 
     Character->bHasWeapon = WeaponType != EWeaponType::None;
     Character->CurrentWeapon = this;
+    if (WeaponType == EWeaponType::Rifle)
+    {
+        Character->CurrentRifle = this;
+    }
+    else if (WeaponType == EWeaponType::Pistol)
+    {
+        Character->CurrentPistol = this;
+    }
     Character->CurrentWeaponType = WeaponType;
+    Character->PendingWeaponType = WeaponType;
+    Character->SwapFromWeaponType = EWeaponType::None;
+    Character->Swapping = 0.0f;
+    Character->SwappingAlpha = true;
 
     SetActorEnableCollision(false);
 

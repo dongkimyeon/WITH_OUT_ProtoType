@@ -12,6 +12,7 @@
 #include "InputCoreTypes.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
+#include "Animation/AnimMontage.h"
 #include "weapon/WeaponBase.h"
 
 AProtoCharacter::AProtoCharacter()
@@ -35,7 +36,17 @@ void AProtoCharacter::Tick(float DeltaTime)
         AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
     }
 
-    if (bHasWeapon && CurrentWeapon && CurrentWeapon->GetRootComponent() && GetMesh())
+    if (Swapping > 0.0f)
+    {
+        Swapping = FMath::Max(0.0f, Swapping - DeltaTime);
+        SwappingAlpha = false;
+
+        if (Swapping <= 0.0f)
+        {
+            FinishWeaponSwap();
+        }
+    }
+    if (bHasWeapon && Swapping <= 0.0f && CurrentWeapon && CurrentWeapon->GetRootComponent() && GetMesh())
     {
         static const FName LeftHandSocketName(TEXT("LeftHandSocket"));
         static const FName RightHandBoneName(TEXT("hand_r"));
@@ -120,6 +131,7 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 
     PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
     PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeRifle);
+    PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AProtoCharacter::SetWeaponTypePistol);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::FireWeapon);
     PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Pressed, this, &AProtoCharacter::StartSprint);
     PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Released, this, &AProtoCharacter::StopSprint);
@@ -340,37 +352,189 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
 
 void AProtoCharacter::SetWeaponTypeNone()
 {
-    bHasWeapon = false;
-    CurrentWeaponType = EWeaponType::None;
-    AttachCurrentWeaponToSocket(TEXT("WeaponStorage"));
-
-    if (GEngine)
+    if (Swapping > 0.0f || CurrentWeaponType == EWeaponType::None)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Yellow, TEXT("Weapon Stored"));
+        return;
     }
+
+    CurrentWeapon = GetWeaponByType(CurrentWeaponType);
+    BeginWeaponSwap(EWeaponType::None);
 }
 
 void AProtoCharacter::SetWeaponTypeRifle()
 {
-    if (!CurrentWeapon)
+    if (Swapping > 0.0f)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType != EWeaponType::None)
     {
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No CurrentWeapon to equip"));
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Store current weapon first"));
         }
         return;
     }
 
-    bHasWeapon = true;
-    CurrentWeaponType = CurrentWeapon->WeaponType != EWeaponType::None ? CurrentWeapon->WeaponType : EWeaponType::Rifle;
-    AttachCurrentWeaponToSocket(TEXT("WeaponSocket"));
+    CurrentWeapon = CurrentRifle;
+    if (!CurrentWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No Rifle"));
+        }
+        return;
+    }
+
+    BeginWeaponSwap(EWeaponType::Rifle);
+}
+
+void AProtoCharacter::SetWeaponTypePistol()
+{
+    if (Swapping > 0.0f)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType != EWeaponType::None)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Store current weapon first"));
+        }
+        return;
+    }
+
+    CurrentWeapon = CurrentPistol;
+    if (!CurrentWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No Pistol"));
+        }
+        return;
+    }
+
+    BeginWeaponSwap(EWeaponType::Pistol);
+}
+
+AWeaponBase* AProtoCharacter::GetWeaponByType(EWeaponType WeaponType) const
+{
+    switch (WeaponType)
+    {
+    case EWeaponType::Rifle:
+        return CurrentRifle;
+    case EWeaponType::Pistol:
+        return CurrentPistol;
+    default:
+        return nullptr;
+    }
+}
+void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType)
+{
+    if (Swapping > 0.0f)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType == TargetWeaponType)
+    {
+        return;
+    }
+
+    AWeaponBase* SwapWeapon = TargetWeaponType == EWeaponType::None
+        ? GetWeaponByType(CurrentWeaponType)
+        : GetWeaponByType(TargetWeaponType);
+
+    if (!SwapWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
+        }
+        return;
+    }
+
+    CurrentWeapon = SwapWeapon;
+
+    const EWeaponType PreviousWeaponType = CurrentWeaponType;
+    SwapFromWeaponType = PreviousWeaponType;
+
+    PendingWeaponType = TargetWeaponType;
+    CurrentWeaponType = TargetWeaponType;
+    bHasWeapon = CurrentWeaponType != EWeaponType::None;
+
+    const bool bIsEquippingWeapon = TargetWeaponType != EWeaponType::None;
+    Swapping = bIsEquippingWeapon ? SwapWeapon->EquipSwapTime : SwapWeapon->UnequipSwapTime;
+    Swapping = FMath::Max(0.0f, Swapping);
+    SwappingAlpha = false;
+
+    if (TargetWeaponType == EWeaponType::None && WeaponSwapMontage)
+    {
+        if (PreviousWeaponType == EWeaponType::Rifle)
+        {
+            PlayAnimMontage(WeaponSwapMontage, 1.0f, RifleToHandSectionName);
+        }
+        else if (PreviousWeaponType == EWeaponType::Pistol)
+        {
+            PlayAnimMontage(WeaponSwapMontage, 1.0f, PistolToHandSectionName);
+        }
+    }
+
+    if (Swapping <= 0.0f)
+    {
+        FinishWeaponSwap();
+        return;
+    }
 
     if (GEngine)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Weapon Equipped"));
+        GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan, TEXT("Weapon Swapping"));
     }
 }
 
+void AProtoCharacter::FinishWeaponSwap()
+{
+    Swapping = 0.0f;
+    SwappingAlpha = true;
+    CurrentWeaponType = PendingWeaponType;
+
+    if (CurrentWeaponType == EWeaponType::None)
+    {
+        bHasWeapon = false;
+        AttachCurrentWeaponToSocket(SwapFromWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage"));
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Yellow, TEXT("Weapon Stored"));
+        }
+        return;
+    }
+
+    if (CurrentWeaponType == EWeaponType::Rifle)
+    {
+        bHasWeapon = true;
+        AttachCurrentWeaponToSocket(TEXT("WeaponSocket"));
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Rifle Equipped"));
+        }
+        return;
+    }
+
+    if (CurrentWeaponType == EWeaponType::Pistol)
+    {
+        bHasWeapon = true;
+        AttachCurrentWeaponToSocket(TEXT("PistolSocket"));
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Pistol Equipped"));
+        }
+    }
+}
 void AProtoCharacter::FireWeapon()
 {
     if (!CurrentWeapon)

@@ -1,0 +1,596 @@
+#include "ProtoCharacter.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Blueprint/UserWidget.h"
+#include "InventoryScreenWidget.h"
+#include "InventoryGridComponent.h"
+#include "ContainerScreenWidget.h"
+#include "Item/ItemDataBase.h"
+#include "Item/DropItem.h"
+#include "Item/StorageContainer.h"
+#include "PlayerDefalutUI.h"
+#include "InputCoreTypes.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/Engine.h"
+#include "Animation/AnimMontage.h"
+#include "weapon/WeaponBase.h"
+
+AProtoCharacter::AProtoCharacter()
+{
+    PrimaryActorTick.bCanEverTick = true;
+    InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
+    bUseControllerRotationYaw = true;
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationRoll = false;
+    GetCharacterMovement()->bOrientRotationToMovement = false;
+    GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+}
+
+void AProtoCharacter::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    if (Controller)
+    {
+        const float NormalizedPitch = FRotator::NormalizeAxis(Controller->GetControlRotation().Pitch);
+        AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
+    }
+
+    if (Swapping > 0.0f)
+    {
+        Swapping = FMath::Max(0.0f, Swapping - DeltaTime);
+        SwappingAlpha = false;
+
+        if (Swapping <= 0.0f)
+        {
+            FinishWeaponSwap();
+        }
+    }
+    if (bHasWeapon && Swapping <= 0.0f && CurrentWeapon && CurrentWeapon->GetRootComponent() && GetMesh())
+    {
+        static const FName LeftHandSocketName(TEXT("LeftHandSocket"));
+        static const FName RightHandBoneName(TEXT("hand_r"));
+
+        const FTransform LeftHandSocketTransform = CurrentWeapon->GetRootComponent()->GetSocketTransform(
+            LeftHandSocketName,
+            RTS_World);
+
+        FVector OutPosition;
+        FRotator OutRotation;
+        GetMesh()->TransformToBoneSpace(
+            RightHandBoneName,
+            LeftHandSocketTransform.GetLocation(),
+            LeftHandSocketTransform.Rotator(),
+            OutPosition,
+            OutRotation);
+
+        LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
+    }
+}
+
+void AProtoCharacter::BeginPlay()
+{
+    Super::BeginPlay();
+
+    StopAim();
+    StopSprint();
+
+    if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+    {
+        if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+        {
+            Subsystem->AddMappingContext(DefaultMappingContext, 0);
+        }
+    }
+
+    if (InventoryComponent)
+    {
+        if (TestArmor) InventoryComponent->AddItem(TestArmor);
+        if (TestRifle) InventoryComponent->AddItem(TestRifle);
+        if (TestBandage) InventoryComponent->AddItem(TestBandage);
+        if (TestBandage) InventoryComponent->AddItem(TestBandage);
+    }
+
+    if (DefaultUIClass)
+    {
+        DefaultUI = CreateWidget<UPlayerDefalutUI>(GetWorld(), DefaultUIClass);
+        if (DefaultUI)
+        {
+            DefaultUI->AddToViewport();
+        }
+    }
+    else if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("DefaultUIClass is NULL"));
+    }
+}
+
+void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+    Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+    if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+    {
+        EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Move);
+        EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Look);
+        EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+        EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+        EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &AProtoCharacter::Sprint);
+        EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AProtoCharacter::Sprint);
+        EnhancedInputComponent->BindAction(ToggleInventoryAction, ETriggerEvent::Started, this, &AProtoCharacter::ToggleInventory);
+
+        if (InteractAction)
+        {
+            EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AProtoCharacter::Interact);
+        }
+        else if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("InteractAction is NULL"));
+        }
+    }
+
+    PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
+    PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeRifle);
+    PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AProtoCharacter::SetWeaponTypePistol);
+    PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::FireWeapon);
+    PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Pressed, this, &AProtoCharacter::StartSprint);
+    PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Released, this, &AProtoCharacter::StopSprint);
+    PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
+    PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Released, this, &AProtoCharacter::StopAim);
+}
+
+void AProtoCharacter::Move(const FInputActionValue& Value)
+{
+    const FVector2D MovementVector = Value.Get<FVector2D>();
+
+    if (Controller != nullptr)
+    {
+        const FRotator Rotation = Controller->GetControlRotation();
+        const FRotator YawRotation(0, Rotation.Yaw, 0);
+        const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+        const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+        AddMovementInput(ForwardDirection, MovementVector.X);
+        AddMovementInput(RightDirection, MovementVector.Y);
+    }
+}
+
+void AProtoCharacter::Look(const FInputActionValue& Value)
+{
+    if (bIsInvetoryOpened)
+    {
+        return;
+    }
+
+    const FVector2D LookAxisVector = Value.Get<FVector2D>();
+
+    if (Controller != nullptr)
+    {
+        AddControllerYawInput(LookAxisVector.X);
+        AddControllerPitchInput(LookAxisVector.Y);
+    }
+}
+
+void AProtoCharacter::Sprint(const FInputActionValue& Value)
+{
+    if (Value.Get<bool>())
+    {
+        StartSprint();
+    }
+    else
+    {
+        StopSprint();
+    }
+}
+
+void AProtoCharacter::StartSprint()
+{
+    bIsSprint = true;
+    GetCharacterMovement()->MaxWalkSpeed = SprintWalkSpeed;
+}
+
+void AProtoCharacter::StopSprint()
+{
+    bIsSprint = false;
+    GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+}
+
+void AProtoCharacter::StartAim()
+{
+    bIsAiming = true;
+    bUseControllerRotationYaw = true;
+    bUseControllerRotationPitch = false;
+    GetCharacterMovement()->bOrientRotationToMovement = false;
+}
+
+void AProtoCharacter::StopAim()
+{
+    bIsAiming = false;
+    bUseControllerRotationYaw = true;
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationRoll = false;
+    GetCharacterMovement()->bOrientRotationToMovement = false;
+}
+
+void AProtoCharacter::Interact(const FInputActionValue& Value)
+{
+    // ???????????????????????????????????????黎앸럽??筌?????怨쀫엥????????????
+    if (bIsContainerOpened)
+    {
+        CloseContainerScreen();
+        return;
+    }
+
+    if (NearbyDropItems.IsEmpty() && NearbyContainers.IsEmpty())
+    {
+        return;
+    }
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (!PC) return;
+
+    FVector CamLoc;
+    FRotator CamRot;
+    PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+    FHitResult Hit;
+    FCollisionQueryParams Params;
+    Params.AddIgnoredActor(this);
+
+    const FVector TraceStart = CamLoc + CamRot.Vector() * 400.f;
+    const FVector TraceEnd = CamLoc + CamRot.Vector() * 700.f;
+    GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+    DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 2.f);
+
+    AActor* HitActor = Hit.GetActor();
+
+    AStorageContainer* HitContainer = Cast<AStorageContainer>(HitActor);
+    if (IsValid(HitContainer) && NearbyContainers.Contains(HitContainer))
+    {
+        OpenContainerScreen(HitContainer);
+        return;
+    }
+
+    ADropItem* HitItem = Cast<ADropItem>(HitActor);
+    if (IsValid(HitItem) && NearbyDropItems.Contains(HitItem))
+    {
+        InventoryComponent->AddItem(HitItem->ItemData);
+        HidePickupPrompt(HitItem);
+        HitItem->Destroy();
+    }
+}
+
+void AProtoCharacter::ShowPickupPrompt(ADropItem* Item)
+{
+    NearbyDropItems.AddUnique(Item);
+    if (DefaultUI) DefaultUI->AddPickupPrompt(Item);
+}
+
+void AProtoCharacter::HidePickupPrompt(ADropItem* Item)
+{
+    NearbyDropItems.Remove(Item);
+    if (DefaultUI) DefaultUI->RemovePickupPrompt(Item);
+}
+
+void AProtoCharacter::ShowContainerPrompt(AStorageContainer* Container)
+{
+    NearbyContainers.AddUnique(Container);
+    if (DefaultUI) DefaultUI->AddContainerPrompt(Container);
+}
+
+void AProtoCharacter::HideContainerPrompt(AStorageContainer* Container)
+{
+    NearbyContainers.Remove(Container);
+    if (DefaultUI) DefaultUI->RemoveContainerPrompt(Container);
+
+    if (bIsContainerOpened) CloseContainerScreen();
+}
+
+void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
+{
+    if (!ContainerWidgetClass) return;
+
+    if (ContainerWidgetInstance == nullptr)
+    {
+        ContainerWidgetInstance = CreateWidget<UContainerScreenWidget>(GetWorld(), ContainerWidgetClass);
+    }
+
+    if (!ContainerWidgetInstance) return;
+
+    ContainerWidgetInstance->InitializeScreen(InventoryComponent, Container->ContainerInventory);
+    ContainerWidgetInstance->AddToViewport();
+    bIsContainerOpened = true;
+    bIsInvetoryOpened = true;
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (PC)
+    {
+        PC->SetShowMouseCursor(true);
+        FInputModeGameAndUI InputMode;
+        InputMode.SetWidgetToFocus(ContainerWidgetInstance->TakeWidget());
+        InputMode.SetHideCursorDuringCapture(false);
+        PC->SetInputMode(InputMode);
+    }
+}
+
+void AProtoCharacter::CloseContainerScreen()
+{
+    if (ContainerWidgetInstance) ContainerWidgetInstance->RemoveFromParent();
+    bIsContainerOpened = false;
+    bIsInvetoryOpened = false;
+
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (PC)
+    {
+        PC->SetShowMouseCursor(false);
+        PC->SetInputMode(FInputModeGameOnly());
+    }
+}
+
+void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
+{
+    if (InventoryWidgetInstance == nullptr && InventoryWidgetClass != nullptr)
+    {
+        InventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
+    }
+
+    if (InventoryWidgetInstance != nullptr)
+    {
+        APlayerController* PlayerController = Cast<APlayerController>(Controller);
+        if (InventoryWidgetInstance->IsInViewport())
+        {
+            bIsInvetoryOpened = false;
+            InventoryWidgetInstance->RemoveFromParent();
+            if (PlayerController)
+            {
+                PlayerController->SetShowMouseCursor(false);
+                FInputModeGameOnly InputMode;
+                PlayerController->SetInputMode(InputMode);
+            }
+        }
+        else
+        {
+            InventoryWidgetInstance->AddToViewport();
+            bIsInvetoryOpened = true;
+            if (UInventoryScreenWidget* InvUI = Cast<UInventoryScreenWidget>(InventoryWidgetInstance))
+            {
+                InvUI->InitializeGrid(InventoryComponent);
+            }
+            if (PlayerController)
+            {
+                PlayerController->SetShowMouseCursor(true);
+                FInputModeGameAndUI InputMode;
+                InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
+                InputMode.SetHideCursorDuringCapture(false);
+                PlayerController->SetInputMode(InputMode);
+                InventoryWidgetInstance->SetUserFocus(PlayerController);
+            }
+        }
+    }
+}
+
+void AProtoCharacter::SetWeaponTypeNone()
+{
+    if (Swapping > 0.0f || CurrentWeaponType == EWeaponType::None)
+    {
+        return;
+    }
+
+    CurrentWeapon = GetWeaponByType(CurrentWeaponType);
+    BeginWeaponSwap(EWeaponType::None);
+}
+
+void AProtoCharacter::SetWeaponTypeRifle()
+{
+    if (Swapping > 0.0f)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType != EWeaponType::None)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Store current weapon first"));
+        }
+        return;
+    }
+
+    CurrentWeapon = CurrentRifle;
+    if (!CurrentWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No Rifle"));
+        }
+        return;
+    }
+
+    BeginWeaponSwap(EWeaponType::Rifle);
+}
+
+void AProtoCharacter::SetWeaponTypePistol()
+{
+    if (Swapping > 0.0f)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType != EWeaponType::None)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Store current weapon first"));
+        }
+        return;
+    }
+
+    CurrentWeapon = CurrentPistol;
+    if (!CurrentWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No Pistol"));
+        }
+        return;
+    }
+
+    BeginWeaponSwap(EWeaponType::Pistol);
+}
+
+AWeaponBase* AProtoCharacter::GetWeaponByType(EWeaponType WeaponType) const
+{
+    switch (WeaponType)
+    {
+    case EWeaponType::Rifle:
+        return CurrentRifle;
+    case EWeaponType::Pistol:
+        return CurrentPistol;
+    default:
+        return nullptr;
+    }
+}
+void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType)
+{
+    if (Swapping > 0.0f)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType == TargetWeaponType)
+    {
+        return;
+    }
+
+    AWeaponBase* SwapWeapon = TargetWeaponType == EWeaponType::None
+        ? GetWeaponByType(CurrentWeaponType)
+        : GetWeaponByType(TargetWeaponType);
+
+    if (!SwapWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
+        }
+        return;
+    }
+
+    CurrentWeapon = SwapWeapon;
+
+    const EWeaponType PreviousWeaponType = CurrentWeaponType;
+    SwapFromWeaponType = PreviousWeaponType;
+
+    PendingWeaponType = TargetWeaponType;
+    CurrentWeaponType = TargetWeaponType;
+    bHasWeapon = CurrentWeaponType != EWeaponType::None;
+
+    const bool bIsEquippingWeapon = TargetWeaponType != EWeaponType::None;
+    Swapping = bIsEquippingWeapon ? SwapWeapon->EquipSwapTime : SwapWeapon->UnequipSwapTime;
+    Swapping = FMath::Max(0.0f, Swapping);
+    SwappingAlpha = false;
+
+    if (TargetWeaponType == EWeaponType::None && WeaponSwapMontage)
+    {
+        if (PreviousWeaponType == EWeaponType::Rifle)
+        {
+            PlayAnimMontage(WeaponSwapMontage, 1.0f, RifleToHandSectionName);
+        }
+        else if (PreviousWeaponType == EWeaponType::Pistol)
+        {
+            PlayAnimMontage(WeaponSwapMontage, 1.0f, PistolToHandSectionName);
+        }
+    }
+
+    if (Swapping <= 0.0f)
+    {
+        FinishWeaponSwap();
+        return;
+    }
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan, TEXT("Weapon Swapping"));
+    }
+}
+
+void AProtoCharacter::FinishWeaponSwap()
+{
+    Swapping = 0.0f;
+    SwappingAlpha = true;
+    CurrentWeaponType = PendingWeaponType;
+
+    if (CurrentWeaponType == EWeaponType::None)
+    {
+        bHasWeapon = false;
+        AttachCurrentWeaponToSocket(SwapFromWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage"));
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Yellow, TEXT("Weapon Stored"));
+        }
+        return;
+    }
+
+    if (CurrentWeaponType == EWeaponType::Rifle)
+    {
+        bHasWeapon = true;
+        AttachCurrentWeaponToSocket(TEXT("WeaponSocket"));
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Rifle Equipped"));
+        }
+        return;
+    }
+
+    if (CurrentWeaponType == EWeaponType::Pistol)
+    {
+        bHasWeapon = true;
+        AttachCurrentWeaponToSocket(TEXT("PistolSocket"));
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Pistol Equipped"));
+        }
+    }
+}
+void AProtoCharacter::FireWeapon()
+{
+    if (!CurrentWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, TEXT("No CurrentWeapon"));
+        }
+        return;
+    }
+    CurrentWeapon->Fire();
+}
+void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
+{
+    if (!CurrentWeapon || !GetMesh())
+    {
+        return;
+    }
+
+    if (!GetMesh()->DoesSocketExist(SocketName))
+    {
+        if (GEngine)
+        {
+            const FString Message = FString::Printf(TEXT("No socket: %s"), *SocketName.ToString());
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, Message);
+        }
+        return;
+    }
+
+    const FAttachmentTransformRules AttachRules(
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::KeepRelative,
+        true);
+
+    CurrentWeapon->AttachToComponent(GetMesh(), AttachRules, SocketName);
+    CurrentWeapon->SetActorEnableCollision(false);
+}
+
+

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -24,6 +24,12 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
     EWeaponType WeaponType = EWeaponType::None;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Swap", meta = (ClampMin = "0.0"))
+    float EquipSwapTime = 0.3f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Swap", meta = (ClampMin = "0.0"))
+    float UnequipSwapTime = 0.3f;
 
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     virtual void Fire();

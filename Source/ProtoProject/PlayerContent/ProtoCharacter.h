@@ -14,14 +14,15 @@ class AWeaponBase;
 class AStorageContainer;
 class UPlayerDefalutUI;
 class UContainerScreenWidget;
+class UAnimMontage;
 
 UENUM(BlueprintType)
 enum class EWeaponType : uint8
 {
-    None UMETA(DisplayName = "None"),
-    Rifle UMETA(DisplayName = "Rifle"),
-    Pistol UMETA(DisplayName = "Pistol"),
-    Melee UMETA(DisplayName = "Melee")
+    None = 0 UMETA(DisplayName = "None"),
+    Rifle = 1 UMETA(DisplayName = "Rifle"),
+    Pistol = 2 UMETA(DisplayName = "Pistol"),
+    Melee = 3 UMETA(DisplayName = "Melee")
 };
 
 UCLASS()
@@ -107,8 +108,12 @@ private:
     void Interact(const FInputActionValue& Value);
     void SetWeaponTypeNone();
     void SetWeaponTypeRifle();
+    void SetWeaponTypePistol();
+    void BeginWeaponSwap(EWeaponType TargetWeaponType);
+    void FinishWeaponSwap();
     void FireWeapon();
     void AttachCurrentWeaponToSocket(FName SocketName);
+    AWeaponBase* GetWeaponByType(EWeaponType WeaponType) const;
 
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
@@ -118,7 +123,32 @@ public:
     AWeaponBase* CurrentWeapon = nullptr;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    AWeaponBase* CurrentRifle = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    AWeaponBase* CurrentPistol = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
     EWeaponType CurrentWeaponType = EWeaponType::None;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    EWeaponType PendingWeaponType = EWeaponType::None;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    EWeaponType SwapFromWeaponType = EWeaponType::None;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+    float Swapping = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+    bool SwappingAlpha = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    UAnimMontage* WeaponSwapMontage = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    FName RifleToHandSectionName = TEXT("rifletohand");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    FName PistolToHandSectionName = TEXT("pistoltohand");
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
     float AimPitch = 0.0f;
