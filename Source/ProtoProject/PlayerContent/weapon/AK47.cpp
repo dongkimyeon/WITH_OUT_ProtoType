@@ -2,8 +2,10 @@
 #include "Components/ArrowComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "../../Network/ProtoNetClientSubsystem.h"
 
 AAK47::AAK47()
 {
@@ -74,6 +76,14 @@ void AAK47::Fire()
     {
         FireDirection = CameraForward;
         AimTarget = MuzzleStart + FireDirection * TraceRange;
+    }
+
+    if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendAttackFire(MuzzleStart, FireDirection);
+        }
     }
 
     const FVector FireEnd = MuzzleStart + FireDirection * TraceRange;

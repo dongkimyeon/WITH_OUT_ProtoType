@@ -1,6 +1,8 @@
 #include "DropItem.h"
 #include "../ProtoCharacter.h"
 #include "../Inventory/InventoryGridComponent.h"
+#include "Engine/GameInstance.h"
+#include "../../Network/ProtoNetClientSubsystem.h"
 
 ADropItem::ADropItem()
 {
@@ -62,6 +64,15 @@ void ADropItem::OnInteractEndOverlap(UPrimitiveComponent*, AActor* OtherActor,
 void ADropItem::OnInteract_Implementation(AProtoCharacter* InPlayer)
 {
 	if (!InPlayer || !ItemData) return;
+
+	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->SendInteractLoot(static_cast<int32>(GetUniqueID()));
+		}
+	}
+
 	InPlayer->GetInventoryComponent()->AddItem(ItemData);
 	Destroy();
 }

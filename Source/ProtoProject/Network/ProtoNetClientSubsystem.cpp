@@ -17,6 +17,15 @@ UProtoNetClientSubsystem::UProtoNetClientSubsystem(FVTableHelper& Helper)
 {
 }
 
+void UProtoNetClientSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	// Auto-connect on game start so the echo server sees a client without
+	// needing any Blueprint to call Connect() manually.
+	Connect();
+}
+
 bool UProtoNetClientSubsystem::Connect(const FString& ServerIp, int32 ServerPort)
 {
 	if (Socket != nullptr)
@@ -133,6 +142,44 @@ bool UProtoNetClientSubsystem::SendLoginTest(const FString& AuthToken, const FSt
 	auto Login = LoginBuilder.Finish();
 
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_Login, Login.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendAttackFire(FVector Origin, FVector Direction, uint8 WeaponSlot)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Header Header(
+		NextSeq++,
+		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
+		0);
+	const ProtoType::Net::Vec3 OriginVec(Origin.X, Origin.Y, Origin.Z);
+	const ProtoType::Net::Vec3 DirectionVec(Direction.X, Direction.Y, Direction.Z);
+
+	auto Req = ProtoType::Net::CreateC2S_AttackRequest(
+		Fbb, &Header, WeaponSlot, ProtoType::Net::AttackType::Fire, &OriginVec, &DirectionVec);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_AttackRequest, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendInteractLoot(int32 TargetId)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Header Header(
+		NextSeq++,
+		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
+		0);
+
+	auto Req = ProtoType::Net::CreateC2S_InteractRequest(
+		Fbb, &Header, static_cast<uint32>(TargetId), ProtoType::Net::InteractType::Loot);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_InteractRequest, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
 	TArray<uint8> Bytes;

@@ -37,11 +37,14 @@ public:
 	UProtoNetClientSubsystem(FVTableHelper& Helper);
 
 	//~ UGameInstanceSubsystem
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	//~ End UGameInstanceSubsystem
 
 	// Connects to the echo server. Defaults to the server running on this
-	// same machine (127.0.0.1:7777).
+	// same machine (127.0.0.1:7777). Called automatically from Initialize()
+	// on game start, so no Blueprint wiring is required to test the pipe;
+	// call it again yourself only if you disconnected and want to retry.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool Connect(const FString& ServerIp = TEXT("127.0.0.1"), int32 ServerPort = 7777);
 
@@ -59,6 +62,16 @@ public:
 	// C2S_Login packet with the given fields.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendLoginTest(const FString& AuthToken, const FString& ClientVersion);
+
+	// Called from AAK47::Fire() when a shot is fired.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendAttackFire(FVector Origin, FVector Direction, uint8 WeaponSlot = 0);
+
+	// Called from ADropItem::OnInteract_Implementation() when a weapon or
+	// item is picked up (the protocol has no separate "weapon vs item"
+	// interact type, so both use InteractType::Loot).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendInteractLoot(int32 TargetId);
 
 	// Fired on the game thread for every complete packet the server sends
 	// back (raw, still-framed bytes; PacketBytes[4:] is the FlatBuffers Packet).
@@ -84,6 +97,7 @@ private:
 	TUniquePtr<FProtoNetReceiveWorker> Worker;
 	FRunnableThread* WorkerThread = nullptr;
 	FCriticalSection SendLock;
+	uint32 NextSeq = 1;
 
 	// Filled by the worker thread, drained on the game thread in Tick().
 	TQueue<TArray<uint8>, EQueueMode::Mpsc> ReceivedPackets;
