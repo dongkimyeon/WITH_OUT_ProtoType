@@ -21,27 +21,27 @@ void UPlayerStatusComponent::SetMaxHealth(float newMaxHealth)
 
 void UPlayerStatusComponent::SetHealth(float newHealth)
 {
-	Health = newHealth;
+	Health = FMath::Clamp(newHealth, 0.0f, MaxHealth);
 }
 
 void UPlayerStatusComponent::SetInfection(float newInfection)
 {
-	Infection = newInfection;
+	Infection = FMath::Clamp(newInfection, 0.0f, MaxInfection);
 }
 
 void UPlayerStatusComponent::SetHunger(float newHunger)
 {
-	Hunger = newHunger;
+	Hunger = FMath::Clamp(newHunger, 0.0f, MaxHunger);
 }
 
 void UPlayerStatusComponent::SetThirst(float newThirst)
 {
-	Thirst = newThirst;
+	Thirst = FMath::Clamp(newThirst, 0.0f, MaxThirst);
 }
 
 void UPlayerStatusComponent::SetStamina(float newStamina)
 {
-	Stamina = newStamina;
+	Stamina = FMath::Clamp(newStamina, 0.0f, MaxStamina);
 }
 
 // Called when the game starts

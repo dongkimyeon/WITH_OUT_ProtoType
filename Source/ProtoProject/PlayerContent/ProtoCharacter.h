@@ -15,6 +15,7 @@ class AStorageContainer;
 class UPlayerDefalutUI;
 class UContainerScreenWidget;
 class UAnimMontage;
+class UPlayerStatusComponent;
 
 UENUM(BlueprintType)
 enum class EWeaponType : uint8
@@ -69,6 +70,9 @@ private:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
     UInventoryGridComponent* InventoryComponent;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
+    UPlayerStatusComponent* StatusComponent;
+
     UPROPERTY(EditAnywhere, Category = "Test Inventory")
     class UItemDataBase* TestBandage;
 
@@ -114,6 +118,12 @@ private:
     void FireWeapon();
     void AttachCurrentWeaponToSocket(FName SocketName);
     AWeaponBase* GetWeaponByType(EWeaponType WeaponType) const;
+
+    void DebugDecreaseHealth();
+    void DebugDecreaseHunger();
+    void DebugDecreaseThirst();
+    void DebugIncreaseInfection();
+    void DebugDecreaseStamina();
 
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
@@ -177,6 +187,7 @@ public:
     void OpenContainerScreen(AStorageContainer* Container);
 
     UInventoryGridComponent* GetInventoryComponent() const { return InventoryComponent; }
+    UPlayerStatusComponent* GetStatusComponent() const { return StatusComponent; }
 
 private:
     bool bIsInvetoryOpened = false;

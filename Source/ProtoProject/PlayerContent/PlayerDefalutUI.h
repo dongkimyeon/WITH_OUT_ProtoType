@@ -7,6 +7,7 @@
 
 class UTextBlock;
 class UCanvasPanel;
+class UProgressBar;
 
 UCLASS()
 class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
@@ -18,11 +19,44 @@ public:
 	void RemoveInteractPrompt(AActor* Actor);
 
 protected:
+	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
 
 private:
+	void UpdateStatUI();
+
 	UPROPERTY(meta = (BindWidget))
 	UCanvasPanel* PromptCanvas;
+
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* HealthProgressBar;
+
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* HungerProgressBar;
+
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* ThirstProgressBar;
+
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* InfectionProgressBar;
+
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* StaminaProgressBar;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* HealthText;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* HungerText;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* ThirstText;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* InfectionText;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* StaminaText;
 
 	UPlayerStatusComponent* PlayerStatusComponent;
 

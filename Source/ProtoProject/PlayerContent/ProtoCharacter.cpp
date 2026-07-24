@@ -9,6 +9,7 @@
 #include "Item/ItemDataBase.h"
 #include "Item/StorageContainer.h"
 #include "PlayerDefalutUI.h"
+#include "PlayerStatusComponent.h"
 #include "InputCoreTypes.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
@@ -19,6 +20,7 @@ AProtoCharacter::AProtoCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
     InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
+    StatusComponent = CreateDefaultSubobject<UPlayerStatusComponent>(TEXT("StatusComponent"));
     bUseControllerRotationYaw = true;
     bUseControllerRotationPitch = false;
     bUseControllerRotationRoll = false;
@@ -137,6 +139,37 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Released, this, &AProtoCharacter::StopSprint);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Released, this, &AProtoCharacter::StopAim);
+
+    PlayerInputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &AProtoCharacter::DebugDecreaseHealth);
+    PlayerInputComponent->BindKey(EKeys::Eight, IE_Pressed, this, &AProtoCharacter::DebugDecreaseHunger);
+    PlayerInputComponent->BindKey(EKeys::Nine, IE_Pressed, this, &AProtoCharacter::DebugDecreaseThirst);
+    PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::DebugIncreaseInfection);
+    PlayerInputComponent->BindKey(EKeys::Hyphen, IE_Pressed, this, &AProtoCharacter::DebugDecreaseStamina);
+}
+
+void AProtoCharacter::DebugDecreaseHealth()
+{
+    if (StatusComponent) StatusComponent->SetHealth(StatusComponent->GetHealth() - 5.0f);
+}
+
+void AProtoCharacter::DebugDecreaseHunger()
+{
+    if (StatusComponent) StatusComponent->SetHunger(StatusComponent->GetHunger() - 5.0f);
+}
+
+void AProtoCharacter::DebugDecreaseThirst()
+{
+    if (StatusComponent) StatusComponent->SetThirst(StatusComponent->GetThirst() - 5.0f);
+}
+
+void AProtoCharacter::DebugIncreaseInfection()
+{
+    if (StatusComponent) StatusComponent->SetInfection(StatusComponent->GetInfection() + 5.0f);
+}
+
+void AProtoCharacter::DebugDecreaseStamina()
+{
+    if (StatusComponent) StatusComponent->SetStamina(StatusComponent->GetStamina() - 5.0f);
 }
 
 void AProtoCharacter::Move(const FInputActionValue& Value)

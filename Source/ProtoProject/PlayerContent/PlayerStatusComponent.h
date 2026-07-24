@@ -20,28 +20,44 @@ private:
     float Health = 100.0f;
     
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
+    float MaxInfection = 100.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
     float Infection = 0.0f;
-    
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
+    float MaxHunger = 100.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
     float Hunger = 100.0f;
-    
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
+    float MaxThirst = 100.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
     float Thirst = 100.0f;
-    
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
+    float MaxStamina = 100.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
     float Stamina = 100.0f;
-    
-    
-public: 
+
+
+public:
     // Sets default values for this component's properties
     UPlayerStatusComponent();
 public:
     //Getter
     float GetMaxHealth() const { return MaxHealth; }
     float GetHealth() const { return Health; }
+    float GetMaxInfection() const { return MaxInfection; }
     float GetInfection() const { return Infection; }
+    float GetMaxHunger() const { return MaxHunger; }
     float GetHunger() const{ return Hunger; }
+    float GetMaxThirst() const { return MaxThirst; }
     float GetThirst() const { return Thirst; }
+    float GetMaxStamina() const { return MaxStamina; }
     float GetStamina() const { return Stamina; }
 public:
     //Setter
