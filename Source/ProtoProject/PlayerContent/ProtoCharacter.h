@@ -125,6 +125,11 @@ private:
     void DebugIncreaseInfection();
     void DebugDecreaseStamina();
 
+    void UpdateStamina(float DeltaTime);
+
+    float StaminaRegenTimer = 0.0f;
+    bool bStaminaDepleted = false;
+
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
     bool bHasWeapon = false;
@@ -180,6 +185,15 @@ public:
 
     UPROPERTY(EditAnywhere, Category = "Movement")
     float SprintMultiplier = 2.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Stamina")
+    float StaminaDrainRate = 20.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Stamina")
+    float StaminaRegenRate = 15.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement|Stamina")
+    float StaminaRegenDelay = 2.0f;
 
     void OnInteractableEnter(AActor* Actor);
     void OnInteractableExit(AActor* Actor);

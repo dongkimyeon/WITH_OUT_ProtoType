@@ -68,6 +68,8 @@ void AProtoCharacter::Tick(float DeltaTime)
 
         LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
     }
+
+    UpdateStamina(DeltaTime);
 }
 
 void AProtoCharacter::BeginPlay()
@@ -217,6 +219,8 @@ void AProtoCharacter::Sprint(const FInputActionValue& Value)
 
 void AProtoCharacter::StartSprint()
 {
+    if (StatusComponent && StatusComponent->GetStamina() <= 0.0f) return;
+
     bIsSprint = true;
     GetCharacterMovement()->MaxWalkSpeed = SprintWalkSpeed;
 }
@@ -225,6 +229,40 @@ void AProtoCharacter::StopSprint()
 {
     bIsSprint = false;
     GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+}
+
+void AProtoCharacter::UpdateStamina(float DeltaTime)
+{
+    if (!StatusComponent) return;
+
+    const bool bIsMovingWhileSprint = bIsSprint && GetVelocity().SizeSquared2D() > 1.0f;
+
+    if (bIsMovingWhileSprint)
+    {
+        StatusComponent->SetStamina(StatusComponent->GetStamina() - StaminaDrainRate * DeltaTime);
+
+        if (StatusComponent->GetStamina() <= 0.0f)
+        {
+            bStaminaDepleted = true;
+            StaminaRegenTimer = StaminaRegenDelay;
+            StopSprint();
+        }
+        return;
+    }
+
+    if (StatusComponent->GetStamina() >= StatusComponent->GetMaxStamina()) return;
+
+    if (bStaminaDepleted)
+    {
+        StaminaRegenTimer -= DeltaTime;
+        if (StaminaRegenTimer > 0.0f) return;
+    }
+
+    StatusComponent->SetStamina(StatusComponent->GetStamina() + StaminaRegenRate * DeltaTime);
+    if (StatusComponent->GetStamina() >= StatusComponent->GetMaxStamina())
+    {
+        bStaminaDepleted = false;
+    }
 }
 
 void AProtoCharacter::StartAim()
