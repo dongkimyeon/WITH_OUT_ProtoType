@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "PlayerStatusComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStatChanged, float, NewValue, float, MaxValue);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROTOPROJECT_API UPlayerStatusComponent : public UActorComponent
@@ -47,6 +48,22 @@ private:
 public:
     // Sets default values for this component's properties
     UPlayerStatusComponent();
+
+    UPROPERTY(BlueprintAssignable, Category = "Stat")
+    FOnStatChanged OnHealthChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Stat")
+    FOnStatChanged OnInfectionChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Stat")
+    FOnStatChanged OnHungerChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Stat")
+    FOnStatChanged OnThirstChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Stat")
+    FOnStatChanged OnStaminaChanged;
+
 public:
     //Getter
     float GetMaxHealth() const { return MaxHealth; }

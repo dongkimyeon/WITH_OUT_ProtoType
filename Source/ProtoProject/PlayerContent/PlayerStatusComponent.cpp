@@ -21,27 +21,47 @@ void UPlayerStatusComponent::SetMaxHealth(float newMaxHealth)
 
 void UPlayerStatusComponent::SetHealth(float newHealth)
 {
-	Health = FMath::Clamp(newHealth, 0.0f, MaxHealth);
+	const float Clamped = FMath::Clamp(newHealth, 0.0f, MaxHealth);
+	if (FMath::IsNearlyEqual(Health, Clamped)) return;
+
+	Health = Clamped;
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
 void UPlayerStatusComponent::SetInfection(float newInfection)
 {
-	Infection = FMath::Clamp(newInfection, 0.0f, MaxInfection);
+	const float Clamped = FMath::Clamp(newInfection, 0.0f, MaxInfection);
+	if (FMath::IsNearlyEqual(Infection, Clamped)) return;
+
+	Infection = Clamped;
+	OnInfectionChanged.Broadcast(Infection, MaxInfection);
 }
 
 void UPlayerStatusComponent::SetHunger(float newHunger)
 {
-	Hunger = FMath::Clamp(newHunger, 0.0f, MaxHunger);
+	const float Clamped = FMath::Clamp(newHunger, 0.0f, MaxHunger);
+	if (FMath::IsNearlyEqual(Hunger, Clamped)) return;
+
+	Hunger = Clamped;
+	OnHungerChanged.Broadcast(Hunger, MaxHunger);
 }
 
 void UPlayerStatusComponent::SetThirst(float newThirst)
 {
-	Thirst = FMath::Clamp(newThirst, 0.0f, MaxThirst);
+	const float Clamped = FMath::Clamp(newThirst, 0.0f, MaxThirst);
+	if (FMath::IsNearlyEqual(Thirst, Clamped)) return;
+
+	Thirst = Clamped;
+	OnThirstChanged.Broadcast(Thirst, MaxThirst);
 }
 
 void UPlayerStatusComponent::SetStamina(float newStamina)
 {
-	Stamina = FMath::Clamp(newStamina, 0.0f, MaxStamina);
+	const float Clamped = FMath::Clamp(newStamina, 0.0f, MaxStamina);
+	if (FMath::IsNearlyEqual(Stamina, Clamped)) return;
+
+	Stamina = Clamped;
+	OnStaminaChanged.Broadcast(Stamina, MaxStamina);
 }
 
 // Called when the game starts

@@ -23,7 +23,20 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float DeltaTime) override;
 
 private:
-	void UpdateStatUI();
+	UFUNCTION()
+	void HandleHealthChanged(float NewValue, float MaxValue);
+
+	UFUNCTION()
+	void HandleHungerChanged(float NewValue, float MaxValue);
+
+	UFUNCTION()
+	void HandleThirstChanged(float NewValue, float MaxValue);
+
+	UFUNCTION()
+	void HandleInfectionChanged(float NewValue, float MaxValue);
+
+	UFUNCTION()
+	void HandleStaminaChanged(float NewValue, float MaxValue);
 
 	UPROPERTY(meta = (BindWidget))
 	UCanvasPanel* PromptCanvas;

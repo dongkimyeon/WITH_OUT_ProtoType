@@ -14,32 +14,52 @@ void UPlayerDefalutUI::NativeConstruct()
 	{
 		PlayerStatusComponent = OwningPawn->FindComponentByClass<UPlayerStatusComponent>();
 	}
+
+	if (PlayerStatusComponent)
+	{
+		PlayerStatusComponent->OnHealthChanged.AddDynamic(this, &UPlayerDefalutUI::HandleHealthChanged);
+		PlayerStatusComponent->OnHungerChanged.AddDynamic(this, &UPlayerDefalutUI::HandleHungerChanged);
+		PlayerStatusComponent->OnThirstChanged.AddDynamic(this, &UPlayerDefalutUI::HandleThirstChanged);
+		PlayerStatusComponent->OnInfectionChanged.AddDynamic(this, &UPlayerDefalutUI::HandleInfectionChanged);
+		PlayerStatusComponent->OnStaminaChanged.AddDynamic(this, &UPlayerDefalutUI::HandleStaminaChanged);
+
+		// 델리게이트는 값이 바뀔 때만 브로드캐스트되므로, 위젯을 현재 값으로 한 번 초기화해준다.
+		HandleHealthChanged(PlayerStatusComponent->GetHealth(), PlayerStatusComponent->GetMaxHealth());
+		HandleHungerChanged(PlayerStatusComponent->GetHunger(), PlayerStatusComponent->GetMaxHunger());
+		HandleThirstChanged(PlayerStatusComponent->GetThirst(), PlayerStatusComponent->GetMaxThirst());
+		HandleInfectionChanged(PlayerStatusComponent->GetInfection(), PlayerStatusComponent->GetMaxInfection());
+		HandleStaminaChanged(PlayerStatusComponent->GetStamina(), PlayerStatusComponent->GetMaxStamina());
+	}
 }
 
-void UPlayerDefalutUI::UpdateStatUI()
+void UPlayerDefalutUI::HandleHealthChanged(float NewValue, float MaxValue)
 {
-	if (!PlayerStatusComponent) return;
+	if (HealthProgressBar) HealthProgressBar->SetPercent(MaxValue > 0.0f ? NewValue / MaxValue : 0.0f);
+	if (HealthText) HealthText->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), FMath::RoundToInt(NewValue), FMath::RoundToInt(MaxValue))));
+}
 
-	auto SetStat = [](UProgressBar* Bar, UTextBlock* Text, float Current, float Max)
-	{
-		if (Bar) Bar->SetPercent(Max > 0.0f ? Current / Max : 0.0f);
-		if (Text) Text->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), FMath::RoundToInt(Current), FMath::RoundToInt(Max))));
-	};
+void UPlayerDefalutUI::HandleHungerChanged(float NewValue, float MaxValue)
+{
+	if (HungerProgressBar) HungerProgressBar->SetPercent(MaxValue > 0.0f ? NewValue / MaxValue : 0.0f);
+	if (HungerText) HungerText->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), FMath::RoundToInt(NewValue), FMath::RoundToInt(MaxValue))));
+}
 
-	SetStat(HealthProgressBar, HealthText, PlayerStatusComponent->GetHealth(), PlayerStatusComponent->GetMaxHealth());
-	SetStat(HungerProgressBar, HungerText, PlayerStatusComponent->GetHunger(), PlayerStatusComponent->GetMaxHunger());
-	SetStat(ThirstProgressBar, ThirstText, PlayerStatusComponent->GetThirst(), PlayerStatusComponent->GetMaxThirst());
-	SetStat(InfectionProgressBar, InfectionText, PlayerStatusComponent->GetInfection(), PlayerStatusComponent->GetMaxInfection());
+void UPlayerDefalutUI::HandleThirstChanged(float NewValue, float MaxValue)
+{
+	if (ThirstProgressBar) ThirstProgressBar->SetPercent(MaxValue > 0.0f ? NewValue / MaxValue : 0.0f);
+	if (ThirstText) ThirstText->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), FMath::RoundToInt(NewValue), FMath::RoundToInt(MaxValue))));
+}
 
-	if (StaminaProgressBar)
-	{
-		const float MaxStamina = PlayerStatusComponent->GetMaxStamina();
-		StaminaProgressBar->SetPercent(MaxStamina > 0.0f ? PlayerStatusComponent->GetStamina() / MaxStamina : 0.0f);
-	}
-	if (StaminaText)
-	{
-		StaminaText->SetText(FText::FromString(FString::Printf(TEXT("%d"), FMath::RoundToInt(PlayerStatusComponent->GetStamina()))));
-	}
+void UPlayerDefalutUI::HandleInfectionChanged(float NewValue, float MaxValue)
+{
+	if (InfectionProgressBar) InfectionProgressBar->SetPercent(MaxValue > 0.0f ? NewValue / MaxValue : 0.0f);
+	if (InfectionText) InfectionText->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), FMath::RoundToInt(NewValue), FMath::RoundToInt(MaxValue))));
+}
+
+void UPlayerDefalutUI::HandleStaminaChanged(float NewValue, float MaxValue)
+{
+	if (StaminaProgressBar) StaminaProgressBar->SetPercent(MaxValue > 0.0f ? NewValue / MaxValue : 0.0f);
+	if (StaminaText) StaminaText->SetText(FText::FromString(FString::Printf(TEXT("%d"), FMath::RoundToInt(NewValue))));
 }
 
 void UPlayerDefalutUI::AddInteractPrompt(AActor* Actor, FText Text)
@@ -67,8 +87,6 @@ void UPlayerDefalutUI::RemoveInteractPrompt(AActor* Actor)
 void UPlayerDefalutUI::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 {
 	Super::NativeTick(MyGeometry, DeltaTime);
-
-	UpdateStatUI();
 
 	for (auto& Pair : PromptMap)
 	{
