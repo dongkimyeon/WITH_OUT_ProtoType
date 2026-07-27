@@ -5,6 +5,7 @@
 #include "Engine/Texture2D.h"
 #include "Components/SizeBox.h"
 #include "Components/SizeBoxSlot.h"
+
 void UInventoryItemWidget::InitItem(UInventoryScreenBase* InParentScreen, UInventoryGridComponent* InComponent, int32 InItemIndex)
 {
 	ParentScreen = InParentScreen;
@@ -56,7 +57,7 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 
 	const FInventoryItemInstance& Item = InventoryComponent->Items[ItemIndex];
 
-	FVector2D CellPixelSize = ParentScreen ? ParentScreen->GetCellPixelSize() : FVector2D(75.f, 75.f);
+	FVector2D CellPixelSize = ParentScreen ? ParentScreen->GetCellPixelSize() : FVector2D(100.f, 100.f);
 
 	UItemDragDropOperation* DragOp = NewObject<UItemDragDropOperation>(this);
 	DragOp->ItemIndex = ItemIndex;

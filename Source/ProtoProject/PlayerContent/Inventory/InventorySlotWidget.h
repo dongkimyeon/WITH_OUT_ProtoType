@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenBase.h"
+#include "Components/SizeBox.h"
 #include "InventorySlotWidget.generated.h"
 
 class UInventoryGridComponent;
@@ -16,7 +17,15 @@ class PROTOPROJECT_API UInventorySlotWidget : public UUserWidget
 public:
 	void InitSlot(UInventoryScreenBase* InParentScreen, FIntPoint InSlotPosition, UInventoryGridComponent* InOwningComponent);
 	void SetHighlight(bool bShowHighlight, bool bIsValid);
-
+	UFUNCTION(BlueprintPure, Category = "Inventory UI")
+	FVector2D GetSlotSizeBoxSize() const
+	{
+		if (SlotSizeBox)
+		{
+			return FVector2D(SlotSizeBox->GetWidthOverride(), SlotSizeBox->GetHeightOverride());
+		}
+		return FVector2D::ZeroVector; 
+	}
 protected:
 	virtual bool NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 	virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
@@ -25,7 +34,9 @@ protected:
 	
 	UPROPERTY(meta = (BindWidget))
 	UBorder* SlotBorder;
-
+	
+	UPROPERTY(meta = (BindWidget))
+	USizeBox* SlotSizeBox;
 	// 색상 설정
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	FLinearColor DefaultColor = FLinearColor(1.f, 1.f, 1.f, 0.05f); // 평상시

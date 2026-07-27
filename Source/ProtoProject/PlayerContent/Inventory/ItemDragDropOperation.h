@@ -36,8 +36,7 @@ public:
 
 	UPROPERTY()
 	FIntPoint DragOffset = FIntPoint(0, 0);
-
-	// DragVisual 업데이트용 참조
+\
 	UPROPERTY()
 	UImage* DragVisualImage = nullptr;
 
@@ -48,8 +47,7 @@ public:
 	USizeBox* DragVisualWrapper = nullptr;
 
 	FVector2D CellPixelSize = FVector2D(75.f, 75.f);
-
-	// 크로스 그리드 드래그를 위한 출처 참조
+\
 	UPROPERTY()
 	UInventoryGridComponent* SourceInventoryComponent = nullptr;
 

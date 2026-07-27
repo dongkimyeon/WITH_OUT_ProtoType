@@ -7,6 +7,7 @@
 void UInventoryScreenWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+
 	SetIsFocusable(true);
 }
 
@@ -158,8 +159,9 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 			if (NewSlotWidget)
 			{
 				NewSlotWidget->InitSlot(this, FIntPoint(x, y), InInventoryComponent);
-				SlotWidgetMap.Add(FIntPoint(x, y), NewSlotWidget);
-
+				FVector2D SizeFromSlot = NewSlotWidget->GetSlotSizeBoxSize();
+                    
+			
 				UGridSlot* GridSlot = InventoryGridPanel->AddChildToGrid(NewSlotWidget);
 				if (GridSlot)
 				{
@@ -168,11 +170,12 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 					GridSlot->SetPadding(FMargin(1.2f));
 					GridSlot->SetHorizontalAlignment(HAlign_Fill);
 					GridSlot->SetVerticalAlignment(VAlign_Fill);
+					
 				}
 			}
 		}
 	}
-
+	
 	if (!ItemWidgetClass)
 	{
 		return;

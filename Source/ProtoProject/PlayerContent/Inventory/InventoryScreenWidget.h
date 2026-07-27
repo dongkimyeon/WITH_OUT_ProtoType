@@ -49,7 +49,7 @@ protected:
 	TSubclassOf<UInventoryItemWidget> ItemWidgetClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
-	FVector2D SlotPixelSize = FVector2D(75.f, 75.f);
+	FVector2D SlotPixelSize = FVector2D(100.f, 100.f);
 
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	TSubclassOf<UInventoryGridComponent> PreviewGridComponentClass;
