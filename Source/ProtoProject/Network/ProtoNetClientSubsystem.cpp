@@ -1,10 +1,15 @@
 #include "ProtoNetClientSubsystem.h"
 #include "ProtoNetReceiveWorker.h"
+#include "ProtoRemotePlayer.h"
+#include "ProtoConnectPrompt.h"
 
 #include "Sockets.h"
 #include "SocketSubsystem.h"
 #include "IPAddress.h"
 #include "HAL/RunnableThread.h"
+#include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
+#include "GameFramework/PlayerController.h"
 
 #include "packet.h"
 
@@ -20,10 +25,76 @@ UProtoNetClientSubsystem::UProtoNetClientSubsystem(FVTableHelper& Helper)
 void UProtoNetClientSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+}
 
-	// Auto-connect on game start so the echo server sees a client without
-	// needing any Blueprint to call Connect() manually.
-	Connect();
+void UProtoNetClientSubsystem::ShowConnectPrompt()
+{
+	if (ConnectPromptWidget.IsValid() || IsConnected())
+		return;
+
+	// Pre-fill from -ServerIP= if given, else 127.0.0.1 (this machine).
+	FString DefaultIp = TEXT("127.0.0.1");
+	FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
+
+	SAssignNew(ConnectPromptWidget, SProtoConnectPrompt)
+		.InitialServerIp(DefaultIp)
+		.OnConnectRequested(FProtoOnConnectRequested::CreateUObject(this, &UProtoNetClientSubsystem::HandleConnectPromptSubmitted));
+
+	if (GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->AddViewportWidgetContent(ConnectPromptWidget.ToSharedRef());
+	}
+
+	if (const UWorld* World = GetWorld())
+	{
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			PC->SetShowMouseCursor(true);
+			FInputModeUIOnly InputMode;
+			InputMode.SetWidgetToFocus(ConnectPromptWidget);
+			PC->SetInputMode(InputMode);
+		}
+	}
+}
+
+void UProtoNetClientSubsystem::HandleConnectPromptSubmitted(const FString& ServerIp)
+{
+	const FString Trimmed = ServerIp.TrimStartAndEnd();
+	const FString FinalIp = Trimmed.IsEmpty() ? TEXT("127.0.0.1") : Trimmed;
+
+	if (ConnectPromptWidget.IsValid())
+		ConnectPromptWidget->SetStatusText(FText::FromString(TEXT("접속 중...")));
+
+	// FSocket::Connect() is blocking, so an unreachable IP will briefly
+	// freeze the game here rather than failing instantly.
+	if (Connect(FinalIp))
+	{
+		SendLoginTest(TEXT("guest"), TEXT("1.0"));
+		HideConnectPrompt();
+	}
+	else if (ConnectPromptWidget.IsValid())
+	{
+		ConnectPromptWidget->SetStatusText(FText::FromString(TEXT("접속 실패. IP를 확인하고 다시 시도하세요.")));
+	}
+}
+
+void UProtoNetClientSubsystem::HideConnectPrompt()
+{
+	if (ConnectPromptWidget.IsValid())
+	{
+		if (GEngine && GEngine->GameViewport)
+			GEngine->GameViewport->RemoveViewportWidgetContent(ConnectPromptWidget.ToSharedRef());
+		ConnectPromptWidget.Reset();
+	}
+
+	if (const UWorld* World = GetWorld())
+	{
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			PC->SetShowMouseCursor(false);
+			PC->SetInputMode(FInputModeGameOnly());
+		}
+	}
 }
 
 bool UProtoNetClientSubsystem::Connect(const FString& ServerIp, int32 ServerPort)
@@ -187,6 +258,108 @@ bool UProtoNetClientSubsystem::SendInteractLoot(int32 TargetId)
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendMoveInput(FVector Position, FRotator Look, int32 Flags)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Header Header(
+		NextSeq++,
+		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
+		LocalPlayerId);
+	const ProtoType::Net::Vec2 MoveInputVec(0.0f, 0.0f);
+	const ProtoType::Net::Rotator LookVec(Look.Pitch, Look.Yaw, Look.Roll);
+	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
+
+	auto Req = ProtoType::Net::CreateC2S_MoveInput(
+		Fbb, &Header, &MoveInputVec, &LookVec,
+		static_cast<ProtoType::Net::MoveFlags>(Flags), &PositionVec);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_MoveInput, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketBytes)
+{
+	flatbuffers::Verifier Verifier(PacketBytes.GetData(), PacketBytes.Num());
+	if (!ProtoType::Net::VerifySizePrefixedPacketBuffer(Verifier))
+		return;
+
+	const auto* Packet = ProtoType::Net::GetSizePrefixedPacket(PacketBytes.GetData());
+
+	switch (Packet->payload_type())
+	{
+		case ProtoType::Net::Payload::S2C_LoginSuccess:
+			if (const auto* Success = Packet->payload_as_S2C_LoginSuccess())
+			{
+				LocalPlayerId = Success->player_id();
+				UE_LOG(LogProtoNet, Log, TEXT("Logged in as player %u"), LocalPlayerId);
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_SendPlayerInfo:
+			if (const auto* Info = Packet->payload_as_S2C_SendPlayerInfo())
+			{
+				if (Info->player_id() != LocalPlayerId)
+				{
+					const auto* Pos = Info->position();
+					const auto* Look = Info->look();
+					UpdateRemotePlayer(
+						Info->player_id(),
+						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
+						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator);
+				}
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_MoveState:
+			if (const auto* State = Packet->payload_as_S2C_MoveState())
+			{
+				if (State->player_id() != LocalPlayerId)
+				{
+					const auto* Pos = State->position();
+					const auto* Look = State->look();
+					UpdateRemotePlayer(
+						State->player_id(),
+						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
+						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator);
+				}
+			}
+			break;
+
+		default:
+			break;
+	}
+}
+
+void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation)
+{
+	const int32 Key = static_cast<int32>(PlayerId);
+
+	if (AProtoRemotePlayer** Existing = RemotePlayers.Find(Key))
+	{
+		if (IsValid(*Existing))
+		{
+			(*Existing)->SetActorLocationAndRotation(Location, Rotation);
+			return;
+		}
+		RemotePlayers.Remove(Key);
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+		return;
+
+	AProtoRemotePlayer* NewRemote = World->SpawnActor<AProtoRemotePlayer>(Location, Rotation);
+	if (NewRemote)
+	{
+		NewRemote->PlayerId = PlayerId;
+		RemotePlayers.Add(Key, NewRemote);
+		UE_LOG(LogProtoNet, Log, TEXT("Spawned remote player %u"), PlayerId);
+	}
+}
+
 void UProtoNetClientSubsystem::Deinitialize()
 {
 	Disconnect();
@@ -198,6 +371,7 @@ void UProtoNetClientSubsystem::Tick(float DeltaTime)
 	TArray<uint8> Packet;
 	while (ReceivedPackets.Dequeue(Packet))
 	{
+		HandleIncomingPacket(Packet);
 		OnPacketReceived.Broadcast(Packet);
 	}
 

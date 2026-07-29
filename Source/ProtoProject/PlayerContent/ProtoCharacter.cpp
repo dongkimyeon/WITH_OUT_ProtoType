@@ -17,6 +17,8 @@
 #include "weapon/WeaponBase.h"
 #include "../LevelChange/LevelChanger.h"
 #include "../LevelChange/LevelChangeSelectWidget.h"
+#include "Engine/GameInstance.h"
+#include "../Network/ProtoNetClientSubsystem.h"
 
 AProtoCharacter::AProtoCharacter()
 {
@@ -72,6 +74,22 @@ void AProtoCharacter::Tick(float DeltaTime)
     }
 
     UpdateStamina(DeltaTime);
+
+    if (IsLocallyControlled())
+    {
+        NetSyncTimer -= DeltaTime;
+        if (NetSyncTimer <= 0.0f)
+        {
+            NetSyncTimer = NetSyncInterval;
+            if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+            {
+                if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+                {
+                    NetClient->SendMoveInput(GetActorLocation(), GetControlRotation());
+                }
+            }
+        }
+    }
 }
 
 void AProtoCharacter::BeginPlay()
@@ -80,6 +98,17 @@ void AProtoCharacter::BeginPlay()
 
     StopAim();
     StopSprint();
+
+    if (IsLocallyControlled())
+    {
+        if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+        {
+            if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+            {
+                NetClient->ShowConnectPrompt();
+            }
+        }
+    }
 
     if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
     {

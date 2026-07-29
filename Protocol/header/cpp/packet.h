@@ -31,25 +31,27 @@ enum class Payload : uint8_t {
   NONE = 0,
   C2S_Login = 1,
   S2C_LoginFail = 2,
-  S2C_SendAvatarInfo = 3,
-  S2C_SendPlayerInfo = 4,
-  C2S_MoveInput = 5,
-  S2C_MoveState = 6,
-  C2S_AttackRequest = 7,
-  S2C_AttackResult = 8,
-  C2S_ItemUseRequest = 9,
-  S2C_ItemUseResult = 10,
-  C2S_InteractRequest = 11,
-  S2C_InteractResult = 12,
+  S2C_LoginSuccess = 3,
+  S2C_SendAvatarInfo = 4,
+  S2C_SendPlayerInfo = 5,
+  C2S_MoveInput = 6,
+  S2C_MoveState = 7,
+  C2S_AttackRequest = 8,
+  S2C_AttackResult = 9,
+  C2S_ItemUseRequest = 10,
+  S2C_ItemUseResult = 11,
+  C2S_InteractRequest = 12,
+  S2C_InteractResult = 13,
   MIN = NONE,
   MAX = S2C_InteractResult
 };
 
-inline const Payload (&EnumValuesPayload())[13] {
+inline const Payload (&EnumValuesPayload())[14] {
   static const Payload values[] = {
     Payload::NONE,
     Payload::C2S_Login,
     Payload::S2C_LoginFail,
+    Payload::S2C_LoginSuccess,
     Payload::S2C_SendAvatarInfo,
     Payload::S2C_SendPlayerInfo,
     Payload::C2S_MoveInput,
@@ -65,10 +67,11 @@ inline const Payload (&EnumValuesPayload())[13] {
 }
 
 inline const char * const *EnumNamesPayload() {
-  static const char * const names[14] = {
+  static const char * const names[15] = {
     "NONE",
     "C2S_Login",
     "S2C_LoginFail",
+    "S2C_LoginSuccess",
     "S2C_SendAvatarInfo",
     "S2C_SendPlayerInfo",
     "C2S_MoveInput",
@@ -100,6 +103,10 @@ template<> struct PayloadTraits<ProtoType::Net::C2S_Login> {
 
 template<> struct PayloadTraits<ProtoType::Net::S2C_LoginFail> {
   static const Payload enum_value = Payload::S2C_LoginFail;
+};
+
+template<> struct PayloadTraits<ProtoType::Net::S2C_LoginSuccess> {
+  static const Payload enum_value = Payload::S2C_LoginSuccess;
 };
 
 template<> struct PayloadTraits<ProtoType::Net::S2C_SendAvatarInfo> {
@@ -152,6 +159,10 @@ template<> struct PayloadUnionTraits<ProtoType::Net::C2S_LoginT> {
 
 template<> struct PayloadUnionTraits<ProtoType::Net::S2C_LoginFailT> {
   static const Payload enum_value = Payload::S2C_LoginFail;
+};
+
+template<> struct PayloadUnionTraits<ProtoType::Net::S2C_LoginSuccessT> {
+  static const Payload enum_value = Payload::S2C_LoginSuccess;
 };
 
 template<> struct PayloadUnionTraits<ProtoType::Net::S2C_SendAvatarInfoT> {
@@ -239,6 +250,14 @@ struct PayloadUnion {
   const ProtoType::Net::S2C_LoginFailT *AsS2C_LoginFail() const {
     return type == Payload::S2C_LoginFail ?
       reinterpret_cast<const ProtoType::Net::S2C_LoginFailT *>(value) : nullptr;
+  }
+  ProtoType::Net::S2C_LoginSuccessT *AsS2C_LoginSuccess() {
+    return type == Payload::S2C_LoginSuccess ?
+      reinterpret_cast<ProtoType::Net::S2C_LoginSuccessT *>(value) : nullptr;
+  }
+  const ProtoType::Net::S2C_LoginSuccessT *AsS2C_LoginSuccess() const {
+    return type == Payload::S2C_LoginSuccess ?
+      reinterpret_cast<const ProtoType::Net::S2C_LoginSuccessT *>(value) : nullptr;
   }
   ProtoType::Net::S2C_SendAvatarInfoT *AsS2C_SendAvatarInfo() {
     return type == Payload::S2C_SendAvatarInfo ?
@@ -353,6 +372,9 @@ struct Packet FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const ProtoType::Net::S2C_LoginFail *payload_as_S2C_LoginFail() const {
     return payload_type() == ProtoType::Net::Payload::S2C_LoginFail ? static_cast<const ProtoType::Net::S2C_LoginFail *>(payload()) : nullptr;
   }
+  const ProtoType::Net::S2C_LoginSuccess *payload_as_S2C_LoginSuccess() const {
+    return payload_type() == ProtoType::Net::Payload::S2C_LoginSuccess ? static_cast<const ProtoType::Net::S2C_LoginSuccess *>(payload()) : nullptr;
+  }
   const ProtoType::Net::S2C_SendAvatarInfo *payload_as_S2C_SendAvatarInfo() const {
     return payload_type() == ProtoType::Net::Payload::S2C_SendAvatarInfo ? static_cast<const ProtoType::Net::S2C_SendAvatarInfo *>(payload()) : nullptr;
   }
@@ -402,6 +424,10 @@ template<> inline const ProtoType::Net::C2S_Login *Packet::payload_as<ProtoType:
 
 template<> inline const ProtoType::Net::S2C_LoginFail *Packet::payload_as<ProtoType::Net::S2C_LoginFail>() const {
   return payload_as_S2C_LoginFail();
+}
+
+template<> inline const ProtoType::Net::S2C_LoginSuccess *Packet::payload_as<ProtoType::Net::S2C_LoginSuccess>() const {
+  return payload_as_S2C_LoginSuccess();
 }
 
 template<> inline const ProtoType::Net::S2C_SendAvatarInfo *Packet::payload_as<ProtoType::Net::S2C_SendAvatarInfo>() const {
@@ -525,6 +551,10 @@ inline bool VerifyPayload(::flatbuffers::VerifierTemplate<B> &verifier, const vo
       auto ptr = reinterpret_cast<const ProtoType::Net::S2C_LoginFail *>(obj);
       return verifier.VerifyTable(ptr);
     }
+    case Payload::S2C_LoginSuccess: {
+      auto ptr = reinterpret_cast<const ProtoType::Net::S2C_LoginSuccess *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
     case Payload::S2C_SendAvatarInfo: {
       auto ptr = reinterpret_cast<const ProtoType::Net::S2C_SendAvatarInfo *>(obj);
       return verifier.VerifyTable(ptr);
@@ -593,6 +623,10 @@ inline void *PayloadUnion::UnPack(const void *obj, Payload type, const ::flatbuf
       auto ptr = reinterpret_cast<const ProtoType::Net::S2C_LoginFail *>(obj);
       return ptr->UnPack(resolver);
     }
+    case Payload::S2C_LoginSuccess: {
+      auto ptr = reinterpret_cast<const ProtoType::Net::S2C_LoginSuccess *>(obj);
+      return ptr->UnPack(resolver);
+    }
     case Payload::S2C_SendAvatarInfo: {
       auto ptr = reinterpret_cast<const ProtoType::Net::S2C_SendAvatarInfo *>(obj);
       return ptr->UnPack(resolver);
@@ -648,6 +682,10 @@ inline ::flatbuffers::Offset<void> PayloadUnion::Pack(::flatbuffers::FlatBufferB
       auto ptr = reinterpret_cast<const ProtoType::Net::S2C_LoginFailT *>(value);
       return CreateS2C_LoginFail(_fbb, ptr, _rehasher).Union();
     }
+    case Payload::S2C_LoginSuccess: {
+      auto ptr = reinterpret_cast<const ProtoType::Net::S2C_LoginSuccessT *>(value);
+      return CreateS2C_LoginSuccess(_fbb, ptr, _rehasher).Union();
+    }
     case Payload::S2C_SendAvatarInfo: {
       auto ptr = reinterpret_cast<const ProtoType::Net::S2C_SendAvatarInfoT *>(value);
       return CreateS2C_SendAvatarInfo(_fbb, ptr, _rehasher).Union();
@@ -700,6 +738,10 @@ inline PayloadUnion::PayloadUnion(const PayloadUnion &u) : type(u.type), value(n
     }
     case Payload::S2C_LoginFail: {
       value = new ProtoType::Net::S2C_LoginFailT(*reinterpret_cast<ProtoType::Net::S2C_LoginFailT *>(u.value));
+      break;
+    }
+    case Payload::S2C_LoginSuccess: {
+      value = new ProtoType::Net::S2C_LoginSuccessT(*reinterpret_cast<ProtoType::Net::S2C_LoginSuccessT *>(u.value));
       break;
     }
     case Payload::S2C_SendAvatarInfo: {
@@ -756,6 +798,11 @@ inline void PayloadUnion::Reset() {
     }
     case Payload::S2C_LoginFail: {
       auto ptr = reinterpret_cast<ProtoType::Net::S2C_LoginFailT *>(value);
+      delete ptr;
+      break;
+    }
+    case Payload::S2C_LoginSuccess: {
+      auto ptr = reinterpret_cast<ProtoType::Net::S2C_LoginSuccessT *>(value);
       delete ptr;
       break;
     }

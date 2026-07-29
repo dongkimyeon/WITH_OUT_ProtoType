@@ -24,6 +24,10 @@ struct S2C_LoginFail;
 struct S2C_LoginFailBuilder;
 struct S2C_LoginFailT;
 
+struct S2C_LoginSuccess;
+struct S2C_LoginSuccessBuilder;
+struct S2C_LoginSuccessT;
+
 enum class LoginFailReason : int8_t {
   InvalidToken = 0,
   VersionMismatch = 1,
@@ -232,6 +236,65 @@ inline ::flatbuffers::Offset<S2C_LoginFail> CreateS2C_LoginFailDirect(
 
 ::flatbuffers::Offset<S2C_LoginFail> CreateS2C_LoginFail(::flatbuffers::FlatBufferBuilder &_fbb, const S2C_LoginFailT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
 
+struct S2C_LoginSuccessT : public ::flatbuffers::NativeTable {
+  typedef S2C_LoginSuccess TableType;
+  uint32_t player_id = 0;
+};
+
+struct S2C_LoginSuccess FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef S2C_LoginSuccessT NativeTableType;
+  typedef S2C_LoginSuccessBuilder Builder;
+  struct Traits;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_PLAYER_ID = 4
+  };
+  uint32_t player_id() const {
+    return GetField<uint32_t>(VT_PLAYER_ID, 0);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<uint32_t>(verifier, VT_PLAYER_ID, 4) &&
+           verifier.EndTable();
+  }
+  S2C_LoginSuccessT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(S2C_LoginSuccessT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<S2C_LoginSuccess> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const S2C_LoginSuccessT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+};
+
+struct S2C_LoginSuccessBuilder {
+  typedef S2C_LoginSuccess Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_player_id(uint32_t player_id) {
+    fbb_.AddElement<uint32_t>(S2C_LoginSuccess::VT_PLAYER_ID, player_id, 0);
+  }
+  explicit S2C_LoginSuccessBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<S2C_LoginSuccess> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<S2C_LoginSuccess>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<S2C_LoginSuccess> CreateS2C_LoginSuccess(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    uint32_t player_id = 0) {
+  S2C_LoginSuccessBuilder builder_(_fbb);
+  builder_.add_player_id(player_id);
+  return builder_.Finish();
+}
+
+struct S2C_LoginSuccess::Traits {
+  using type = S2C_LoginSuccess;
+  static auto constexpr Create = CreateS2C_LoginSuccess;
+};
+
+::flatbuffers::Offset<S2C_LoginSuccess> CreateS2C_LoginSuccess(::flatbuffers::FlatBufferBuilder &_fbb, const S2C_LoginSuccessT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
 inline C2S_LoginT *C2S_Login::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
   auto _o = std::make_unique<C2S_LoginT>();
   UnPackTo(_o.get(), _resolver);
@@ -288,6 +351,32 @@ inline ::flatbuffers::Offset<S2C_LoginFail> S2C_LoginFail::Pack(::flatbuffers::F
       _fbb,
       _reason,
       _message);
+}
+
+inline S2C_LoginSuccessT *S2C_LoginSuccess::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::make_unique<S2C_LoginSuccessT>();
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void S2C_LoginSuccess::UnPackTo(S2C_LoginSuccessT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = player_id(); _o->player_id = _e; }
+}
+
+inline ::flatbuffers::Offset<S2C_LoginSuccess> CreateS2C_LoginSuccess(::flatbuffers::FlatBufferBuilder &_fbb, const S2C_LoginSuccessT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return S2C_LoginSuccess::Pack(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<S2C_LoginSuccess> S2C_LoginSuccess::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const S2C_LoginSuccessT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const S2C_LoginSuccessT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _player_id = _o->player_id;
+  return ProtoType::Net::CreateS2C_LoginSuccess(
+      _fbb,
+      _player_id);
 }
 
 }  // namespace Net
