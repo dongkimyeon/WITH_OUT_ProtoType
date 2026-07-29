@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "GameFramework/PlayerController.h"
+#include "DrawDebugHelpers.h"
 
 #include "packet.h"
 
@@ -226,7 +227,7 @@ bool UProtoNetClientSubsystem::SendAttackFire(FVector Origin, FVector Direction,
 	const ProtoType::Net::Header Header(
 		NextSeq++,
 		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
-		0);
+		LocalPlayerId);
 	const ProtoType::Net::Vec3 OriginVec(Origin.X, Origin.Y, Origin.Z);
 	const ProtoType::Net::Vec3 DirectionVec(Direction.X, Direction.Y, Direction.Z);
 
@@ -246,7 +247,7 @@ bool UProtoNetClientSubsystem::SendInteractLoot(int32 TargetId)
 	const ProtoType::Net::Header Header(
 		NextSeq++,
 		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
-		0);
+		LocalPlayerId);
 
 	auto Req = ProtoType::Net::CreateC2S_InteractRequest(
 		Fbb, &Header, static_cast<uint32>(TargetId), ProtoType::Net::InteractType::Loot);
@@ -309,6 +310,29 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						Info->player_id(),
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
 						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator);
+				}
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_AttackBroadcast:
+			if (const auto* Atk = Packet->payload_as_S2C_AttackBroadcast())
+			{
+				if (Atk->attacker_id() != LocalPlayerId)
+				{
+					const auto* Origin = Atk->origin();
+					const auto* Direction = Atk->direction();
+					if (Origin && Direction)
+					{
+						const FVector Start(Origin->x(), Origin->y(), Origin->z());
+						const FVector Dir(Direction->x(), Direction->y(), Direction->z());
+						const FVector End = Start + Dir.GetSafeNormal() * 10000.0f;
+						if (UWorld* World = GetWorld())
+						{
+							// Simple placeholder tracer; swap for a real muzzle
+							// flash/impact FX once remote players have a real mesh.
+							DrawDebugLine(World, Start, End, FColor::Yellow, false, 1.0f, 0, 1.5f);
+						}
+					}
 				}
 			}
 			break;
