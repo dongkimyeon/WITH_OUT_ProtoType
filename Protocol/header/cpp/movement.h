@@ -77,6 +77,7 @@ struct C2S_MoveInputT : public ::flatbuffers::NativeTable {
   std::unique_ptr<ProtoType::Net::Vec2> move_input{};
   std::unique_ptr<ProtoType::Net::Rotator> look{};
   ProtoType::Net::MoveFlags flags = static_cast<ProtoType::Net::MoveFlags>(0);
+  std::unique_ptr<ProtoType::Net::Vec3> position{};
   C2S_MoveInputT() = default;
   C2S_MoveInputT(const C2S_MoveInputT &o);
   C2S_MoveInputT(C2S_MoveInputT&&) FLATBUFFERS_NOEXCEPT = default;
@@ -91,7 +92,8 @@ struct C2S_MoveInput FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_HEADER = 4,
     VT_MOVE_INPUT = 6,
     VT_LOOK = 8,
-    VT_FLAGS = 10
+    VT_FLAGS = 10,
+    VT_POSITION = 12
   };
   const ProtoType::Net::Header *header() const {
     return GetStruct<const ProtoType::Net::Header *>(VT_HEADER);
@@ -105,6 +107,9 @@ struct C2S_MoveInput FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   ProtoType::Net::MoveFlags flags() const {
     return static_cast<ProtoType::Net::MoveFlags>(GetField<uint16_t>(VT_FLAGS, 0));
   }
+  const ProtoType::Net::Vec3 *position() const {
+    return GetStruct<const ProtoType::Net::Vec3 *>(VT_POSITION);
+  }
   template <bool B = false>
   bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
@@ -112,6 +117,7 @@ struct C2S_MoveInput FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            VerifyField<ProtoType::Net::Vec2>(verifier, VT_MOVE_INPUT, 4) &&
            VerifyField<ProtoType::Net::Rotator>(verifier, VT_LOOK, 4) &&
            VerifyField<uint16_t>(verifier, VT_FLAGS, 2) &&
+           VerifyField<ProtoType::Net::Vec3>(verifier, VT_POSITION, 4) &&
            verifier.EndTable();
   }
   C2S_MoveInputT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
@@ -135,6 +141,9 @@ struct C2S_MoveInputBuilder {
   void add_flags(ProtoType::Net::MoveFlags flags) {
     fbb_.AddElement<uint16_t>(C2S_MoveInput::VT_FLAGS, static_cast<uint16_t>(flags), 0);
   }
+  void add_position(const ProtoType::Net::Vec3 *position) {
+    fbb_.AddStruct(C2S_MoveInput::VT_POSITION, position);
+  }
   explicit C2S_MoveInputBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -151,8 +160,10 @@ inline ::flatbuffers::Offset<C2S_MoveInput> CreateC2S_MoveInput(
     const ProtoType::Net::Header *header = nullptr,
     const ProtoType::Net::Vec2 *move_input = nullptr,
     const ProtoType::Net::Rotator *look = nullptr,
-    ProtoType::Net::MoveFlags flags = static_cast<ProtoType::Net::MoveFlags>(0)) {
+    ProtoType::Net::MoveFlags flags = static_cast<ProtoType::Net::MoveFlags>(0),
+    const ProtoType::Net::Vec3 *position = nullptr) {
   C2S_MoveInputBuilder builder_(_fbb);
+  builder_.add_position(position);
   builder_.add_look(look);
   builder_.add_move_input(move_input);
   builder_.add_header(header);
@@ -300,7 +311,8 @@ inline C2S_MoveInputT::C2S_MoveInputT(const C2S_MoveInputT &o)
       : header((o.header) ? new ProtoType::Net::Header(*o.header) : nullptr),
         move_input((o.move_input) ? new ProtoType::Net::Vec2(*o.move_input) : nullptr),
         look((o.look) ? new ProtoType::Net::Rotator(*o.look) : nullptr),
-        flags(o.flags) {
+        flags(o.flags),
+        position((o.position) ? new ProtoType::Net::Vec3(*o.position) : nullptr) {
 }
 
 inline C2S_MoveInputT &C2S_MoveInputT::operator=(C2S_MoveInputT o) FLATBUFFERS_NOEXCEPT {
@@ -308,6 +320,7 @@ inline C2S_MoveInputT &C2S_MoveInputT::operator=(C2S_MoveInputT o) FLATBUFFERS_N
   std::swap(move_input, o.move_input);
   std::swap(look, o.look);
   std::swap(flags, o.flags);
+  std::swap(position, o.position);
   return *this;
 }
 
@@ -324,6 +337,7 @@ inline void C2S_MoveInput::UnPackTo(C2S_MoveInputT *_o, const ::flatbuffers::res
   { auto _e = move_input(); if (_e) _o->move_input = std::unique_ptr<ProtoType::Net::Vec2>(new ProtoType::Net::Vec2(*_e)); }
   { auto _e = look(); if (_e) _o->look = std::unique_ptr<ProtoType::Net::Rotator>(new ProtoType::Net::Rotator(*_e)); }
   { auto _e = flags(); _o->flags = _e; }
+  { auto _e = position(); if (_e) _o->position = std::unique_ptr<ProtoType::Net::Vec3>(new ProtoType::Net::Vec3(*_e)); }
 }
 
 inline ::flatbuffers::Offset<C2S_MoveInput> CreateC2S_MoveInput(::flatbuffers::FlatBufferBuilder &_fbb, const C2S_MoveInputT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
@@ -338,12 +352,14 @@ inline ::flatbuffers::Offset<C2S_MoveInput> C2S_MoveInput::Pack(::flatbuffers::F
   auto _move_input = _o->move_input ? _o->move_input.get() : nullptr;
   auto _look = _o->look ? _o->look.get() : nullptr;
   auto _flags = _o->flags;
+  auto _position = _o->position ? _o->position.get() : nullptr;
   return ProtoType::Net::CreateC2S_MoveInput(
       _fbb,
       _header,
       _move_input,
       _look,
-      _flags);
+      _flags,
+      _position);
 }
 
 inline S2C_MoveStateT::S2C_MoveStateT(const S2C_MoveStateT &o)
