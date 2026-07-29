@@ -142,6 +142,11 @@ private:
     float StaminaRegenTimer = 0.0f;
     bool bStaminaDepleted = false;
 
+    // Throttles how often this client reports its position to the server
+    // (SendMoveInput), so other connected players can see it move.
+    float NetSyncInterval = 0.1f;
+    float NetSyncTimer = 0.0f;
+
 public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
     bool bHasWeapon = false;

@@ -10,6 +10,8 @@
 class FSocket;
 class FRunnableThread;
 class FProtoNetReceiveWorker;
+class AProtoRemotePlayer;
+class SProtoConnectPrompt;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnPacketReceived, const TArray<uint8>&, PacketBytes);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProtoOnConnected);
@@ -42,11 +44,16 @@ public:
 	//~ End UGameInstanceSubsystem
 
 	// Connects to the echo server. Defaults to the server running on this
-	// same machine (127.0.0.1:7777). Called automatically from Initialize()
-	// on game start, so no Blueprint wiring is required to test the pipe;
-	// call it again yourself only if you disconnected and want to retry.
+	// same machine (127.0.0.1:7777).
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool Connect(const FString& ServerIp = TEXT("127.0.0.1"), int32 ServerPort = 7777);
+
+	// Shows an on-screen "enter server IP" prompt (defaults to -ServerIP=
+	// from the command line, or 127.0.0.1) and connects + logs in once the
+	// player submits it. Called from AProtoCharacter::BeginPlay() for the
+	// locally-controlled player. No-op if already connected or already shown.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	void ShowConnectPrompt();
 
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	void Disconnect();
@@ -73,6 +80,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendInteractLoot(int32 TargetId);
 
+	// Reports the local player's current world position/facing so other
+	// connected clients can see this player move. Called periodically from
+	// AProtoCharacter::Tick() (throttled), not meant to be spammed every frame.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendMoveInput(FVector Position, FRotator Look, int32 Flags = 0);
+
+	// This client's own player id, assigned by the server after login via
+	// S2C_LoginSuccess. 0 until then.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	int32 GetLocalPlayerId() const { return static_cast<int32>(LocalPlayerId); }
+
 	// Fired on the game thread for every complete packet the server sends
 	// back (raw, still-framed bytes; PacketBytes[4:] is the FlatBuffers Packet).
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
@@ -93,11 +111,26 @@ public:
 private:
 	friend class FProtoNetReceiveWorker;
 
+	// Decodes one complete framed packet and, for the multiplayer-relevant
+	// types (login success / player join / move state), updates local state
+	// or spawns/moves the matching AProtoRemotePlayer.
+	void HandleIncomingPacket(const TArray<uint8>& PacketBytes);
+	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation);
+
+	void HandleConnectPromptSubmitted(const FString& ServerIp);
+	void HideConnectPrompt();
+
+	TSharedPtr<SProtoConnectPrompt> ConnectPromptWidget;
+
 	FSocket* Socket = nullptr;
 	TUniquePtr<FProtoNetReceiveWorker> Worker;
 	FRunnableThread* WorkerThread = nullptr;
 	FCriticalSection SendLock;
 	uint32 NextSeq = 1;
+	uint32 LocalPlayerId = 0;
+
+	UPROPERTY()
+	TMap<int32, AProtoRemotePlayer*> RemotePlayers;
 
 	// Filled by the worker thread, drained on the game thread in Tick().
 	TQueue<TArray<uint8>, EQueueMode::Mpsc> ReceivedPackets;
