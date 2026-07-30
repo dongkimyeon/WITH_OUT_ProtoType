@@ -1,33 +1,42 @@
 # Auto detect text files and perform LF normalization
 * text=auto
-
 # Unreal Engine binary assets
 *.uasset -text
 *.umap -text
-
 # Audio
 *.wav -text
 *.mp3 -text
 *.ogg -text
-
 # Video
 *.mp4 -text
-
 # Images
 *.png -text
 *.tga -text
 *.psd -text
 *.jpg -text
 *.exr -text
-
 # 3D assets
 *.fbx -text
 *.obj -text
-
 # Fonts
 *.ttf -text
 *.otf -text
-
 # Archives
 *.zip -text
 *.rar -text
+Content/CitySampleVehicles/vehicle10_Bus/Texture/T_vehBus_vehicle10_AORM.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_Junkyard/Assets/MS/3D/Ind_Fac_Container_Drum_Metal_Worn_01/SM_Ind_Fac_Container_Drum_Metal_Worn_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_Junkyard/Assets/MS/3D/Ind_Fac_Container_Drum_Plastic_Worn_01/SM_Ind_Fac_Container_Drum_Plastic_Worn_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_Junkyard/Assets/MS/3D/Urb_Str_Bin_Trash_Metal_Worn_01/SM_Urb_Str_Bin_Trash_Metal_Worn_01_B.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Megascans/3D_Assets/ForestTerrain/SM_ForestTerrain_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Megascans/3D_Assets/DeadTree/SM_DeadTree_02.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_UnfinishedBuilding/Assets/Megascans/3D_Assets/Ind_Rub_Pile_Debris_Gravel_M_01/SM_Ind_Rub_Pile_Debris_Gravel_M_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_UnfinishedBuilding/Assets/Megascans/3D_Assets/Ind_Rub_Pile_Concrete_M_05/SM_Ind_Rub_Pile_Concrete_M_05.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_RoadsideConstruction/Assets/MS/3D/Ind_Rub_Pile_Concrete_M_05/SM_Ind_Rub_Pile_Concrete_M_05.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_UnfinishedBuilding/Assets/Megascans/3D_Assets/Ind_Rub_Pile_Concrete_M_01/SM_Ind_Rub_Pile_Concrete_M_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Custom/IvyTest/SM_IvyForTrees_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Megascans/3D_Assets/MossyRocks/SM_MossyRocks_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_RoadsideConstruction/Assets/MS/3D/Ind_Rub_Pile_Concrete_M_01/SM_Ind_Rub_Pile_Concrete_M_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/Scene_RoadsideConstruction/Assets/MS/3D/Ind_Roa_Barrier_Concrete_M_01/SM_Ind_Roa_Barrier_Concrete_M_01.uasset filter=lfs diff=lfs merge=lfs -text
+Content/CitySampleVehicles/vehicle10_Bus/Mesh/SM_vehBus_vehicle10_LOD.uasset filter=lfs diff=lfs merge=lfs -text
+Content/MS_ForestTut/Scatter_3D/02_Dry_Branches_pdye3/Sctr_wood_stick_M_pdye3_8K_Normal_LOD0.uasset filter=lfs diff=lfs merge=lfs -text
