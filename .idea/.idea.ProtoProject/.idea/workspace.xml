@@ -16,12 +16,9 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_InventorySlot.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_InventorySlot.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryItemWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryItemWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventorySlotWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventorySlotWidget.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ItemDragDropOperation.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ItemDragDropOperation.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProtoProject.uproject" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.uproject" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,16 +29,16 @@
     <option name="firstShow" value="false" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="12440" />
+    <option name="cachedIndexableFilesCount" value="12442" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="cidr-memory-view://0" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/../UE_5.8/Engine/Source/Runtime/UMG/Public/Blueprint/UserWidget.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/LevelChange/LevelChangeSelectWidget.cpp" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/LevelChange/LevelChangeSelectWidget.h" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/Source/ProtoProject/Network/ProtoRemotePlayer.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ContainerScreenWidget.h" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.cpp" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.h" root0="FORCE_HIGHLIGHTING" />
@@ -222,6 +219,8 @@
       <workItem from="1784891873197" duration="715000" />
       <workItem from="1784903114348" duration="4428000" />
       <workItem from="1785158247431" duration="3329000" />
+      <workItem from="1785325692587" duration="1709000" />
+      <workItem from="1785333791338" duration="1008000" />
     </task>
     <servers />
   </component>

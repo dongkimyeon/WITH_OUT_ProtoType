@@ -61,14 +61,20 @@ void UProtoNetClientSubsystem::ShowConnectPrompt()
 void UProtoNetClientSubsystem::HandleConnectPromptSubmitted(const FString& ServerIp)
 {
 	const FString Trimmed = ServerIp.TrimStartAndEnd();
-	const FString FinalIp = Trimmed.IsEmpty() ? TEXT("127.0.0.1") : Trimmed;
+
+	// Empty or "0" means "skip connecting" - just play offline/local.
+	if (Trimmed.IsEmpty() || Trimmed == TEXT("0"))
+	{
+		HideConnectPrompt();
+		return;
+	}
 
 	if (ConnectPromptWidget.IsValid())
 		ConnectPromptWidget->SetStatusText(FText::FromString(TEXT("접속 중...")));
 
 	// FSocket::Connect() is blocking, so an unreachable IP will briefly
 	// freeze the game here rather than failing instantly.
-	if (Connect(FinalIp))
+	if (Connect(Trimmed))
 	{
 		SendLoginTest(TEXT("guest"), TEXT("1.0"));
 		HideConnectPrompt();
