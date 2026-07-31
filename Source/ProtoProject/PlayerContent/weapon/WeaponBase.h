@@ -7,6 +7,7 @@
 
 class UBoxComponent;
 class UStaticMeshComponent;
+class UMaterialInterface;
 
 UCLASS()
 class PROTOPROJECT_API AWeaponBase : public AActor
@@ -30,6 +31,21 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Swap", meta = (ClampMin = "0.0"))
     float UnequipSwapTime = 0.3f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Fire", meta = (ClampMin = "0.0"))
+    float FireRate = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Fire")
+    bool bAutomatic = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Impact")
+    UMaterialInterface* BulletHoleDecalMaterial = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Impact")
+    FVector BulletHoleDecalSize = FVector(1.0f, 10.0f, 10.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Impact", meta = (ClampMin = "0.0"))
+    float BulletHoleDecalLifeSpan = 0.0f;
 
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     virtual void Fire();

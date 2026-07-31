@@ -2,6 +2,8 @@
 #include "Components/BoxComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/ConstructorHelpers.h"
 
 AWeaponBase::AWeaponBase()
 {
@@ -18,6 +20,12 @@ AWeaponBase::AWeaponBase()
     CollisionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     CollisionBox->SetCollisionResponseToAllChannels(ECR_Overlap);
     CollisionBox->OnComponentBeginOverlap.AddDynamic(this, &AWeaponBase::OnWeaponBeginOverlap);
+
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> BulletHoleMaterialFinder(TEXT("/Game/Blueprint/weapon/M_BulletHole.M_BulletHole"));
+    if (BulletHoleMaterialFinder.Succeeded())
+    {
+        BulletHoleDecalMaterial = BulletHoleMaterialFinder.Object;
+    }
 }
 
 void AWeaponBase::BeginPlay()

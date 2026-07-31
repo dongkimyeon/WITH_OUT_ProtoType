@@ -14,6 +14,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Animation/AnimMontage.h"
+#include "TimerManager.h"
 #include "weapon/WeaponBase.h"
 #include "../LevelChange/LevelChanger.h"
 #include "../LevelChange/LevelChangeSelectWidget.h"
@@ -167,7 +168,8 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
     PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeRifle);
     PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AProtoCharacter::SetWeaponTypePistol);
-    PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::FireWeapon);
+    PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::StartFireWeapon);
+    PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &AProtoCharacter::StopFireWeapon);
     PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Pressed, this, &AProtoCharacter::StartSprint);
     PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Released, this, &AProtoCharacter::StopSprint);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
@@ -580,6 +582,8 @@ AWeaponBase* AProtoCharacter::GetWeaponByType(EWeaponType WeaponType) const
 }
 void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType)
 {
+    StopFireWeapon();
+
     if (Swapping > 0.0f)
     {
         return;
@@ -682,6 +686,24 @@ void AProtoCharacter::FinishWeaponSwap()
         }
     }
 }
+void AProtoCharacter::StartFireWeapon()
+{
+    FireWeapon();
+
+    if (!CurrentWeapon || !CurrentWeapon->bAutomatic || CurrentWeapon->FireRate <= 0.0f)
+    {
+        return;
+    }
+
+    const float FireInterval = 1.0f / CurrentWeapon->FireRate;
+    GetWorldTimerManager().SetTimer(AutoFireTimerHandle, this, &AProtoCharacter::FireWeapon, FireInterval, true, FireInterval);
+}
+
+void AProtoCharacter::StopFireWeapon()
+{
+    GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
+}
+
 void AProtoCharacter::FireWeapon()
 {
     if (!CurrentWeapon)

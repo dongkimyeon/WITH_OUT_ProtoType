@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 APistol::APistol()
 {
@@ -105,6 +106,18 @@ void APistol::Fire()
         1.0f,
         0,
         1.5f);
+
+    if (bHit && BulletHoleDecalMaterial)
+    {
+        const FRotator DecalRotation = FRotationMatrix::MakeFromX(FireHit.ImpactNormal).Rotator();
+        UGameplayStatics::SpawnDecalAtLocation(
+            GetWorld(),
+            BulletHoleDecalMaterial,
+            BulletHoleDecalSize,
+            FireHit.Location,
+            DecalRotation,
+            BulletHoleDecalLifeSpan);
+    }
 
     if (bHit && FireHit.GetActor())
     {

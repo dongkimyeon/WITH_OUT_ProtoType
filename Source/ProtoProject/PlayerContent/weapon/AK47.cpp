@@ -5,11 +5,14 @@
 #include "Engine/GameInstance.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 #include "../../Network/ProtoNetClientSubsystem.h"
 
 AAK47::AAK47()
 {
     WeaponType = EWeaponType::Rifle;
+    bAutomatic = true;
+    FireRate = 10.0f;
 
     MuzzlePoint = CreateDefaultSubobject<UArrowComponent>(TEXT("MuzzlePoint"));
     MuzzlePoint->SetupAttachment(WeaponMesh);
@@ -115,6 +118,18 @@ void AAK47::Fire()
         1.0f,
         0,
         1.5f);
+
+    if (bHit && BulletHoleDecalMaterial)
+    {
+        const FRotator DecalRotation = FRotationMatrix::MakeFromX(FireHit.ImpactNormal).Rotator();
+        UGameplayStatics::SpawnDecalAtLocation(
+            GetWorld(),
+            BulletHoleDecalMaterial,
+            BulletHoleDecalSize,
+            FireHit.Location,
+            DecalRotation,
+            BulletHoleDecalLifeSpan);
+    }
 
     if (bHit && FireHit.GetActor())
     {

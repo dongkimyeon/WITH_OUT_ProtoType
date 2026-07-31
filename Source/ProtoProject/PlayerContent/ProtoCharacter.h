@@ -127,6 +127,8 @@ private:
     void SetWeaponTypePistol();
     void BeginWeaponSwap(EWeaponType TargetWeaponType);
     void FinishWeaponSwap();
+    void StartFireWeapon();
+    void StopFireWeapon();
     void FireWeapon();
     void AttachCurrentWeaponToSocket(FName SocketName);
     AWeaponBase* GetWeaponByType(EWeaponType WeaponType) const;
@@ -141,6 +143,8 @@ private:
 
     float StaminaRegenTimer = 0.0f;
     bool bStaminaDepleted = false;
+
+    FTimerHandle AutoFireTimerHandle;
 
     // Throttles how often this client reports its position to the server
     // (SendMoveInput), so other connected players can see it move.
