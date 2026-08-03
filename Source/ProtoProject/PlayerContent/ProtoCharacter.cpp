@@ -14,11 +14,13 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Animation/AnimMontage.h"
+#include "Animation/AnimInstance.h"
 #include "TimerManager.h"
 #include "weapon/WeaponBase.h"
 #include "../LevelChange/LevelChanger.h"
 #include "../LevelChange/LevelChangeSelectWidget.h"
 #include "Engine/GameInstance.h"
+#include "UObject/ConstructorHelpers.h"
 #include "../Network/ProtoNetClientSubsystem.h"
 
 AProtoCharacter::AProtoCharacter()
@@ -31,6 +33,12 @@ AProtoCharacter::AProtoCharacter()
     bUseControllerRotationRoll = false;
     GetCharacterMovement()->bOrientRotationToMovement = false;
     GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+
+    static ConstructorHelpers::FObjectFinder<UAnimMontage> RifleReloadMontageFinder(TEXT("/Game/Blueprint/AM_Player_Upper.AM_Player_Upper"));
+    if (RifleReloadMontageFinder.Succeeded())
+    {
+        RifleReloadMontage = RifleReloadMontageFinder.Object;
+    }
 }
 
 void AProtoCharacter::Tick(float DeltaTime)
@@ -53,27 +61,42 @@ void AProtoCharacter::Tick(float DeltaTime)
             FinishWeaponSwap();
         }
     }
-    if (bHasWeapon && Swapping <= 0.0f && CurrentWeapon && CurrentWeapon->GetRootComponent() && GetMesh())
+    if (bHasWeapon && Swapping <= 0.0f && CurrentWeapon && GetMesh())
     {
-        static const FName LeftHandSocketName(TEXT("LeftHandSocket"));
         static const FName RightHandBoneName(TEXT("hand_r"));
 
-        const FTransform LeftHandSocketTransform = CurrentWeapon->GetRootComponent()->GetSocketTransform(
-            LeftHandSocketName,
-            RTS_World);
+        FTransform LeftHandSocketTransform;
+        if (CurrentWeapon->GetLeftHandSocketTransform(LeftHandSocketTransform))
+        {
+            const FVector LeftHandWorldLocation = LeftHandSocketTransform.GetLocation();
+            if (GEngine)
+            {
+                GEngine->AddOnScreenDebugMessage(
+                    12001,
+                    0.2f,
+                    FColor::Cyan,
+                    FString::Printf(TEXT("LeftHandSocket OK: X %.1f / Y %.1f / Z %.1f"),
+                        LeftHandWorldLocation.X,
+                        LeftHandWorldLocation.Y,
+                        LeftHandWorldLocation.Z));
+            }
 
-        FVector OutPosition;
-        FRotator OutRotation;
-        GetMesh()->TransformToBoneSpace(
-            RightHandBoneName,
-            LeftHandSocketTransform.GetLocation(),
-            LeftHandSocketTransform.Rotator(),
-            OutPosition,
-            OutRotation);
+            FVector OutPosition;
+            FRotator OutRotation;
+            GetMesh()->TransformToBoneSpace(
+                RightHandBoneName,
+                LeftHandWorldLocation,
+                LeftHandSocketTransform.Rotator(),
+                OutPosition,
+                OutRotation);
 
-        LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
+            LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
+        }
+        else if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(12001, 0.2f, FColor::Red, TEXT("LeftHandSocket Missing"));
+        }
     }
-
     UpdateStamina(DeltaTime);
 
     if (IsLocallyControlled())
@@ -119,6 +142,13 @@ void AProtoCharacter::BeginPlay()
         }
     }
 
+    if (USkeletalMeshComponent* CharacterMesh = GetMesh())
+    {
+        if (UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance())
+        {
+            AnimInstance->OnPlayMontageNotifyBegin.AddUniqueDynamic(this, &AProtoCharacter::HandleMontageNotifyBegin);
+        }
+    }
     if (InventoryComponent)
     {
         if (TestArmor) InventoryComponent->AddItem(TestArmor);
@@ -170,6 +200,7 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AProtoCharacter::SetWeaponTypePistol);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::StartFireWeapon);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &AProtoCharacter::StopFireWeapon);
+    PlayerInputComponent->BindKey(EKeys::R, IE_Pressed, this, &AProtoCharacter::ReloadWeapon);
     PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Pressed, this, &AProtoCharacter::StartSprint);
     PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Released, this, &AProtoCharacter::StopSprint);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
@@ -716,6 +747,64 @@ void AProtoCharacter::FireWeapon()
     }
     CurrentWeapon->Fire();
 }
+
+void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
+{
+    static const FName AmmoAttachNotifyName(TEXT("AmmoAttach"));
+    static const FName AmmoDetachNotifyName(TEXT("AmmoDetach"));
+    static const FName NewAmmoNotifyName(TEXT("NewAmmo"));
+    static const FName NewAmmoAttachNotifyName(TEXT("NewAmmoAttach"));
+
+    if (NotifyName == AmmoAttachNotifyName)
+    {
+        ReloadAmmoAttach();
+    }
+    else if (NotifyName == AmmoDetachNotifyName)
+    {
+        ReloadAmmoDetach();
+    }
+    else if (NotifyName == NewAmmoNotifyName)
+    {
+        ReloadNewAmmo();
+    }
+    else if (NotifyName == NewAmmoAttachNotifyName)
+    {
+        ReloadNewAmmoAttach();
+    }
+    else
+    {
+        return;
+    }
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(
+            12002,
+            1.0f,
+            FColor::Yellow,
+            FString::Printf(TEXT("Reload Notify: %s"), *NotifyName.ToString()));
+    }
+}
+void AProtoCharacter::ReloadWeapon()
+{
+    if (Swapping > 0.0f || !CurrentWeapon || CurrentWeaponType != EWeaponType::Rifle)
+    {
+        return;
+    }
+
+    StopFireWeapon();
+
+    if (!RifleReloadMontage)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No AM_Player_Upper Montage"));
+        }
+        return;
+    }
+
+    PlayAnimMontage(RifleReloadMontage, 1.0f, RifleReloadSectionName);
+}
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
 {
     if (!CurrentWeapon || !GetMesh())
@@ -744,3 +833,35 @@ void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
 }
 
 
+
+void AProtoCharacter::ReloadAmmoAttach()
+{
+    if (CurrentWeapon)
+    {
+        CurrentWeapon->ReloadAmmoAttach(GetMesh());
+    }
+}
+
+void AProtoCharacter::ReloadAmmoDetach()
+{
+    if (CurrentWeapon)
+    {
+        CurrentWeapon->ReloadAmmoDetach();
+    }
+}
+
+void AProtoCharacter::ReloadNewAmmo()
+{
+    if (CurrentWeapon)
+    {
+        CurrentWeapon->ReloadNewAmmo(GetMesh());
+    }
+}
+
+void AProtoCharacter::ReloadNewAmmoAttach()
+{
+    if (CurrentWeapon)
+    {
+        CurrentWeapon->ReloadNewAmmoAttach();
+    }
+}

@@ -7,6 +7,7 @@
 
 class UBoxComponent;
 class UStaticMeshComponent;
+class USkeletalMeshComponent;
 class UMaterialInterface;
 
 UCLASS()
@@ -49,6 +50,21 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     virtual void Fire();
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|IK")
+    virtual bool GetLeftHandSocketTransform(FTransform& OutTransform) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    virtual void ReloadAmmoAttach(USkeletalMeshComponent* CharacterMesh);
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    virtual void ReloadAmmoDetach();
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    virtual void ReloadNewAmmo(USkeletalMeshComponent* CharacterMesh);
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    virtual void ReloadNewAmmoAttach();
 
 protected:
     virtual void BeginPlay() override;

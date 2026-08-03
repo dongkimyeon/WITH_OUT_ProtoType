@@ -1,11 +1,14 @@
 #include "AK47.h"
 #include "Components/ArrowComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
+#include "Engine/SkeletalMesh.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "UObject/ConstructorHelpers.h"
 #include "../../Network/ProtoNetClientSubsystem.h"
 
 AAK47::AAK47()
@@ -14,10 +17,39 @@ AAK47::AAK47()
     bAutomatic = true;
     FireRate = 10.0f;
 
+    RifleSkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("RifleSkeletalMesh"));
+    RifleSkeletalMesh->SetupAttachment(WeaponMesh);
+    RifleSkeletalMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    static ConstructorHelpers::FObjectFinder<USkeletalMesh> RifleMeshFinder(TEXT("/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ka47/SK_KA47.SK_KA47"));
+    if (RifleMeshFinder.Succeeded())
+    {
+        RifleSkeletalMesh->SetSkeletalMesh(RifleMeshFinder.Object);
+    }
+
+    static ConstructorHelpers::FClassFinder<AActor> RifleAmmoClassFinder(TEXT("/Game/Blueprint/weapon/BP_RifleAmmo"));
+    if (RifleAmmoClassFinder.Succeeded())
+    {
+        RifleAmmoClass = RifleAmmoClassFinder.Class;
+    }
+
     MuzzlePoint = CreateDefaultSubobject<UArrowComponent>(TEXT("MuzzlePoint"));
-    MuzzlePoint->SetupAttachment(WeaponMesh);
+    MuzzlePoint->SetupAttachment(RifleSkeletalMesh);
 }
 
+
+bool AAK47::GetLeftHandSocketTransform(FTransform& OutTransform) const
+{
+    static const FName LeftHandSocketName(TEXT("LeftHandSocket"));
+
+    if (RifleSkeletalMesh && RifleSkeletalMesh->DoesSocketExist(LeftHandSocketName))
+    {
+        OutTransform = RifleSkeletalMesh->GetSocketTransform(LeftHandSocketName, RTS_World);
+        return true;
+    }
+
+    return Super::GetLeftHandSocketTransform(OutTransform);
+}
 void AAK47::Fire()
 {
     if (!GetWorld() || !MuzzlePoint)
@@ -140,5 +172,105 @@ void AAK47::Fire()
             GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red,
                 FString::Printf(TEXT("Hit: %s"), *FireHit.GetActor()->GetName()));
         }
+    }
+}
+void AAK47::ReloadAmmoAttach(USkeletalMeshComponent* CharacterMesh)
+{
+    SetWeaponMagazineHidden(true);
+
+    if (HandAmmoActor)
+    {
+        HandAmmoActor->Destroy();
+        HandAmmoActor = nullptr;
+    }
+
+    HandAmmoActor = SpawnAmmoInHand(CharacterMesh);
+}
+
+void AAK47::ReloadAmmoDetach()
+{
+    if (!HandAmmoActor)
+    {
+        return;
+    }
+
+    HandAmmoActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+    if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(HandAmmoActor->GetRootComponent()))
+    {
+        Primitive->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        Primitive->SetSimulatePhysics(true);
+    }
+
+    HandAmmoActor = nullptr;
+}
+
+void AAK47::ReloadNewAmmo(USkeletalMeshComponent* CharacterMesh)
+{
+    if (HandAmmoActor)
+    {
+        HandAmmoActor->Destroy();
+        HandAmmoActor = nullptr;
+    }
+
+    HandAmmoActor = SpawnAmmoInHand(CharacterMesh);
+}
+
+void AAK47::ReloadNewAmmoAttach()
+{
+    if (HandAmmoActor)
+    {
+        HandAmmoActor->Destroy();
+        HandAmmoActor = nullptr;
+    }
+
+    SetWeaponMagazineHidden(false);
+}
+
+AActor* AAK47::SpawnAmmoInHand(USkeletalMeshComponent* CharacterMesh)
+{
+    if (!GetWorld() || !CharacterMesh || !RifleAmmoClass)
+    {
+        return nullptr;
+    }
+
+    const FTransform SpawnTransform = CharacterMesh->GetSocketTransform(AmmoHandSocketName, RTS_World);
+    AActor* AmmoActor = GetWorld()->SpawnActor<AActor>(RifleAmmoClass, SpawnTransform);
+    if (!AmmoActor)
+    {
+        return nullptr;
+    }
+
+    if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(AmmoActor->GetRootComponent()))
+    {
+        Primitive->SetSimulatePhysics(false);
+        Primitive->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
+    const FAttachmentTransformRules AttachRules(
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::KeepRelative,
+        false);
+
+    AmmoActor->AttachToComponent(CharacterMesh, AttachRules, AmmoHandSocketName);
+    AmmoActor->SetActorRelativeTransform(HandAmmoRelativeTransform);
+    return AmmoActor;
+}
+
+void AAK47::SetWeaponMagazineHidden(bool bShouldHide)
+{
+    if (!RifleSkeletalMesh)
+    {
+        return;
+    }
+
+    if (bShouldHide)
+    {
+        RifleSkeletalMesh->HideBoneByName(MagazineBoneName, EPhysBodyOp::PBO_None);
+    }
+    else
+    {
+        RifleSkeletalMesh->UnHideBoneByName(MagazineBoneName);
     }
 }

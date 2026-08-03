@@ -125,6 +125,43 @@ void AWeaponBase::Fire()
     UE_LOG(LogTemp, Warning, TEXT("AWeaponBase::Fire called."));
 }
 
+
+bool AWeaponBase::GetLeftHandSocketTransform(FTransform& OutTransform) const
+{
+    static const FName LeftHandSocketName(TEXT("LeftHandSocket"));
+
+    if (WeaponMesh && WeaponMesh->DoesSocketExist(LeftHandSocketName))
+    {
+        OutTransform = WeaponMesh->GetSocketTransform(LeftHandSocketName, RTS_World);
+        return true;
+    }
+
+    if (const USceneComponent* RootScene = GetRootComponent())
+    {
+        if (RootScene->DoesSocketExist(LeftHandSocketName))
+        {
+            OutTransform = RootScene->GetSocketTransform(LeftHandSocketName, RTS_World);
+            return true;
+        }
+    }
+
+    return false;
+}
+void AWeaponBase::ReloadAmmoAttach(USkeletalMeshComponent* CharacterMesh)
+{
+}
+
+void AWeaponBase::ReloadAmmoDetach()
+{
+}
+
+void AWeaponBase::ReloadNewAmmo(USkeletalMeshComponent* CharacterMesh)
+{
+}
+
+void AWeaponBase::ReloadNewAmmoAttach()
+{
+}
 void AWeaponBase::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);

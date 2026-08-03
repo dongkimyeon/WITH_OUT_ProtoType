@@ -18,6 +18,7 @@ class UAnimMontage;
 class UPlayerStatusComponent;
 class ULevelChangeSelectWidget;
 class ALevelChanger;
+struct FBranchingPointNotifyPayload;
 
 UENUM(BlueprintType)
 enum class EWeaponType : uint8
@@ -130,6 +131,10 @@ private:
     void StartFireWeapon();
     void StopFireWeapon();
     void FireWeapon();
+    void ReloadWeapon();
+
+    UFUNCTION()
+    void HandleMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
     void AttachCurrentWeaponToSocket(FName SocketName);
     AWeaponBase* GetWeaponByType(EWeaponType WeaponType) const;
 
@@ -181,10 +186,16 @@ public:
     UAnimMontage* WeaponSwapMontage = nullptr;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    UAnimMontage* RifleReloadMontage = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName RifleToHandSectionName = TEXT("rifletohand");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName PistolToHandSectionName = TEXT("pistoltohand");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    FName RifleReloadSectionName = TEXT("RifleReload");
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
     float AimPitch = 0.0f;
@@ -224,6 +235,18 @@ public:
 
     UInventoryGridComponent* GetInventoryComponent() const { return InventoryComponent; }
     UPlayerStatusComponent* GetStatusComponent() const { return StatusComponent; }
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    void ReloadAmmoAttach();
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    void ReloadAmmoDetach();
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    void ReloadNewAmmo();
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    void ReloadNewAmmoAttach();
 
 private:
     bool bIsInvetoryOpened = false;
