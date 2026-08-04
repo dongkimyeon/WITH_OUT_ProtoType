@@ -2,7 +2,7 @@
 * text=auto
 # Unreal Engine binary assets
 *.uasset -text
-*.umap -text
+*.umap filter=lfs diff=lfs merge=lfs -text
 # Audio
 *.wav -text
 *.mp3 -text
