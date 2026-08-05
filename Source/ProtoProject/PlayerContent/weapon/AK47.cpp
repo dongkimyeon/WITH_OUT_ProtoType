@@ -1,5 +1,6 @@
 #include "AK47.h"
 #include "Components/ArrowComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
@@ -245,6 +246,16 @@ AActor* AAK47::SpawnAmmoInHand(USkeletalMeshComponent* CharacterMesh)
     {
         Primitive->SetSimulatePhysics(false);
         Primitive->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
+    if (AWeaponBase* AmmoAsWeapon = Cast<AWeaponBase>(AmmoActor))
+    {
+        AmmoAsWeapon->bCanBePickedUp = false;
+        if (AmmoAsWeapon->CollisionBox)
+        {
+            AmmoAsWeapon->CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+            AmmoAsWeapon->CollisionBox->SetGenerateOverlapEvents(false);
+        }
     }
 
     const FAttachmentTransformRules AttachRules(

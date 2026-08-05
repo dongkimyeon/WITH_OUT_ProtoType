@@ -192,7 +192,13 @@ public:
     FName RifleToHandSectionName = TEXT("rifletohand");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    FName HandToRifleSectionName = TEXT("handtorifle");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName PistolToHandSectionName = TEXT("pistoltohand");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    FName HandToPistolSectionName = TEXT("handtopistol");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName RifleReloadSectionName = TEXT("RifleReload");
@@ -205,6 +211,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     bool bIsSprint = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Reload")
+    bool bIsReloading = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim")
     bool bIsAiming = false;

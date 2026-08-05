@@ -41,7 +41,7 @@ void AWeaponBase::OnWeaponBeginOverlap(
     bool bFromSweep,
     const FHitResult& SweepResult)
 {
-    if (!OtherActor || OtherActor == this)
+    if (!bCanBePickedUp || !OtherActor || OtherActor == this)
     {
         return;
     }
