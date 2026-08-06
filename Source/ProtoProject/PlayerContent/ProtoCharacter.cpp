@@ -6,6 +6,7 @@
 #include "InventoryScreenWidget.h"
 #include "InventoryGridComponent.h"
 #include "EquipmentComponent.h"
+#include "QuickSlotComponent.h"
 #include "Item/ConsumableItemData.h"
 #include "ContainerScreenWidget.h"
 #include "Item/ItemDataBase.h"
@@ -30,6 +31,7 @@ AProtoCharacter::AProtoCharacter()
     PrimaryActorTick.bCanEverTick = true;
     InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
     EquipmentComponent = CreateDefaultSubobject<UEquipmentComponent>(TEXT("EquipmentComponent"));
+    QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
     StatusComponent = CreateDefaultSubobject<UPlayerStatusComponent>(TEXT("StatusComponent"));
     bUseControllerRotationYaw = true;
     bUseControllerRotationPitch = false;
@@ -520,6 +522,7 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
             {
                 InvUI->InitializeGrid(InventoryComponent);
                 InvUI->InitializeEquipment(EquipmentComponent);
+                InvUI->InitializeQuickSlots(QuickSlotComponent);
             }
             if (PlayerController)
             {

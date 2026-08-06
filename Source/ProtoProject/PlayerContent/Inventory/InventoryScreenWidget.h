@@ -9,6 +9,8 @@
 #include "EquipmentComponent.h"
 #include "EquipmentSlotWidget.h"
 #include "ItemActionTooltipWidget.h"
+#include "QuickSlotComponent.h"
+#include "QuickSlotRegisterWidget.h"
 #include "InventoryScreenWidget.generated.h"
 
 class UGridPanel;
@@ -28,6 +30,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
 	void InitializeEquipment(UEquipmentComponent* InEquipmentComponent);
 
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
+	void InitializeQuickSlots(UQuickSlotComponent* InQuickSlotComponent);
+
 	virtual void NativePreConstruct() override;
 
 	virtual FVector2D GetCellPixelSize() const override { return SlotPixelSize; }
@@ -41,6 +46,8 @@ public:
 	virtual void OnItemContextAction(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void RefreshEquipmentSlots() override;
 	virtual void RefreshGrid(UInventoryGridComponent* Component) override;
+
+	void RefreshQuickSlots();
 
 	UInventoryGridComponent* GetCachedInventoryComponent() const { return CachedInventoryComponent; }
 	UEquipmentComponent* GetCachedEquipmentComponent() const { return CachedEquipmentComponent; }
@@ -75,6 +82,23 @@ protected:
 
 	UPROPERTY(meta = (BindWidgetOptional))
 	UItemActionTooltipWidget* ActionTooltipWidget;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotRegisterWidget* QuickSlotWidget0;
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotRegisterWidget* QuickSlotWidget1;
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotRegisterWidget* QuickSlotWidget2;
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotRegisterWidget* QuickSlotWidget3;
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotRegisterWidget* QuickSlotWidget4;
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotRegisterWidget* QuickSlotWidget5;
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotRegisterWidget* QuickSlotWidget6;
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotRegisterWidget* QuickSlotWidget7;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	TSubclassOf<UInventorySlotWidget> SlotWidgetClass;

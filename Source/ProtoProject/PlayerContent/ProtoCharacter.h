@@ -11,6 +11,7 @@ class UInputAction;
 class UUserWidget;
 class UInventoryGridComponent;
 class UEquipmentComponent;
+class UQuickSlotComponent;
 class UConsumableItemData;
 class AWeaponBase;
 class AStorageContainer;
@@ -77,6 +78,9 @@ private:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
     UEquipmentComponent* EquipmentComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
+    UQuickSlotComponent* QuickSlotComponent;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
     UPlayerStatusComponent* StatusComponent;
@@ -250,6 +254,7 @@ public:
     UInventoryGridComponent* GetInventoryComponent() const { return InventoryComponent; }
     UPlayerStatusComponent* GetStatusComponent() const { return StatusComponent; }
     UEquipmentComponent* GetEquipmentComponent() const { return EquipmentComponent; }
+    UQuickSlotComponent* GetQuickSlotComponent() const { return QuickSlotComponent; }
 
     // 소비 아이템의 즉시 효과를 스탯에 적용한다. 우클릭 사용과 퀵슬롯 사용이 공유한다.
     void UseConsumable(UConsumableItemData* ConsumableData);

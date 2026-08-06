@@ -110,6 +110,34 @@ void UInventoryScreenWidget::RefreshEquipmentSlots()
 	if (Weapon2SlotWidget) Weapon2SlotWidget->RefreshVisual();
 }
 
+void UInventoryScreenWidget::InitializeQuickSlots(UQuickSlotComponent* InQuickSlotComponent)
+{
+	TArray<UQuickSlotRegisterWidget*> Widgets = {
+		QuickSlotWidget0, QuickSlotWidget1, QuickSlotWidget2, QuickSlotWidget3,
+		QuickSlotWidget4, QuickSlotWidget5, QuickSlotWidget6, QuickSlotWidget7
+	};
+
+	for (int32 i = 0; i < Widgets.Num(); ++i)
+	{
+		if (Widgets[i])
+		{
+			Widgets[i]->InitSlot(this, i, InQuickSlotComponent);
+		}
+	}
+}
+
+void UInventoryScreenWidget::RefreshQuickSlots()
+{
+	if (QuickSlotWidget0) QuickSlotWidget0->RefreshVisual();
+	if (QuickSlotWidget1) QuickSlotWidget1->RefreshVisual();
+	if (QuickSlotWidget2) QuickSlotWidget2->RefreshVisual();
+	if (QuickSlotWidget3) QuickSlotWidget3->RefreshVisual();
+	if (QuickSlotWidget4) QuickSlotWidget4->RefreshVisual();
+	if (QuickSlotWidget5) QuickSlotWidget5->RefreshVisual();
+	if (QuickSlotWidget6) QuickSlotWidget6->RefreshVisual();
+	if (QuickSlotWidget7) QuickSlotWidget7->RefreshVisual();
+}
+
 void UInventoryScreenWidget::OnItemContextAction(int32 ItemIndex, UInventoryGridComponent* OwningComponent)
 {
 	if (!OwningComponent || !OwningComponent->Items.IsValidIndex(ItemIndex)) return;
