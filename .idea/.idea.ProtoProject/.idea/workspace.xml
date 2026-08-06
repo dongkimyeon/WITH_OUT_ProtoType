@@ -20,37 +20,9 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Config/DefaultEditor.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Config/DefaultEditor.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Fab/Electric_pole/scene/StaticMeshes/scene.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Fab/Electric_pole/scene/StaticMeshes/scene.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Fab/Street_Lamp/street_lamp/StaticMeshes/street_lamp.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Fab/Street_Lamp/street_lamp/StaticMeshes/street_lamp.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_StorageContainer.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/Item/BP_StorageContainer.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/LandScape/M_Landscape.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/LandScape/M_Landscape.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Bush_1.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Bush_1.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Bush_Tree.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Bush_Tree.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Cat_Tail.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Cat_Tail.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Cat_Tail_2.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Cat_Tail_2.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Flower_Patch_1.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Flower_Patch_1.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Grass_Patch_1.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Grass_Patch_1.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Grass_Patch_2.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Grass_Patch_2.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Grass_Patch_Long.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Grass_Patch_Long.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_1.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_1.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_2.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_2.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_3.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_3.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_4.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_4.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_5.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_5.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_6.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_6.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_Roots_1.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Ivy_Roots_1.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Pine_Tree.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Pine_Tree.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_01.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_01.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_02.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_02.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_03.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_03.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_04.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_04.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_05.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/SM_Pine_Tree_05.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Shrubs_1.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Shrubs_1.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Shrubs_1_Single.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Foliage/Shrubs_1_Single.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Ruined_Modern_Buildings/Assets/Meshes/Destroyed_Buildings/SM_Destroyed_Building_68.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Ruined_Modern_Buildings/Assets/Meshes/Destroyed_Buildings/SM_Destroyed_Building_68.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/SenseiMaterials/Materials/M_BlendMaster_Nanite.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/SenseiMaterials/Materials/M_BlendMaster_Nanite.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProtoProject.sln.DotSettings.user" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.sln.DotSettings.user" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Maps/L_Stage3.umap" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -335,7 +307,7 @@
       <workItem from="1785325692587" duration="1709000" />
       <workItem from="1785333791338" duration="1008000" />
       <workItem from="1785833895696" duration="316000" />
-      <workItem from="1785834351838" duration="2756000" />
+      <workItem from="1785834351838" duration="3546000" />
     </task>
     <servers />
   </component>
