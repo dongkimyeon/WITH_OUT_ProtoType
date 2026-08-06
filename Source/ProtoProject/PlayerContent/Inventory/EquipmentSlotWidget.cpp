@@ -161,9 +161,12 @@ void UEquipmentSlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 		}
 	}
 
+	// 드래그 중 보이는 아이콘 크기를 하드코딩하지 않고 실제 슬롯 크기(InGeometry)에 맞춰, 드래그 시작 시 크기가 튀지 않도록 한다.
+	const FVector2D SlotSize = InGeometry.GetLocalSize();
+
 	USizeBox* DragWrapper = NewObject<USizeBox>(this);
-	DragWrapper->SetWidthOverride(64.f);
-	DragWrapper->SetHeightOverride(64.f);
+	DragWrapper->SetWidthOverride(SlotSize.X);
+	DragWrapper->SetHeightOverride(SlotSize.Y);
 	if (USizeBoxSlot* WrapperSlot = Cast<USizeBoxSlot>(DragWrapper->AddChild(DragVisual)))
 	{
 		WrapperSlot->SetHorizontalAlignment(HAlign_Fill);
@@ -181,4 +184,24 @@ void UEquipmentSlotWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDro
 {
 	Super::NativeOnDragCancelled(InDragDropEvent, InOperation);
 	RefreshVisual();
+}
+
+void UEquipmentSlotWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
+
+	if (ParentScreen && EquipmentComponentRef && EquipmentComponentRef->GetEquippedItem(Slot).ItemData)
+	{
+		ParentScreen->ShowActionTooltip(NSLOCTEXT("Item", "ContextAction_Unequip", "해제"));
+	}
+}
+
+void UEquipmentSlotWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseLeave(InMouseEvent);
+
+	if (ParentScreen)
+	{
+		ParentScreen->HideActionTooltip();
+	}
 }

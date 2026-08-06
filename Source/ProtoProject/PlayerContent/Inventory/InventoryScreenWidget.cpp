@@ -5,6 +5,7 @@
 #include "InputCoreTypes.h"
 #include "EquipmentComponent.h"
 #include "ConsumableItemData.h"
+#include "DropItem.h"
 #include "../ProtoCharacter.h"
 
 void UInventoryScreenWidget::NativeConstruct()
@@ -14,9 +15,17 @@ void UInventoryScreenWidget::NativeConstruct()
 	SetIsFocusable(true);
 }
 
-void UInventoryScreenWidget::OnItemHoverBegin(int32 ItemIndex, UInventoryGridComponent*)
+void UInventoryScreenWidget::OnItemHoverBegin(int32 ItemIndex, UInventoryGridComponent* OwningComponent)
 {
 	HoveredItemIndex = ItemIndex;
+
+	if (OwningComponent && OwningComponent->Items.IsValidIndex(ItemIndex))
+	{
+		if (UItemDataBase* ItemData = OwningComponent->Items[ItemIndex].ItemData)
+		{
+			ShowActionTooltip(ItemData->GetContextActionText());
+		}
+	}
 }
 
 void UInventoryScreenWidget::OnItemHoverEnd(int32 ItemIndex, UInventoryGridComponent*)
@@ -24,6 +33,23 @@ void UInventoryScreenWidget::OnItemHoverEnd(int32 ItemIndex, UInventoryGridCompo
 	if (HoveredItemIndex == ItemIndex)
 	{
 		HoveredItemIndex = INDEX_NONE;
+		HideActionTooltip();
+	}
+}
+
+void UInventoryScreenWidget::ShowActionTooltip(const FText& Text)
+{
+	if (ActionTooltipWidget)
+	{
+		ActionTooltipWidget->SetActionText(Text);
+	}
+}
+
+void UInventoryScreenWidget::HideActionTooltip()
+{
+	if (ActionTooltipWidget)
+	{
+		ActionTooltipWidget->SetActionText(FText::GetEmpty());
 	}
 }
 
@@ -175,6 +201,48 @@ FReply UInventoryScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, cons
 		}
 	}
 	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+}
+
+bool UInventoryScreenWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+	ClearDragHighlight();
+
+	UItemDragDropOperation* DragOp = Cast<UItemDragDropOperation>(InOperation);
+	if (DragOp && DragOp->SourceInventoryComponent && DragOp->DraggedItemData)
+	{
+		DropItemToWorld(DragOp);
+		return true;
+	}
+	return Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
+}
+
+void UInventoryScreenWidget::DropItemToWorld(UItemDragDropOperation* DragOp)
+{
+	if (!DragOp || !DragOp->SourceInventoryComponent || !DragOp->DraggedItemData || !DropItemActorClass) return;
+
+	AProtoCharacter* OwningCharacter = Cast<AProtoCharacter>(GetOwningPlayerPawn());
+	if (!OwningCharacter) return;
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	UItemDataBase* ItemData = DragOp->DraggedItemData;
+	DragOp->SourceInventoryComponent->RemoveInstanceById(DragOp->InstanceId);
+
+	const FVector SpawnLocation = OwningCharacter->GetActorLocation() + OwningCharacter->GetActorForwardVector() * 150.f + FVector(0.f, 0.f, 50.f);
+	const FTransform SpawnTransform(OwningCharacter->GetActorRotation(), SpawnLocation);
+
+	// ItemData가 OnConstruction(메시 세팅) 이전에 반영되어야 하므로 지연 스폰을 사용한다.
+	if (ADropItem* Spawned = World->SpawnActorDeferred<ADropItem>(DropItemActorClass, SpawnTransform))
+	{
+		Spawned->ItemData = ItemData;
+		Spawned->FinishSpawning(SpawnTransform);
+	}
+
+	if (DragOp->SourceScreenWidget)
+	{
+		DragOp->SourceScreenWidget->RefreshGrid(DragOp->SourceInventoryComponent);
+	}
 }
 
 void UInventoryScreenWidget::RefreshItemWidget(int32 ItemIndex)

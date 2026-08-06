@@ -8,11 +8,13 @@
 #include "InventoryGridComponent.h"
 #include "EquipmentComponent.h"
 #include "EquipmentSlotWidget.h"
+#include "ItemActionTooltipWidget.h"
 #include "InventoryScreenWidget.generated.h"
 
 class UGridPanel;
 class UItemDataBase;
 class UItemDragDropOperation;
+class ADropItem;
 
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UInventoryScreenWidget : public UInventoryScreenBase
@@ -43,9 +45,18 @@ public:
 	UInventoryGridComponent* GetCachedInventoryComponent() const { return CachedInventoryComponent; }
 	UEquipmentComponent* GetCachedEquipmentComponent() const { return CachedEquipmentComponent; }
 
+	// 마우스를 따라다니는 액션 툴팁 표시/숨김 (장착 슬롯 호버 등 그리드 외부에서도 호출됨)
+	void ShowActionTooltip(const FText& Text);
+	void HideActionTooltip();
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+	// 그리드/장착 슬롯 어느 쪽도 처리하지 못한 드롭 - 화면 바깥 여백에 놓인 것으로 간주해 월드에 버린다.
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
+	TSubclassOf<ADropItem> DropItemActorClass;
 
 	UPROPERTY(meta = (BindWidget))
 	UGridPanel* InventoryGridPanel;
@@ -62,6 +73,9 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	UEquipmentSlotWidget* Weapon2SlotWidget;
 
+	UPROPERTY(meta = (BindWidgetOptional))
+	UItemActionTooltipWidget* ActionTooltipWidget;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
 
@@ -76,6 +90,7 @@ protected:
 
 private:
 	void RefreshItemWidget(int32 ItemIndex);
+	void DropItemToWorld(UItemDragDropOperation* DragOp);
 
 	UPROPERTY()
 	UInventoryGridComponent* CachedInventoryComponent = nullptr;

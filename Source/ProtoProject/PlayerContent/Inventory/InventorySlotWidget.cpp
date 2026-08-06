@@ -74,11 +74,26 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 		FIntPoint TargetTopLeft = SlotPosition - DragOp->DragOffset;
 		bool bCrossGrid = DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != OwningInventoryComponent;
 
+		// 그리드 칸 안에서의 배치 성공/실패는 여기서 완전히 소비한다 (항상 true).
+		// false를 반환하면 "그리드 밖으로 드롭"과 구분이 안 되어 화면 바깥 버리기 폴백으로 잘못 전파될 수 있다.
+		// 실패했을 때는 관련 그리드를 다시 그려서, 드래그 시작 시 숨겨졌던 원본 아이콘을 복원한다.
 		if (bCrossGrid)
 		{
-			return ParentScreen->OnItemDroppedFromExternal(DragOp, TargetTopLeft, DragOp->bCurrentRotated, OwningInventoryComponent);
+			if (!ParentScreen->OnItemDroppedFromExternal(DragOp, TargetTopLeft, DragOp->bCurrentRotated, OwningInventoryComponent))
+			{
+				if (DragOp->SourceScreenWidget)
+				{
+					DragOp->SourceScreenWidget->RefreshGrid(DragOp->SourceInventoryComponent);
+				}
+			}
+			return true;
 		}
-		return ParentScreen->OnItemDropped(DragOp->ItemIndex, TargetTopLeft, DragOp->bCurrentRotated, OwningInventoryComponent);
+
+		if (!ParentScreen->OnItemDropped(DragOp->ItemIndex, TargetTopLeft, DragOp->bCurrentRotated, OwningInventoryComponent))
+		{
+			ParentScreen->RefreshGrid(OwningInventoryComponent);
+		}
+		return true;
 	}
 	return false;
 }
