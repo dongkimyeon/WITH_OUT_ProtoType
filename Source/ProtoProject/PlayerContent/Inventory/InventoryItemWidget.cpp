@@ -121,6 +121,37 @@ void UInventoryItemWidget::NativeOnDragCancelled(const FDragDropEvent& InDragDro
 	if (ParentScreen) ParentScreen->SetActiveDragOperation(nullptr);
 }
 
+bool UInventoryItemWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+	UItemDragDropOperation* DragOp = Cast<UItemDragDropOperation>(InOperation);
+	if (DragOp && ParentScreen && InventoryComponent && InventoryComponent->Items.IsValidIndex(ItemIndex))
+	{
+		const FInventoryItemInstance& Item = InventoryComponent->Items[ItemIndex];
+		FVector2D CellPixelSize = ParentScreen->GetCellPixelSize();
+		FIntPoint ItemGridSize = Item.GetEffectiveSize();
+
+		FVector2D LocalPos = InGeometry.AbsoluteToLocal(InDragDropEvent.GetScreenSpacePosition());
+		int32 OffsetX = FMath::Clamp(FMath::FloorToInt(LocalPos.X / CellPixelSize.X), 0, ItemGridSize.X - 1);
+		int32 OffsetY = FMath::Clamp(FMath::FloorToInt(LocalPos.Y / CellPixelSize.Y), 0, ItemGridSize.Y - 1);
+
+		FIntPoint HoveredSlot = Item.GridPosition + FIntPoint(OffsetX, OffsetY);
+		FIntPoint TargetTopLeft = HoveredSlot - DragOp->DragOffset;
+
+		bool bCrossGrid = DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != InventoryComponent;
+		int32 IgnoreIdx = bCrossGrid ? INDEX_NONE : DragOp->ItemIndex;
+
+		ParentScreen->UpdateDragHighlight(TargetTopLeft, DragOp->DraggedItemData, DragOp->bCurrentRotated, IgnoreIdx, InventoryComponent);
+		return true;
+	}
+	return false;
+}
+
+void UInventoryItemWidget::NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+	Super::NativeOnDragLeave(InDragDropEvent, InOperation);
+	if (ParentScreen) ParentScreen->ClearDragHighlight();
+}
+
 void UInventoryItemWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
 	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);

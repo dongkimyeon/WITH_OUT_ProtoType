@@ -159,9 +159,10 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 			if (NewSlotWidget)
 			{
 				NewSlotWidget->InitSlot(this, FIntPoint(x, y), InInventoryComponent);
+				SlotWidgetMap.Add(FIntPoint(x, y), NewSlotWidget);
 				FVector2D SizeFromSlot = NewSlotWidget->GetSlotSizeBoxSize();
-                    
-			
+
+
 				UGridSlot* GridSlot = InventoryGridPanel->AddChildToGrid(NewSlotWidget);
 				if (GridSlot)
 				{
