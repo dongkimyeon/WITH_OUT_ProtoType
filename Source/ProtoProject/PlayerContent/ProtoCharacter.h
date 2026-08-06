@@ -229,11 +229,23 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName RifleReloadSectionName = TEXT("RifleReload");
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    FName PistolReloadSectionName = TEXT("pistolreload");
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
     float AimPitch = 0.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|IK")
     FTransform LeftHandTransform = FTransform::Identity;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
+    FVector Joint = FVector(1000.0f, -2000.0f, 0.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
+    bool bDebugLeftHandIK = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
+    float LeftHandIKDebugDrawSize = 8.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     bool bIsSprint = false;
@@ -243,6 +255,18 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim")
     bool bIsAiming = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    float DefaultCameraArmLength = 300.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    float AimCameraArmLength = 150.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    FVector DefaultCameraRelativeLocation = FVector::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    FVector AimCameraRelativeLocation = FVector(0.0f, 100.0f, 50.0f);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float BaseWalkSpeed = 300.f;

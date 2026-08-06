@@ -2,6 +2,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenWidget.h"
 #include "InventoryGridComponent.h"
@@ -57,6 +59,18 @@ void AProtoCharacter::Tick(float DeltaTime)
         AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
     }
 
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(
+            12003,
+            0.0f,
+            SwappingAlpha ? FColor::Green : FColor::Red,
+            FString::Printf(TEXT("SwappingAlpha: %s | Swapping: %.2f | WeaponType: %d"),
+                SwappingAlpha ? TEXT("TRUE") : TEXT("FALSE"),
+                Swapping,
+                static_cast<int32>(CurrentWeaponType)));
+    }
+
     if (Swapping > 0.0f)
     {
         Swapping = FMath::Max(0.0f, Swapping - DeltaTime);
@@ -75,17 +89,6 @@ void AProtoCharacter::Tick(float DeltaTime)
         if (CurrentWeapon->GetLeftHandSocketTransform(LeftHandSocketTransform))
         {
             const FVector LeftHandWorldLocation = LeftHandSocketTransform.GetLocation();
-            if (GEngine)
-            {
-                GEngine->AddOnScreenDebugMessage(
-                    12001,
-                    0.2f,
-                    FColor::Cyan,
-                    FString::Printf(TEXT("LeftHandSocket OK: X %.1f / Y %.1f / Z %.1f"),
-                        LeftHandWorldLocation.X,
-                        LeftHandWorldLocation.Y,
-                        LeftHandWorldLocation.Z));
-            }
 
             FVector OutPosition;
             FRotator OutRotation;
@@ -97,6 +100,106 @@ void AProtoCharacter::Tick(float DeltaTime)
                 OutRotation);
 
             LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
+
+            if (GEngine)
+            {
+                const FVector DebugLeftHandLocation = LeftHandTransform.GetLocation();
+                const FRotator DebugLeftHandRotation = LeftHandTransform.Rotator();
+                GEngine->AddOnScreenDebugMessage(
+                    12004,
+                    0.0f,
+                    FColor::Orange,
+                    FString::Printf(TEXT("LeftHandTransform Loc X %.1f Y %.1f Z %.1f | Rot P %.1f Y %.1f R %.1f"),
+                        DebugLeftHandLocation.X,
+                        DebugLeftHandLocation.Y,
+                        DebugLeftHandLocation.Z,
+                        DebugLeftHandRotation.Pitch,
+                        DebugLeftHandRotation.Yaw,
+                        DebugLeftHandRotation.Roll));
+            }
+
+            if (bDebugLeftHandIK)
+            {
+                const float DebugSize = FMath::Max(LeftHandIKDebugDrawSize, 24.0f);
+                const FVector DebugTopLocation = LeftHandWorldLocation + FVector(0.0f, 0.0f, DebugSize * 4.0f);
+
+                DrawDebugSphere(
+                    GetWorld(),
+                    LeftHandWorldLocation,
+                    DebugSize,
+                    24,
+                    FColor::Magenta,
+                    false,
+                    0.0f,
+                    0,
+                    4.0f);
+
+                DrawDebugBox(
+                    GetWorld(),
+                    LeftHandWorldLocation,
+                    FVector(DebugSize * 0.75f),
+                    FColor::Cyan,
+                    false,
+                    0.0f,
+                    0,
+                    3.0f);
+
+                DrawDebugLine(
+                    GetWorld(),
+                    LeftHandWorldLocation,
+                    DebugTopLocation,
+                    FColor::Magenta,
+                    false,
+                    0.0f,
+                    0,
+                    5.0f);
+
+                DrawDebugString(
+                    GetWorld(),
+                    DebugTopLocation,
+                    TEXT("LEFT SOCKET"),
+                    nullptr,
+                    FColor::Magenta,
+                    0.0f,
+                    true);
+
+                DrawDebugCoordinateSystem(
+                    GetWorld(),
+                    LeftHandWorldLocation,
+                    LeftHandSocketTransform.Rotator(),
+                    DebugSize * 3.0f,
+                    false,
+                    0.0f,
+                    0,
+                    3.0f);
+
+                const FVector HandSpaceTargetWorldLocation = GetMesh()->GetSocketTransform(RightHandBoneName, RTS_World).TransformPosition(OutPosition);
+                DrawDebugSphere(
+                    GetWorld(),
+                    HandSpaceTargetWorldLocation,
+                    LeftHandIKDebugDrawSize * 0.75f,
+                    12,
+                    FColor::Yellow,
+                    false,
+                    0.0f,
+                    0,
+                    1.5f);
+
+                if (GEngine)
+                {
+                    GEngine->AddOnScreenDebugMessage(
+                        12001,
+                        0.2f,
+                        FColor::Cyan,
+                        FString::Printf(TEXT("LeftHandSocket World: X %.1f / Y %.1f / Z %.1f | BoneSpace: X %.1f / Y %.1f / Z %.1f"),
+                            LeftHandWorldLocation.X,
+                            LeftHandWorldLocation.Y,
+                            LeftHandWorldLocation.Z,
+                            OutPosition.X,
+                            OutPosition.Y,
+                            OutPosition.Z));
+                }
+            }
         }
         else if (GEngine)
         {
@@ -340,6 +443,17 @@ void AProtoCharacter::UpdateStamina(float DeltaTime)
 void AProtoCharacter::StartAim()
 {
     bIsAiming = true;
+
+    if (USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>())
+    {
+        SpringArm->TargetArmLength = AimCameraArmLength;
+    }
+
+    if (UCameraComponent* Camera = FindComponentByClass<UCameraComponent>())
+    {
+        Camera->SetRelativeLocation(AimCameraRelativeLocation);
+    }
+
     bUseControllerRotationYaw = true;
     bUseControllerRotationPitch = false;
     GetCharacterMovement()->bOrientRotationToMovement = false;
@@ -348,6 +462,17 @@ void AProtoCharacter::StartAim()
 void AProtoCharacter::StopAim()
 {
     bIsAiming = false;
+
+    if (USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>())
+    {
+        SpringArm->TargetArmLength = DefaultCameraArmLength;
+    }
+
+    if (UCameraComponent* Camera = FindComponentByClass<UCameraComponent>())
+    {
+        Camera->SetRelativeLocation(DefaultCameraRelativeLocation);
+    }
+
     bUseControllerRotationYaw = true;
     bUseControllerRotationPitch = false;
     bUseControllerRotationRoll = false;
@@ -702,6 +827,11 @@ void AProtoCharacter::FinishWeaponSwap()
     SwappingAlpha = true;
     CurrentWeaponType = PendingWeaponType;
 
+    if (CurrentWeapon)
+    {
+        Joint = CurrentWeapon->LeftHandJointTarget;
+    }
+
     if (CurrentWeaponType == EWeaponType::None)
     {
         bHasWeapon = false;
@@ -774,6 +904,7 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
     static const FName AmmoDetachNotifyName(TEXT("AmmoDetach"));
     static const FName NewAmmoNotifyName(TEXT("NewAmmo"));
     static const FName NewAmmoAttachNotifyName(TEXT("NewAmmoAttach"));
+    static const FName NewAmmoDetachNotifyName(TEXT("NewAmmoDetach"));
 
     if (NotifyName == AmmoAttachNotifyName)
     {
@@ -788,6 +919,18 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
         ReloadNewAmmo();
     }
     else if (NotifyName == NewAmmoAttachNotifyName)
+    {
+        if (CurrentWeaponType == EWeaponType::Pistol)
+        {
+            ReloadNewAmmo();
+        }
+        else
+        {
+            ReloadNewAmmoAttach();
+            bIsReloading = false;
+        }
+    }
+    else if (NotifyName == NewAmmoDetachNotifyName)
     {
         ReloadNewAmmoAttach();
         bIsReloading = false;
@@ -808,7 +951,13 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
 }
 void AProtoCharacter::ReloadWeapon()
 {
-    if (Swapping > 0.0f || !CurrentWeapon || CurrentWeaponType != EWeaponType::Rifle)
+    if (Swapping > 0.0f || !CurrentWeapon)
+    {
+        return;
+    }
+
+    const bool bCanReload = CurrentWeaponType == EWeaponType::Rifle || CurrentWeaponType == EWeaponType::Pistol;
+    if (!bCanReload)
     {
         return;
     }
@@ -826,7 +975,8 @@ void AProtoCharacter::ReloadWeapon()
 
     bIsReloading = true;
 
-    const float MontageLength = PlayAnimMontage(RifleReloadMontage, 1.0f, RifleReloadSectionName);
+    const FName ReloadSectionName = CurrentWeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
+    const float MontageLength = PlayAnimMontage(RifleReloadMontage, 1.0f, ReloadSectionName);
     if (MontageLength <= 0.0f)
     {
         bIsReloading = false;

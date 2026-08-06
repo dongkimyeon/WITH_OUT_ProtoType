@@ -96,6 +96,7 @@ void AWeaponBase::EquipToCharacter(AProtoCharacter* Character)
     Character->SwapFromWeaponType = EWeaponType::None;
     Character->Swapping = 0.0f;
     Character->SwappingAlpha = true;
+    Character->Joint = LeftHandJointTarget;
 
     SetActorEnableCollision(false);
 
