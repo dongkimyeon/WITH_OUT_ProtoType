@@ -652,18 +652,28 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType)
     Swapping = FMath::Max(0.0f, Swapping);
     SwappingAlpha = false;
 
-    if (TargetWeaponType == EWeaponType::None && WeaponSwapMontage)
+    if (WeaponSwapMontage)
     {
-        if (PreviousWeaponType == EWeaponType::Rifle)
+        if (TargetWeaponType == EWeaponType::None)
         {
-            PlayAnimMontage(WeaponSwapMontage, 1.0f, RifleToHandSectionName);
+            if (PreviousWeaponType == EWeaponType::Rifle)
+            {
+                PlayAnimMontage(WeaponSwapMontage, 1.0f, RifleToHandSectionName);
+            }
+            else if (PreviousWeaponType == EWeaponType::Pistol)
+            {
+                PlayAnimMontage(WeaponSwapMontage, 1.0f, PistolToHandSectionName);
+            }
         }
-        else if (PreviousWeaponType == EWeaponType::Pistol)
+        else if (PreviousWeaponType == EWeaponType::None && TargetWeaponType == EWeaponType::Rifle)
         {
-            PlayAnimMontage(WeaponSwapMontage, 1.0f, PistolToHandSectionName);
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToRifleSectionName);
+        }
+        else if (PreviousWeaponType == EWeaponType::None && TargetWeaponType == EWeaponType::Pistol)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToPistolSectionName);
         }
     }
-
     if (Swapping <= 0.0f)
     {
         FinishWeaponSwap();
@@ -770,6 +780,7 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
     else if (NotifyName == NewAmmoAttachNotifyName)
     {
         ReloadNewAmmoAttach();
+        bIsReloading = false;
     }
     else
     {
@@ -803,7 +814,13 @@ void AProtoCharacter::ReloadWeapon()
         return;
     }
 
-    PlayAnimMontage(RifleReloadMontage, 1.0f, RifleReloadSectionName);
+    bIsReloading = true;
+
+    const float MontageLength = PlayAnimMontage(RifleReloadMontage, 1.0f, RifleReloadSectionName);
+    if (MontageLength <= 0.0f)
+    {
+        bIsReloading = false;
+    }
 }
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
 {

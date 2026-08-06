@@ -27,6 +27,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
     EWeaponType WeaponType = EWeaponType::None;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+    bool bCanBePickedUp = true;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Swap", meta = (ClampMin = "0.0"))
     float EquipSwapTime = 0.3f;
 
