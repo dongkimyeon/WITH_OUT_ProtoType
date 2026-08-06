@@ -48,6 +48,14 @@ FReply UInventoryItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry
 	{
 		return FReply::Handled().DetectDrag(TakeWidget(), EKeys::LeftMouseButton);
 	}
+	if (InMouseEvent.IsMouseButtonDown(EKeys::RightMouseButton))
+	{
+		if (ParentScreen)
+		{
+			ParentScreen->OnItemContextAction(ItemIndex, InventoryComponent);
+		}
+		return FReply::Handled();
+	}
 	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
@@ -61,6 +69,7 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 
 	UItemDragDropOperation* DragOp = NewObject<UItemDragDropOperation>(this);
 	DragOp->ItemIndex = ItemIndex;
+	DragOp->InstanceId = Item.InstanceId;
 	DragOp->DraggedItemData = Item.ItemData;
 	DragOp->OriginalPosition = Item.GridPosition;
 	DragOp->bOriginalRotated = Item.bIsRotated;

@@ -3,6 +3,9 @@
 #include "Components/GridSlot.h"
 #include "ItemDragDropOperation.h"
 #include "InputCoreTypes.h"
+#include "EquipmentComponent.h"
+#include "ConsumableItemData.h"
+#include "../ProtoCharacter.h"
 
 void UInventoryScreenWidget::NativeConstruct()
 {
@@ -61,6 +64,65 @@ bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* D
 
 	ActiveDragOp = nullptr;
 	return true;
+}
+
+void UInventoryScreenWidget::InitializeEquipment(UEquipmentComponent* InEquipmentComponent)
+{
+	CachedEquipmentComponent = InEquipmentComponent;
+
+	if (HelmetSlotWidget) HelmetSlotWidget->InitSlot(this, EEquipmentSlot::Helmet, InEquipmentComponent);
+	if (VestSlotWidget) VestSlotWidget->InitSlot(this, EEquipmentSlot::Vest, InEquipmentComponent);
+	if (Weapon1SlotWidget) Weapon1SlotWidget->InitSlot(this, EEquipmentSlot::Weapon1, InEquipmentComponent);
+	if (Weapon2SlotWidget) Weapon2SlotWidget->InitSlot(this, EEquipmentSlot::Weapon2, InEquipmentComponent);
+}
+
+void UInventoryScreenWidget::RefreshEquipmentSlots()
+{
+	if (HelmetSlotWidget) HelmetSlotWidget->RefreshVisual();
+	if (VestSlotWidget) VestSlotWidget->RefreshVisual();
+	if (Weapon1SlotWidget) Weapon1SlotWidget->RefreshVisual();
+	if (Weapon2SlotWidget) Weapon2SlotWidget->RefreshVisual();
+}
+
+void UInventoryScreenWidget::OnItemContextAction(int32 ItemIndex, UInventoryGridComponent* OwningComponent)
+{
+	if (!OwningComponent || !OwningComponent->Items.IsValidIndex(ItemIndex)) return;
+
+	UItemDataBase* ItemData = OwningComponent->Items[ItemIndex].ItemData;
+	if (!ItemData) return;
+
+	AProtoCharacter* OwningCharacter = Cast<AProtoCharacter>(GetOwningPlayerPawn());
+	if (!OwningCharacter) return;
+
+	switch (ItemData->GetContextAction())
+	{
+	case EItemContextAction::Equip:
+	{
+		UEquipmentComponent* EquipmentComp = OwningCharacter->GetEquipmentComponent();
+		EEquipmentSlot TargetSlot;
+		if (EquipmentComp && EquipmentComp->ResolveTargetSlot(ItemData, TargetSlot))
+		{
+			const FGuid InstanceId = OwningComponent->Items[ItemIndex].InstanceId;
+			if (EquipmentComp->EquipFromInventory(OwningComponent, InstanceId, TargetSlot))
+			{
+				RefreshGrid(OwningComponent);
+				RefreshEquipmentSlots();
+			}
+		}
+		break;
+	}
+	case EItemContextAction::Use:
+	{
+		if (UConsumableItemData* ConsumableData = Cast<UConsumableItemData>(ItemData))
+		{
+			OwningCharacter->UseConsumable(ConsumableData);
+			RefreshGrid(OwningComponent);
+		}
+		break;
+	}
+	default:
+		break;
+	}
 }
 
 void UInventoryScreenWidget::SetActiveDragOperation(UItemDragDropOperation* InDragOp)

@@ -103,6 +103,7 @@ bool UInventoryGridComponent::AddItemAt(UItemDataBase* NewItem, const FIntPoint&
         NewInstance.GridPosition = Position;
         NewInstance.bIsRotated = bRotate;
         NewInstance.StackCount = 1;
+        NewInstance.InstanceId = FGuid::NewGuid();
 
         Items.Add(NewInstance);
         return true;
@@ -169,8 +170,37 @@ UItemDataBase* UInventoryGridComponent::RemoveItemAt(int32 ItemIndex)
 {
     if (!Items.IsValidIndex(ItemIndex)) return nullptr;
     UItemDataBase* Data = Items[ItemIndex].ItemData;
+    FGuid RemovedId = Items[ItemIndex].InstanceId;
     Items.RemoveAt(ItemIndex);
+    OnItemInstanceRemoved.Broadcast(RemovedId);
     return Data;
+}
+
+int32 UInventoryGridComponent::FindIndexById(const FGuid& InstanceId) const
+{
+    for (int32 i = 0; i < Items.Num(); ++i)
+    {
+        if (Items[i].InstanceId == InstanceId)
+        {
+            return i;
+        }
+    }
+    return INDEX_NONE;
+}
+
+bool UInventoryGridComponent::FindInstanceById(const FGuid& InstanceId, FInventoryItemInstance& OutInstance) const
+{
+    const int32 Index = FindIndexById(InstanceId);
+    if (Index == INDEX_NONE) return false;
+    OutInstance = Items[Index];
+    return true;
+}
+
+UItemDataBase* UInventoryGridComponent::RemoveInstanceById(const FGuid& InstanceId)
+{
+    const int32 Index = FindIndexById(InstanceId);
+    if (Index == INDEX_NONE) return nullptr;
+    return RemoveItemAt(Index);
 }
 
 bool UInventoryGridComponent::AddItem(UItemDataBase* NewItem)

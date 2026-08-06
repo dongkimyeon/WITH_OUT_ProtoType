@@ -5,6 +5,8 @@
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenWidget.h"
 #include "InventoryGridComponent.h"
+#include "EquipmentComponent.h"
+#include "Item/ConsumableItemData.h"
 #include "ContainerScreenWidget.h"
 #include "Item/ItemDataBase.h"
 #include "Item/StorageContainer.h"
@@ -27,6 +29,7 @@ AProtoCharacter::AProtoCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
     InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
+    EquipmentComponent = CreateDefaultSubobject<UEquipmentComponent>(TEXT("EquipmentComponent"));
     StatusComponent = CreateDefaultSubobject<UPlayerStatusComponent>(TEXT("StatusComponent"));
     bUseControllerRotationYaw = true;
     bUseControllerRotationPitch = false;
@@ -516,6 +519,7 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
             if (UInventoryScreenWidget* InvUI = Cast<UInventoryScreenWidget>(InventoryWidgetInstance))
             {
                 InvUI->InitializeGrid(InventoryComponent);
+                InvUI->InitializeEquipment(EquipmentComponent);
             }
             if (PlayerController)
             {
@@ -881,4 +885,36 @@ void AProtoCharacter::ReloadNewAmmoAttach()
     {
         CurrentWeapon->ReloadNewAmmoAttach();
     }
+}
+
+void AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
+{
+    if (!ConsumableData || !StatusComponent) return;
+
+    if (ConsumableData->Application == EEffectApplication::Instant ||
+        ConsumableData->Application == EEffectApplication::InstantThenOverTime)
+    {
+        switch (ConsumableData->TargetStat)
+        {
+        case EConsumableTargetStat::Health:
+            StatusComponent->SetHealth(StatusComponent->GetHealth() + ConsumableData->InstantAmount);
+            break;
+        case EConsumableTargetStat::Hunger:
+            StatusComponent->SetHunger(StatusComponent->GetHunger() + ConsumableData->InstantAmount);
+            break;
+        case EConsumableTargetStat::Thirst:
+            StatusComponent->SetThirst(StatusComponent->GetThirst() + ConsumableData->InstantAmount);
+            break;
+        case EConsumableTargetStat::Infection:
+            StatusComponent->SetInfection(StatusComponent->GetInfection() + ConsumableData->InstantAmount);
+            break;
+        }
+    }
+
+    if (ConsumableData->SideEffect.bAppliesDebuff)
+    {
+        StatusComponent->SetInfection(StatusComponent->GetInfection() + ConsumableData->SideEffect.InfectionIncrease);
+    }
+
+    // OverTime 효과 적용은 후속 작업으로 남겨둔다.
 }

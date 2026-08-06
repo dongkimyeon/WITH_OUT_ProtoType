@@ -24,6 +24,10 @@ struct FInventoryItemInstance
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     int32 StackCount = 1;
 
+    // 배열 인덱스는 다른 아이템 제거 시 shift되어 불안정하므로, 퀵슬롯/장착처럼 특정 인스턴스를 오래 참조해야 하는 기능은 이 ID를 사용한다.
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
+    FGuid InstanceId;
+
     FIntPoint GetEffectiveSize() const
     {
         if (!ItemData) 
@@ -41,6 +45,8 @@ struct FInventoryItemInstance
         return ItemData == Other.ItemData && GridPosition == Other.GridPosition;
     }
 };
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryItemRemoved, FGuid, RemovedInstanceId);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent, PrioritizeCategories = "Inventory"))
 class PROTOPROJECT_API UInventoryGridComponent : public UActorComponent
@@ -97,4 +103,17 @@ public:
     // 아이템 제거 후 데이터 반환 (크로스 그리드 이동 시 사용)
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     UItemDataBase* RemoveItemAt(int32 ItemIndex);
+
+    // InstanceId 기반 조회/제거 (장착/퀵슬롯처럼 인덱스가 아닌 특정 인스턴스를 안정적으로 참조해야 하는 기능용)
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    int32 FindIndexById(const FGuid& InstanceId) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool FindInstanceById(const FGuid& InstanceId, FInventoryItemInstance& OutInstance) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    UItemDataBase* RemoveInstanceById(const FGuid& InstanceId);
+
+    UPROPERTY(BlueprintAssignable, Category = "Inventory")
+    FOnInventoryItemRemoved OnItemInstanceRemoved;
 };

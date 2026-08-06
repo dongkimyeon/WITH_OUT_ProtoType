@@ -76,5 +76,5 @@ public:
     FConsumableSideEffect SideEffect;
 
     // 부모(ItemDataBase)의 가상 함수 덮어쓰기: "소모품은 우클릭해서 사용할 수 있다!"
-    virtual bool IsUsable() const override { return true; }
+    virtual EItemContextAction GetContextAction() const override { return EItemContextAction::Use; }
 };

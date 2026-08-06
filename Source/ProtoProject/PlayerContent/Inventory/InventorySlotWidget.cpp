@@ -1,6 +1,7 @@
 #include "InventorySlotWidget.h"
 #include "ItemDragDropOperation.h"
 #include "InventoryGridComponent.h"
+#include "EquipmentComponent.h"
 #include "Components/Border.h"
 
 void UInventorySlotWidget::InitSlot(UInventoryScreenBase* InParentScreen, FIntPoint InSlotPosition, UInventoryGridComponent* InOwningComponent)
@@ -58,6 +59,17 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 	if (DragOp && ParentScreen)
 	{
 		ParentScreen->ClearDragHighlight();
+
+		if (DragOp->SourceEquipmentComponent)
+		{
+			// 성공/실패와 무관하게 항상 갱신해야, 드래그 시작 시 숨겨졌던 원본 장착 슬롯 아이콘이 복원된다.
+			if (DragOp->SourceEquipmentComponent->UnequipToInventory(OwningInventoryComponent, DragOp->SourceEquipmentSlot))
+			{
+				ParentScreen->RefreshGrid(OwningInventoryComponent);
+			}
+			ParentScreen->RefreshEquipmentSlots();
+			return true;
+		}
 
 		FIntPoint TargetTopLeft = SlotPosition - DragOp->DragOffset;
 		bool bCrossGrid = DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != OwningInventoryComponent;

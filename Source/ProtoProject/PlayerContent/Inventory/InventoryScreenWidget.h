@@ -6,6 +6,8 @@
 #include "InventorySlotWidget.h"
 #include "ItemDragDropOperation.h"
 #include "InventoryGridComponent.h"
+#include "EquipmentComponent.h"
+#include "EquipmentSlotWidget.h"
 #include "InventoryScreenWidget.generated.h"
 
 class UGridPanel;
@@ -21,6 +23,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
 	void InitializeGrid(UInventoryGridComponent* InInventoryComponent);
 
+	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
+	void InitializeEquipment(UEquipmentComponent* InEquipmentComponent);
+
 	virtual void NativePreConstruct() override;
 
 	virtual FVector2D GetCellPixelSize() const override { return SlotPixelSize; }
@@ -31,9 +36,12 @@ public:
 	virtual void SetActiveDragOperation(UItemDragDropOperation* InDragOp) override;
 	virtual void OnItemHoverBegin(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void OnItemHoverEnd(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
+	virtual void OnItemContextAction(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
+	virtual void RefreshEquipmentSlots() override;
 	virtual void RefreshGrid(UInventoryGridComponent* Component) override;
 
 	UInventoryGridComponent* GetCachedInventoryComponent() const { return CachedInventoryComponent; }
+	UEquipmentComponent* GetCachedEquipmentComponent() const { return CachedEquipmentComponent; }
 
 protected:
 	virtual void NativeConstruct() override;
@@ -41,6 +49,18 @@ protected:
 
 	UPROPERTY(meta = (BindWidget))
 	UGridPanel* InventoryGridPanel;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UEquipmentSlotWidget* HelmetSlotWidget;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UEquipmentSlotWidget* VestSlotWidget;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UEquipmentSlotWidget* Weapon1SlotWidget;
+
+	UPROPERTY(meta = (BindWidgetOptional))
+	UEquipmentSlotWidget* Weapon2SlotWidget;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
@@ -59,6 +79,9 @@ private:
 
 	UPROPERTY()
 	UInventoryGridComponent* CachedInventoryComponent = nullptr;
+
+	UPROPERTY()
+	UEquipmentComponent* CachedEquipmentComponent = nullptr;
 
 	UPROPERTY()
 	TArray<UInventoryItemWidget*> ItemWidgets;

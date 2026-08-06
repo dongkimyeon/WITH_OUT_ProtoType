@@ -26,6 +26,12 @@ public:
 	virtual void OnItemHoverBegin(int32 ItemIndex, UInventoryGridComponent* OwningComponent) {}
 	virtual void OnItemHoverEnd(int32 ItemIndex, UInventoryGridComponent* OwningComponent) {}
 
+	// 아이템 우클릭 시 호출됨 - 아이템 데이터의 GetContextAction()에 따라 장착/사용 등으로 분기
+	virtual void OnItemContextAction(int32 ItemIndex, UInventoryGridComponent* OwningComponent) {}
+
+	// 장착 슬롯 UI를 다시 그린다 (장착/해제/스왑 이후 호출)
+	virtual void RefreshEquipmentSlots() {}
+
 	// 크로스 그리드 드롭 후 소스/타겟 그리드를 재구성
 	virtual void RefreshGrid(UInventoryGridComponent* Component) {}
 };
