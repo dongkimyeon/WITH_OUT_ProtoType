@@ -90,7 +90,7 @@ bool UInventoryGridComponent::FindEmptySpace(const FIntPoint& ItemSize, FIntPoin
     return false; 
 }
 
-bool UInventoryGridComponent::AddItemAt(UItemDataBase* NewItem, const FIntPoint& Position, bool bRotate)
+bool UInventoryGridComponent::AddItemAt(UItemDataBase* NewItem, const FIntPoint& Position, bool bRotate, int32 StackCount)
 {
     if (!NewItem) return false;
 
@@ -102,7 +102,7 @@ bool UInventoryGridComponent::AddItemAt(UItemDataBase* NewItem, const FIntPoint&
         NewInstance.ItemData = NewItem;
         NewInstance.GridPosition = Position;
         NewInstance.bIsRotated = bRotate;
-        NewInstance.StackCount = 1;
+        NewInstance.StackCount = FMath::Max(1, StackCount);
         NewInstance.InstanceId = FGuid::NewGuid();
 
         Items.Add(NewInstance);
@@ -203,9 +203,75 @@ UItemDataBase* UInventoryGridComponent::RemoveInstanceById(const FGuid& Instance
     return RemoveItemAt(Index);
 }
 
+UItemDataBase* UInventoryGridComponent::SplitStack(const FGuid& InstanceId, int32 Count, int32& OutSplitCount)
+{
+    OutSplitCount = 0;
+
+    const int32 Index = FindIndexById(InstanceId);
+    if (Index == INDEX_NONE || Count <= 0) return nullptr;
+
+    UItemDataBase* ItemData = Items[Index].ItemData;
+
+    if (Count >= Items[Index].StackCount)
+    {
+        OutSplitCount = Items[Index].StackCount;
+        RemoveItemAt(Index);
+    }
+    else
+    {
+        OutSplitCount = Count;
+        Items[Index].StackCount -= Count;
+    }
+
+    return ItemData;
+}
+
+bool UInventoryGridComponent::MergeStackFrom(UInventoryGridComponent* SourceInventory, const FGuid& SourceInstanceId, const FGuid& TargetInstanceId)
+{
+    if (!SourceInventory) return false;
+
+    FInventoryItemInstance TargetSnapshot;
+    if (!FindInstanceById(TargetInstanceId, TargetSnapshot)) return false;
+    if (!TargetSnapshot.ItemData || !TargetSnapshot.ItemData->bIsStackable) return false;
+
+    FInventoryItemInstance SourceSnapshot;
+    if (!SourceInventory->FindInstanceById(SourceInstanceId, SourceSnapshot)) return false;
+    if (SourceSnapshot.ItemData != TargetSnapshot.ItemData) return false;
+
+    const int32 Room = TargetSnapshot.ItemData->MaxStackCount - TargetSnapshot.StackCount;
+    if (Room <= 0) return false;
+
+    const int32 RequestCount = FMath::Min(Room, SourceSnapshot.StackCount);
+    if (RequestCount <= 0) return false;
+
+    int32 ActuallySplit = 0;
+    SourceInventory->SplitStack(SourceInstanceId, RequestCount, ActuallySplit);
+    if (ActuallySplit <= 0) return false;
+
+    // SplitStack이 같은 그리드의 배열을 변경했을 수 있으므로(같은 그리드 내 병합 시 인덱스 shift) ID로 다시 조회한다.
+    const int32 TargetIndex = FindIndexById(TargetInstanceId);
+    if (TargetIndex == INDEX_NONE) return false;
+
+    Items[TargetIndex].StackCount += ActuallySplit;
+    return true;
+}
+
 bool UInventoryGridComponent::AddItem(UItemDataBase* NewItem)
 {
     if (!NewItem) return false;
+
+    // 스택 가능한 아이템이면 기존 스택에 먼저 합쳐본다 (빈 공간을 새로 찾기 전에).
+    if (NewItem->bIsStackable)
+    {
+        for (FInventoryItemInstance& Existing : Items)
+        {
+            if (Existing.ItemData == NewItem && Existing.StackCount < NewItem->MaxStackCount)
+            {
+                ++Existing.StackCount;
+                return true;
+            }
+        }
+    }
 
     FIntPoint FoundPosition;
     

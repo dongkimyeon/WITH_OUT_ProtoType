@@ -84,9 +84,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool AddItem(UItemDataBase* NewItem);
     
-    // 수동으로 드래그해서 넣기
+    // 수동으로 드래그해서 넣기 (StackCount로 스택 전체 수량을 한 번에 지정 가능 - 퀵슬롯/장착 해제 시 사용)
     UFUNCTION(BlueprintCallable, Category = "Inventory")
-    bool AddItemAt(UItemDataBase* NewItem, const FIntPoint& Position, bool bRotate = false);
+    bool AddItemAt(UItemDataBase* NewItem, const FIntPoint& Position, bool bRotate = false, int32 StackCount = 1);
 
     // 현재 위치에서 90도 회전 가능한지 검사 후 회전
     UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -113,6 +113,16 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     UItemDataBase* RemoveInstanceById(const FGuid& InstanceId);
+
+    // 스택에서 Count만큼만 떼어낸다 (수량 지정 버리기용). Count가 남은 수량 이상이면 인스턴스를 통째로 제거한다.
+    // 실제로 떼어낸 개수를 OutSplitCount에 담아 반환하고, 대상 아이템 데이터를 반환한다(못 찾으면 nullptr).
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    UItemDataBase* SplitStack(const FGuid& InstanceId, int32 Count, int32& OutSplitCount);
+
+    // 겹칠 수 있는 같은 아이템끼리 드래그드롭했을 때 병합한다. 같은 그리드/다른 그리드(컨테이너 등) 모두 지원.
+    // TargetInstanceId가 가득 차 있어도 들어갈 수 있는 만큼만 옮기고 true를 반환한다 (일부라도 옮겨졌으면 성공).
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool MergeStackFrom(UInventoryGridComponent* SourceInventory, const FGuid& SourceInstanceId, const FGuid& TargetInstanceId);
 
     UPROPERTY(BlueprintAssignable, Category = "Inventory")
     FOnInventoryItemRemoved OnItemInstanceRemoved;

@@ -12,6 +12,7 @@ class UUserWidget;
 class UInventoryGridComponent;
 class UEquipmentComponent;
 class UQuickSlotComponent;
+class URadialQuickSlotWidget;
 class UConsumableItemData;
 class AWeaponBase;
 class AStorageContainer;
@@ -72,6 +73,22 @@ private:
 
     UPROPERTY()
     UUserWidget* InventoryWidgetInstance;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|QuickSlot", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<URadialQuickSlotWidget> RadialQuickSlotWidgetClass;
+
+    UPROPERTY()
+    URadialQuickSlotWidget* RadialQuickSlotWidgetInstance = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI|QuickSlot", meta = (AllowPrivateAccess = "true"))
+    float QuickSlotHoldThreshold = 0.3f;
+
+    FTimerHandle QuickSlotHoldTimerHandle;
+    bool bQuickSlotRadialOpen = false;
+
+    void OnQuickSlotKeyPressed();
+    void OnQuickSlotKeyReleased();
+    void OpenRadialQuickSlotMenu();
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
     UInventoryGridComponent* InventoryComponent;

@@ -73,7 +73,11 @@ void ADropItem::OnInteract_Implementation(AProtoCharacter* InPlayer)
 		}
 	}
 
-	InPlayer->GetInventoryComponent()->AddItem(ItemData);
+	const int32 CountToAdd = FMath::Max(1, StackCount);
+	for (int32 i = 0; i < CountToAdd; ++i)
+	{
+		InPlayer->GetInventoryComponent()->AddItem(ItemData);
+	}
 	Destroy();
 }
 
@@ -81,6 +85,10 @@ FText ADropItem::GetInteractPrompt_Implementation() const
 {
 	if (ItemData)
 	{
+		if (StackCount > 1)
+		{
+			return FText::Format(FText::FromString(TEXT("F  줍기  [{0} x{1}]")), ItemData->DisplayName, FText::AsNumber(StackCount));
+		}
 		return FText::Format(FText::FromString(TEXT("F  줍기  [{0}]")), ItemData->DisplayName);
 	}
 	return FText::FromString(TEXT("F  줍기"));

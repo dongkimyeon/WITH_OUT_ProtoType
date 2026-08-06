@@ -8,6 +8,7 @@
 class UTextBlock;
 class UCanvasPanel;
 class UProgressBar;
+class UQuickSlotHudWidget;
 
 UCLASS()
 class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
@@ -70,6 +71,10 @@ private:
 
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* StaminaText;
+
+	// 4번 키를 짧게 탭했을 때 바로 사용될 아이템을 우측 하단에 표시
+	UPROPERTY(meta = (BindWidgetOptional))
+	UQuickSlotHudWidget* QuickSlotHud;
 
 	UPlayerStatusComponent* PlayerStatusComponent;
 

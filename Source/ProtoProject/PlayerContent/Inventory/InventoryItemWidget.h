@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Image.h"
+#include "Components/TextBlock.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "InventoryScreenBase.h"
 #include "InventoryItemWidget.generated.h"
@@ -21,6 +22,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UImage* ItemImage;
 
+	// 겹칠 수 있는(스택 가능) 아이템의 수량을 우측 하단에 표시. 수량이 1개뿐이면 숨긴다.
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* StackCountText;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	UMaterialInterface* IconBaseMaterial = nullptr;
 
@@ -31,6 +36,7 @@ protected:
 	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 	virtual bool NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 	virtual void NativeOnDragLeave(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 private:
 	UPROPERTY()

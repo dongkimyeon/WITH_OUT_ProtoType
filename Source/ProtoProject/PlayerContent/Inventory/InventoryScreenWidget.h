@@ -11,6 +11,7 @@
 #include "ItemActionTooltipWidget.h"
 #include "QuickSlotComponent.h"
 #include "QuickSlotRegisterWidget.h"
+#include "DropQuantityPopupWidget.h"
 #include "InventoryScreenWidget.generated.h"
 
 class UGridPanel;
@@ -44,10 +45,10 @@ public:
 	virtual void OnItemHoverBegin(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void OnItemHoverEnd(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void OnItemContextAction(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
+	virtual void OnItemRequestPartialDrop(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void RefreshEquipmentSlots() override;
 	virtual void RefreshGrid(UInventoryGridComponent* Component) override;
-
-	void RefreshQuickSlots();
+	virtual void RefreshQuickSlots() override;
 
 	UInventoryGridComponent* GetCachedInventoryComponent() const { return CachedInventoryComponent; }
 	UEquipmentComponent* GetCachedEquipmentComponent() const { return CachedEquipmentComponent; }
@@ -55,6 +56,9 @@ public:
 	// 마우스를 따라다니는 액션 툴팁 표시/숨김 (장착 슬롯 호버 등 그리드 외부에서도 호출됨)
 	void ShowActionTooltip(const FText& Text);
 	void HideActionTooltip();
+
+	// 수량 선택 팝업(DropQuantityPopupWidget)에서 확인을 눌렀을 때 호출됨 - Count만큼만 떼어내 월드에 버린다.
+	void PerformPartialDrop(UInventoryGridComponent* SourceInventory, const FGuid& InstanceId, int32 Count);
 
 protected:
 	virtual void NativeConstruct() override;
@@ -64,6 +68,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	TSubclassOf<ADropItem> DropItemActorClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
+	TSubclassOf<UDropQuantityPopupWidget> DropQuantityPopupClass;
 
 	UPROPERTY(meta = (BindWidget))
 	UGridPanel* InventoryGridPanel;
@@ -115,6 +122,7 @@ protected:
 private:
 	void RefreshItemWidget(int32 ItemIndex);
 	void DropItemToWorld(UItemDragDropOperation* DragOp);
+	void SpawnDropItemActor(UItemDataBase* ItemData, int32 StackCount);
 
 	UPROPERTY()
 	UInventoryGridComponent* CachedInventoryComponent = nullptr;

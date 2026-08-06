@@ -6,6 +6,7 @@
 #include "Components/SizeBox.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "EquipmentComponent.h"
+#include "QuickSlotComponent.h"
 #include "ItemDragDropOperation.generated.h"
 
 class UItemDataBase;
@@ -65,4 +66,11 @@ public:
 
 	UPROPERTY()
 	EEquipmentSlot SourceEquipmentSlot = EEquipmentSlot::Helmet;
+
+	// 퀵슬롯 등록 칸에서 시작된 드래그일 경우에만 유효
+	UPROPERTY()
+	UQuickSlotComponent* SourceQuickSlotComponent = nullptr;
+
+	UPROPERTY()
+	int32 SourceQuickSlotIndex = INDEX_NONE;
 };

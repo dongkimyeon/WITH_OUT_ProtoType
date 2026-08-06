@@ -244,9 +244,9 @@ bool UInventoryScreenWidget::NativeOnDrop(const FGeometry& InGeometry, const FDr
 	return Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
 }
 
-void UInventoryScreenWidget::DropItemToWorld(UItemDragDropOperation* DragOp)
+void UInventoryScreenWidget::SpawnDropItemActor(UItemDataBase* ItemData, int32 StackCount)
 {
-	if (!DragOp || !DragOp->SourceInventoryComponent || !DragOp->DraggedItemData || !DropItemActorClass) return;
+	if (!ItemData || !DropItemActorClass) return;
 
 	AProtoCharacter* OwningCharacter = Cast<AProtoCharacter>(GetOwningPlayerPawn());
 	if (!OwningCharacter) return;
@@ -254,22 +254,60 @@ void UInventoryScreenWidget::DropItemToWorld(UItemDragDropOperation* DragOp)
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	UItemDataBase* ItemData = DragOp->DraggedItemData;
-	DragOp->SourceInventoryComponent->RemoveInstanceById(DragOp->InstanceId);
-
 	const FVector SpawnLocation = OwningCharacter->GetActorLocation() + OwningCharacter->GetActorForwardVector() * 150.f + FVector(0.f, 0.f, 50.f);
 	const FTransform SpawnTransform(OwningCharacter->GetActorRotation(), SpawnLocation);
 
-	// ItemData가 OnConstruction(메시 세팅) 이전에 반영되어야 하므로 지연 스폰을 사용한다.
+	// ItemData/StackCount가 OnConstruction(메시 세팅) 이전에 반영되어야 하므로 지연 스폰을 사용한다.
 	if (ADropItem* Spawned = World->SpawnActorDeferred<ADropItem>(DropItemActorClass, SpawnTransform))
 	{
 		Spawned->ItemData = ItemData;
+		Spawned->StackCount = FMath::Max(1, StackCount);
 		Spawned->FinishSpawning(SpawnTransform);
 	}
+}
+
+void UInventoryScreenWidget::DropItemToWorld(UItemDragDropOperation* DragOp)
+{
+	if (!DragOp || !DragOp->SourceInventoryComponent || !DragOp->DraggedItemData) return;
+
+	// 드래그로 그리드 밖에 버릴 때는 항상 스택 전체를 버린다.
+	FInventoryItemInstance SourceInstance;
+	const int32 FullStackCount = DragOp->SourceInventoryComponent->FindInstanceById(DragOp->InstanceId, SourceInstance) ? SourceInstance.StackCount : 1;
+
+	UItemDataBase* ItemData = DragOp->DraggedItemData;
+	DragOp->SourceInventoryComponent->RemoveInstanceById(DragOp->InstanceId);
+
+	SpawnDropItemActor(ItemData, FullStackCount);
 
 	if (DragOp->SourceScreenWidget)
 	{
 		DragOp->SourceScreenWidget->RefreshGrid(DragOp->SourceInventoryComponent);
+	}
+}
+
+void UInventoryScreenWidget::PerformPartialDrop(UInventoryGridComponent* SourceInventory, const FGuid& InstanceId, int32 Count)
+{
+	if (!SourceInventory) return;
+
+	int32 SplitCount = 0;
+	UItemDataBase* ItemData = SourceInventory->SplitStack(InstanceId, Count, SplitCount);
+	if (!ItemData || SplitCount <= 0) return;
+
+	SpawnDropItemActor(ItemData, SplitCount);
+	RefreshGrid(SourceInventory);
+}
+
+void UInventoryScreenWidget::OnItemRequestPartialDrop(int32 ItemIndex, UInventoryGridComponent* OwningComponent)
+{
+	if (!OwningComponent || !OwningComponent->Items.IsValidIndex(ItemIndex) || !DropQuantityPopupClass) return;
+
+	const FInventoryItemInstance& Item = OwningComponent->Items[ItemIndex];
+	if (!Item.ItemData || !Item.ItemData->bIsStackable || Item.StackCount <= 1) return;
+
+	if (UDropQuantityPopupWidget* Popup = CreateWidget<UDropQuantityPopupWidget>(GetOwningPlayer(), DropQuantityPopupClass))
+	{
+		Popup->InitPopup(this, OwningComponent, Item.InstanceId, Item.StackCount);
+		Popup->AddToViewport(1000);
 	}
 }
 

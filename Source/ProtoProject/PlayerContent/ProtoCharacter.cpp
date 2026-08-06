@@ -7,6 +7,7 @@
 #include "InventoryGridComponent.h"
 #include "EquipmentComponent.h"
 #include "QuickSlotComponent.h"
+#include "RadialQuickSlotWidget.h"
 #include "Item/ConsumableItemData.h"
 #include "ContainerScreenWidget.h"
 #include "Item/ItemDataBase.h"
@@ -203,6 +204,8 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
     PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeRifle);
     PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AProtoCharacter::SetWeaponTypePistol);
+    PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AProtoCharacter::OnQuickSlotKeyPressed);
+    PlayerInputComponent->BindKey(EKeys::Four, IE_Released, this, &AProtoCharacter::OnQuickSlotKeyReleased);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::StartFireWeapon);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &AProtoCharacter::StopFireWeapon);
     PlayerInputComponent->BindKey(EKeys::R, IE_Pressed, this, &AProtoCharacter::ReloadWeapon);
@@ -920,4 +923,75 @@ void AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
     }
 
     // OverTime 효과 적용은 후속 작업으로 남겨둔다.
+}
+
+void AProtoCharacter::OnQuickSlotKeyPressed()
+{
+    if (bIsInvetoryOpened) return;
+
+    bQuickSlotRadialOpen = false;
+    GetWorldTimerManager().SetTimer(QuickSlotHoldTimerHandle, this, &AProtoCharacter::OpenRadialQuickSlotMenu, QuickSlotHoldThreshold, false);
+}
+
+void AProtoCharacter::OpenRadialQuickSlotMenu()
+{
+    if (!RadialQuickSlotWidgetClass || !QuickSlotComponent) return;
+
+    bQuickSlotRadialOpen = true;
+
+    if (!RadialQuickSlotWidgetInstance)
+    {
+        RadialQuickSlotWidgetInstance = CreateWidget<URadialQuickSlotWidget>(GetWorld(), RadialQuickSlotWidgetClass);
+    }
+    if (!RadialQuickSlotWidgetInstance) return;
+
+    RadialQuickSlotWidgetInstance->OpenRadial(QuickSlotComponent);
+    if (!RadialQuickSlotWidgetInstance->IsInViewport())
+    {
+        RadialQuickSlotWidgetInstance->AddToViewport(500);
+    }
+
+    if (APlayerController* PC = Cast<APlayerController>(Controller))
+    {
+        PC->SetShowMouseCursor(true);
+        FInputModeGameAndUI InputMode;
+        InputMode.SetHideCursorDuringCapture(false);
+        PC->SetInputMode(InputMode);
+    }
+}
+
+void AProtoCharacter::OnQuickSlotKeyReleased()
+{
+    if (bIsInvetoryOpened) return;
+
+    GetWorldTimerManager().ClearTimer(QuickSlotHoldTimerHandle);
+
+    if (bQuickSlotRadialOpen)
+    {
+        int32 Selected = INDEX_NONE;
+        if (RadialQuickSlotWidgetInstance)
+        {
+            Selected = RadialQuickSlotWidgetInstance->GetHighlightedSlotIndex();
+            RadialQuickSlotWidgetInstance->RemoveFromParent();
+        }
+        bQuickSlotRadialOpen = false;
+
+        if (APlayerController* PC = Cast<APlayerController>(Controller))
+        {
+            PC->SetShowMouseCursor(false);
+            PC->SetInputMode(FInputModeGameOnly());
+        }
+
+        if (Selected != INDEX_NONE && QuickSlotComponent)
+        {
+            // 꾹 눌러 고르는 동작은 "다음에 쓸 슬롯"을 지정(등록)하는 것뿐이며 그 자리에서 소모하지 않는다.
+            // 실제 사용은 이후 4번 키를 짧게 탭했을 때 일어난다.
+            QuickSlotComponent->LastUsedSlotIndex = Selected;
+            QuickSlotComponent->OnQuickSlotChanged.Broadcast(Selected);
+        }
+    }
+    else if (QuickSlotComponent && QuickSlotComponent->LastUsedSlotIndex != INDEX_NONE)
+    {
+        QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
+    }
 }

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Image.h"
+#include "Components/TextBlock.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "QuickSlotComponent.h"
 #include "QuickSlotRegisterWidget.generated.h"
@@ -28,6 +29,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UBorder* SlotBorder;
 
+	// 겹칠 수 있는(스택 가능) 아이템의 수량을 우측 하단에 표시. 수량이 1개뿐이면 숨긴다.
+	UPROPERTY(meta = (BindWidgetOptional))
+	UTextBlock* StackCountText;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	UMaterialInterface* IconBaseMaterial = nullptr;
 
@@ -46,6 +51,8 @@ protected:
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 	virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
+	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+	virtual void NativeOnDragCancelled(const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 private:
 	int32 SlotIndex = 0;

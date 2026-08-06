@@ -5,6 +5,8 @@
 #include "Components/ProgressBar.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "GameFramework/Pawn.h"
+#include "Inventory/QuickSlotHudWidget.h"
+#include "ProtoCharacter.h"
 
 void UPlayerDefalutUI::NativeConstruct()
 {
@@ -13,6 +15,11 @@ void UPlayerDefalutUI::NativeConstruct()
 	if (APawn* OwningPawn = GetOwningPlayerPawn())
 	{
 		PlayerStatusComponent = OwningPawn->FindComponentByClass<UPlayerStatusComponent>();
+	}
+
+	if (QuickSlotHud)
+	{
+		QuickSlotHud->Init(Cast<AProtoCharacter>(GetOwningPlayerPawn()));
 	}
 
 	if (PlayerStatusComponent)
