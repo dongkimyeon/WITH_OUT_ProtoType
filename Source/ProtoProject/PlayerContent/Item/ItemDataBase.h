@@ -15,6 +15,14 @@ enum class EItemCategory : uint8
     Bag             // 가방 (인벤토리 확장용)
 };
 
+UENUM(BlueprintType)
+enum class EItemContextAction : uint8
+{
+    None,   // 우클릭 동작 없음 (Material, ComputingPart 등)
+    Equip,  // 장착 슬롯으로 이동
+    Use     // 즉시 소모/사용
+};
+
 UCLASS(Abstract, BlueprintType, meta = (PrioritizeCategories = "Item"))
 class PROTOPROJECT_API UItemDataBase : public UPrimaryDataAsset
 {
@@ -33,7 +41,7 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     FText Description;
 
-    // 아이템 아이콘 (TSoftObjectPtr를 써서 필요할 때만 메모리에 로드하도록 최적화)
+    // 아이템 아이콘 
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     TSoftObjectPtr<class UTexture2D> Icon;
 
@@ -54,6 +62,11 @@ public:
 
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     TSoftObjectPtr<UStaticMesh> ItemMesh;
-    
-    virtual bool IsUsable() const { return false; }
+
+    // 우클릭 시 수행할 동작. 서브클래스는 이 함수만 override하면 우클릭 UI/디스패치에 자동으로 반영된다.
+    virtual EItemContextAction GetContextAction() const { return EItemContextAction::None; }
+
+    virtual FText GetContextActionText() const;
+
+    virtual bool IsUsable() const { return GetContextAction() == EItemContextAction::Use; }
 };

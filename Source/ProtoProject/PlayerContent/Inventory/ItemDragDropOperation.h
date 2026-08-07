@@ -5,6 +5,8 @@
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "EquipmentComponent.h"
+#include "QuickSlotComponent.h"
 #include "ItemDragDropOperation.generated.h"
 
 class UItemDataBase;
@@ -34,6 +36,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drag and Drop", meta = (ExposeOnSpawn="true"))
 	int32 ItemIndex = INDEX_NONE;
 
+	// 인덱스가 shift되어도 안정적으로 원본 아이템을 가리키기 위한 고유 ID (장착/퀵슬롯 드롭 대상에서 사용)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drag and Drop", meta = (ExposeOnSpawn="true"))
+	FGuid InstanceId;
+
 	UPROPERTY()
 	FIntPoint DragOffset = FIntPoint(0, 0);
 \
@@ -53,4 +59,16 @@ public:
 
 	UPROPERTY()
 	UInventoryScreenBase* SourceScreenWidget = nullptr;
+
+	UPROPERTY()
+	UEquipmentComponent* SourceEquipmentComponent = nullptr;
+
+	UPROPERTY()
+	EEquipmentSlot SourceEquipmentSlot = EEquipmentSlot::Helmet;
+
+	UPROPERTY()
+	UQuickSlotComponent* SourceQuickSlotComponent = nullptr;
+
+	UPROPERTY()
+	int32 SourceQuickSlotIndex = INDEX_NONE;
 };

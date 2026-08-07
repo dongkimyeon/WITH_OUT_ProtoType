@@ -10,6 +10,10 @@ class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
 class UInventoryGridComponent;
+class UEquipmentComponent;
+class UQuickSlotComponent;
+class URadialQuickSlotWidget;
+class UConsumableItemData;
 class AWeaponBase;
 class AStorageContainer;
 class UPlayerDefalutUI;
@@ -19,6 +23,7 @@ class UPlayerStatusComponent;
 class ULevelChangeSelectWidget;
 class ALevelChanger;
 struct FBranchingPointNotifyPayload;
+enum class EConsumableTargetStat : uint8;
 
 UENUM(BlueprintType)
 enum class EWeaponType : uint8
@@ -70,8 +75,30 @@ private:
     UPROPERTY()
     UUserWidget* InventoryWidgetInstance;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|QuickSlot", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<URadialQuickSlotWidget> RadialQuickSlotWidgetClass;
+
+    UPROPERTY()
+    URadialQuickSlotWidget* RadialQuickSlotWidgetInstance = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI|QuickSlot", meta = (AllowPrivateAccess = "true"))
+    float QuickSlotHoldThreshold = 0.3f;
+
+    FTimerHandle QuickSlotHoldTimerHandle;
+    bool bQuickSlotRadialOpen = false;
+
+    void OnQuickSlotKeyPressed();
+    void OnQuickSlotKeyReleased();
+    void OpenRadialQuickSlotMenu();
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
     UInventoryGridComponent* InventoryComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
+    UEquipmentComponent* EquipmentComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
+    UQuickSlotComponent* QuickSlotComponent;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
     UPlayerStatusComponent* StatusComponent;
@@ -146,6 +173,15 @@ private:
 
     void UpdateStamina(float DeltaTime);
 
+    // 소비 아이템의 OverTime 효과를 반복 타이머로 서서히 적용한다 (자가 종료).
+    void ApplyOverTimeStatEffect(EConsumableTargetStat TargetStat, float TotalAmount, float Duration);
+
+    // OverTime 반복 타이머가 끝나면 호출되어 진행 상태를 정리한다.
+    void OnOverTimeEffectFinished();
+
+    // OverTime 회복이 진행 중인 동안에는 (같은 아이템이라도) 다른 소비 아이템 사용을 막는다.
+    bool bOverTimeEffectActive = false;
+
     float StaminaRegenTimer = 0.0f;
     bool bStaminaDepleted = false;
 
@@ -203,11 +239,23 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName RifleReloadSectionName = TEXT("RifleReload");
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
+    FName PistolReloadSectionName = TEXT("pistolreload");
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
     float AimPitch = 0.0f;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|IK")
     FTransform LeftHandTransform = FTransform::Identity;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
+    FVector Joint = FVector(1000.0f, -2000.0f, 0.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
+    bool bDebugLeftHandIK = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
+    float LeftHandIKDebugDrawSize = 8.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     bool bIsSprint = false;
@@ -217,6 +265,18 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim")
     bool bIsAiming = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    float DefaultCameraArmLength = 300.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    float AimCameraArmLength = 150.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    FVector DefaultCameraRelativeLocation = FVector::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    FVector AimCameraRelativeLocation = FVector(0.0f, 100.0f, 50.0f);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float BaseWalkSpeed = 300.f;
@@ -244,6 +304,12 @@ public:
 
     UInventoryGridComponent* GetInventoryComponent() const { return InventoryComponent; }
     UPlayerStatusComponent* GetStatusComponent() const { return StatusComponent; }
+    UEquipmentComponent* GetEquipmentComponent() const { return EquipmentComponent; }
+    UQuickSlotComponent* GetQuickSlotComponent() const { return QuickSlotComponent; }
+
+    // 소비 아이템의 효과를 스탯에 적용한다. 우클릭 사용과 퀵슬롯 사용이 공유한다.
+    // 다른 OverTime 효과가 이미 진행 중이면(같은 아이템 연타 포함) 실패(false)한다.
+    bool UseConsumable(UConsumableItemData* ConsumableData);
 
     UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
     void ReloadAmmoAttach();

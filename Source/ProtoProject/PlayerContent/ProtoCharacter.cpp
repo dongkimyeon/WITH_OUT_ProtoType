@@ -2,9 +2,15 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenWidget.h"
 #include "InventoryGridComponent.h"
+#include "EquipmentComponent.h"
+#include "QuickSlotComponent.h"
+#include "RadialQuickSlotWidget.h"
+#include "Item/ConsumableItemData.h"
 #include "ContainerScreenWidget.h"
 #include "Item/ItemDataBase.h"
 #include "Item/StorageContainer.h"
@@ -27,6 +33,8 @@ AProtoCharacter::AProtoCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
     InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
+    EquipmentComponent = CreateDefaultSubobject<UEquipmentComponent>(TEXT("EquipmentComponent"));
+    QuickSlotComponent = CreateDefaultSubobject<UQuickSlotComponent>(TEXT("QuickSlotComponent"));
     StatusComponent = CreateDefaultSubobject<UPlayerStatusComponent>(TEXT("StatusComponent"));
     bUseControllerRotationYaw = true;
     bUseControllerRotationPitch = false;
@@ -51,6 +59,18 @@ void AProtoCharacter::Tick(float DeltaTime)
         AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
     }
 
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(
+            12003,
+            0.0f,
+            SwappingAlpha ? FColor::Green : FColor::Red,
+            FString::Printf(TEXT("SwappingAlpha: %s | Swapping: %.2f | WeaponType: %d"),
+                SwappingAlpha ? TEXT("TRUE") : TEXT("FALSE"),
+                Swapping,
+                static_cast<int32>(CurrentWeaponType)));
+    }
+
     if (Swapping > 0.0f)
     {
         Swapping = FMath::Max(0.0f, Swapping - DeltaTime);
@@ -69,17 +89,6 @@ void AProtoCharacter::Tick(float DeltaTime)
         if (CurrentWeapon->GetLeftHandSocketTransform(LeftHandSocketTransform))
         {
             const FVector LeftHandWorldLocation = LeftHandSocketTransform.GetLocation();
-            if (GEngine)
-            {
-                GEngine->AddOnScreenDebugMessage(
-                    12001,
-                    0.2f,
-                    FColor::Cyan,
-                    FString::Printf(TEXT("LeftHandSocket OK: X %.1f / Y %.1f / Z %.1f"),
-                        LeftHandWorldLocation.X,
-                        LeftHandWorldLocation.Y,
-                        LeftHandWorldLocation.Z));
-            }
 
             FVector OutPosition;
             FRotator OutRotation;
@@ -91,6 +100,106 @@ void AProtoCharacter::Tick(float DeltaTime)
                 OutRotation);
 
             LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
+
+            if (GEngine)
+            {
+                const FVector DebugLeftHandLocation = LeftHandTransform.GetLocation();
+                const FRotator DebugLeftHandRotation = LeftHandTransform.Rotator();
+                GEngine->AddOnScreenDebugMessage(
+                    12004,
+                    0.0f,
+                    FColor::Orange,
+                    FString::Printf(TEXT("LeftHandTransform Loc X %.1f Y %.1f Z %.1f | Rot P %.1f Y %.1f R %.1f"),
+                        DebugLeftHandLocation.X,
+                        DebugLeftHandLocation.Y,
+                        DebugLeftHandLocation.Z,
+                        DebugLeftHandRotation.Pitch,
+                        DebugLeftHandRotation.Yaw,
+                        DebugLeftHandRotation.Roll));
+            }
+
+            if (bDebugLeftHandIK)
+            {
+                const float DebugSize = FMath::Max(LeftHandIKDebugDrawSize, 24.0f);
+                const FVector DebugTopLocation = LeftHandWorldLocation + FVector(0.0f, 0.0f, DebugSize * 4.0f);
+
+                DrawDebugSphere(
+                    GetWorld(),
+                    LeftHandWorldLocation,
+                    DebugSize,
+                    24,
+                    FColor::Magenta,
+                    false,
+                    0.0f,
+                    0,
+                    4.0f);
+
+                DrawDebugBox(
+                    GetWorld(),
+                    LeftHandWorldLocation,
+                    FVector(DebugSize * 0.75f),
+                    FColor::Cyan,
+                    false,
+                    0.0f,
+                    0,
+                    3.0f);
+
+                DrawDebugLine(
+                    GetWorld(),
+                    LeftHandWorldLocation,
+                    DebugTopLocation,
+                    FColor::Magenta,
+                    false,
+                    0.0f,
+                    0,
+                    5.0f);
+
+                DrawDebugString(
+                    GetWorld(),
+                    DebugTopLocation,
+                    TEXT("LEFT SOCKET"),
+                    nullptr,
+                    FColor::Magenta,
+                    0.0f,
+                    true);
+
+                DrawDebugCoordinateSystem(
+                    GetWorld(),
+                    LeftHandWorldLocation,
+                    LeftHandSocketTransform.Rotator(),
+                    DebugSize * 3.0f,
+                    false,
+                    0.0f,
+                    0,
+                    3.0f);
+
+                const FVector HandSpaceTargetWorldLocation = GetMesh()->GetSocketTransform(RightHandBoneName, RTS_World).TransformPosition(OutPosition);
+                DrawDebugSphere(
+                    GetWorld(),
+                    HandSpaceTargetWorldLocation,
+                    LeftHandIKDebugDrawSize * 0.75f,
+                    12,
+                    FColor::Yellow,
+                    false,
+                    0.0f,
+                    0,
+                    1.5f);
+
+                if (GEngine)
+                {
+                    GEngine->AddOnScreenDebugMessage(
+                        12001,
+                        0.2f,
+                        FColor::Cyan,
+                        FString::Printf(TEXT("LeftHandSocket World: X %.1f / Y %.1f / Z %.1f | BoneSpace: X %.1f / Y %.1f / Z %.1f"),
+                            LeftHandWorldLocation.X,
+                            LeftHandWorldLocation.Y,
+                            LeftHandWorldLocation.Z,
+                            OutPosition.X,
+                            OutPosition.Y,
+                            OutPosition.Z));
+                }
+            }
         }
         else if (GEngine)
         {
@@ -205,6 +314,8 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
     PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeRifle);
     PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AProtoCharacter::SetWeaponTypePistol);
+    PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AProtoCharacter::OnQuickSlotKeyPressed);
+    PlayerInputComponent->BindKey(EKeys::Four, IE_Released, this, &AProtoCharacter::OnQuickSlotKeyReleased);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::StartFireWeapon);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Released, this, &AProtoCharacter::StopFireWeapon);
     PlayerInputComponent->BindKey(EKeys::R, IE_Pressed, this, &AProtoCharacter::ReloadWeapon);
@@ -339,6 +450,17 @@ void AProtoCharacter::UpdateStamina(float DeltaTime)
 void AProtoCharacter::StartAim()
 {
     bIsAiming = true;
+
+    if (USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>())
+    {
+        SpringArm->TargetArmLength = AimCameraArmLength;
+    }
+
+    if (UCameraComponent* Camera = FindComponentByClass<UCameraComponent>())
+    {
+        Camera->SetRelativeLocation(AimCameraRelativeLocation);
+    }
+
     bUseControllerRotationYaw = true;
     bUseControllerRotationPitch = false;
     GetCharacterMovement()->bOrientRotationToMovement = false;
@@ -347,6 +469,17 @@ void AProtoCharacter::StartAim()
 void AProtoCharacter::StopAim()
 {
     bIsAiming = false;
+
+    if (USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>())
+    {
+        SpringArm->TargetArmLength = DefaultCameraArmLength;
+    }
+
+    if (UCameraComponent* Camera = FindComponentByClass<UCameraComponent>())
+    {
+        Camera->SetRelativeLocation(DefaultCameraRelativeLocation);
+    }
+
     bUseControllerRotationYaw = true;
     bUseControllerRotationPitch = false;
     bUseControllerRotationRoll = false;
@@ -523,6 +656,8 @@ void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
             if (UInventoryScreenWidget* InvUI = Cast<UInventoryScreenWidget>(InventoryWidgetInstance))
             {
                 InvUI->InitializeGrid(InventoryComponent);
+                InvUI->InitializeEquipment(EquipmentComponent);
+                InvUI->InitializeQuickSlots(QuickSlotComponent);
             }
             if (PlayerController)
             {
@@ -699,6 +834,11 @@ void AProtoCharacter::FinishWeaponSwap()
     SwappingAlpha = true;
     CurrentWeaponType = PendingWeaponType;
 
+    if (CurrentWeapon)
+    {
+        Joint = CurrentWeapon->LeftHandJointTarget;
+    }
+
     if (CurrentWeaponType == EWeaponType::None)
     {
         bHasWeapon = false;
@@ -771,6 +911,7 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
     static const FName AmmoDetachNotifyName(TEXT("AmmoDetach"));
     static const FName NewAmmoNotifyName(TEXT("NewAmmo"));
     static const FName NewAmmoAttachNotifyName(TEXT("NewAmmoAttach"));
+    static const FName NewAmmoDetachNotifyName(TEXT("NewAmmoDetach"));
 
     if (NotifyName == AmmoAttachNotifyName)
     {
@@ -785,6 +926,18 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
         ReloadNewAmmo();
     }
     else if (NotifyName == NewAmmoAttachNotifyName)
+    {
+        if (CurrentWeaponType == EWeaponType::Pistol)
+        {
+            ReloadNewAmmo();
+        }
+        else
+        {
+            ReloadNewAmmoAttach();
+            bIsReloading = false;
+        }
+    }
+    else if (NotifyName == NewAmmoDetachNotifyName)
     {
         ReloadNewAmmoAttach();
         bIsReloading = false;
@@ -805,7 +958,13 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
 }
 void AProtoCharacter::ReloadWeapon()
 {
-    if (Swapping > 0.0f || !CurrentWeapon || CurrentWeaponType != EWeaponType::Rifle)
+    if (Swapping > 0.0f || !CurrentWeapon)
+    {
+        return;
+    }
+
+    const bool bCanReload = CurrentWeaponType == EWeaponType::Rifle || CurrentWeaponType == EWeaponType::Pistol;
+    if (!bCanReload)
     {
         return;
     }
@@ -823,7 +982,8 @@ void AProtoCharacter::ReloadWeapon()
 
     bIsReloading = true;
 
-    const float MontageLength = PlayAnimMontage(RifleReloadMontage, 1.0f, RifleReloadSectionName);
+    const FName ReloadSectionName = CurrentWeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
+    const float MontageLength = PlayAnimMontage(RifleReloadMontage, 1.0f, ReloadSectionName);
     if (MontageLength <= 0.0f)
     {
         bIsReloading = false;
@@ -887,5 +1047,182 @@ void AProtoCharacter::ReloadNewAmmoAttach()
     if (CurrentWeapon)
     {
         CurrentWeapon->ReloadNewAmmoAttach();
+    }
+}
+
+bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
+{
+    if (!ConsumableData || !StatusComponent) return false;
+
+    // OverTime 효과가 이미 진행 중이면 사용 불가 (같은 아이템 연타로 중첩 섭취하는 것도 막는다).
+    if (bOverTimeEffectActive)
+    {
+        return false;
+    }
+
+    if (ConsumableData->Application == EEffectApplication::Instant ||
+        ConsumableData->Application == EEffectApplication::InstantThenOverTime)
+    {
+        switch (ConsumableData->TargetStat)
+        {
+        case EConsumableTargetStat::Health:
+            StatusComponent->SetHealth(StatusComponent->GetHealth() + ConsumableData->InstantAmount);
+            break;
+        case EConsumableTargetStat::Hunger:
+            StatusComponent->SetHunger(StatusComponent->GetHunger() + ConsumableData->InstantAmount);
+            break;
+        case EConsumableTargetStat::Thirst:
+            StatusComponent->SetThirst(StatusComponent->GetThirst() + ConsumableData->InstantAmount);
+            break;
+        case EConsumableTargetStat::Infection:
+            StatusComponent->SetInfection(StatusComponent->GetInfection() + ConsumableData->InstantAmount);
+            break;
+        }
+    }
+
+    if (ConsumableData->SideEffect.bAppliesDebuff)
+    {
+        StatusComponent->SetInfection(StatusComponent->GetInfection() + ConsumableData->SideEffect.InfectionIncrease);
+    }
+
+    if ((ConsumableData->Application == EEffectApplication::OverTime ||
+         ConsumableData->Application == EEffectApplication::InstantThenOverTime) &&
+        ConsumableData->OverTimeDurationSeconds > 0.0f)
+    {
+        bOverTimeEffectActive = true;
+        ApplyOverTimeStatEffect(ConsumableData->TargetStat, ConsumableData->OverTimeAmount, ConsumableData->OverTimeDurationSeconds);
+    }
+
+    return true;
+}
+
+void AProtoCharacter::OnOverTimeEffectFinished()
+{
+    bOverTimeEffectActive = false;
+}
+
+void AProtoCharacter::ApplyOverTimeStatEffect(EConsumableTargetStat TargetStat, float TotalAmount, float Duration)
+{
+    if (!StatusComponent || Duration <= 0.0f) return;
+    
+
+    constexpr float TickInterval = 0.5f;
+    const int32 TotalTicks = FMath::Max(1, FMath::RoundToInt(Duration / TickInterval));
+    const float AmountPerTick = TotalAmount / TotalTicks;
+
+    TSharedPtr<FTimerHandle> TimerHandle = MakeShared<FTimerHandle>();
+    TSharedPtr<int32> RemainingTicks = MakeShared<int32>(TotalTicks);
+    TWeakObjectPtr<UPlayerStatusComponent> WeakStatus(StatusComponent);
+    TWeakObjectPtr<AProtoCharacter> WeakThis(this);
+
+    FTimerDelegate Delegate;
+    Delegate.BindLambda([WeakThis, WeakStatus, TargetStat, AmountPerTick, RemainingTicks, TimerHandle]()
+    {
+        AProtoCharacter* Character = WeakThis.Get();
+        UPlayerStatusComponent* Status = WeakStatus.Get();
+        if (!Character || !Status)
+        {
+            if (Character)
+            {
+                Character->GetWorldTimerManager().ClearTimer(*TimerHandle);
+            }
+            return;
+        }
+
+        switch (TargetStat)
+        {
+        case EConsumableTargetStat::Health:
+            Status->SetHealth(Status->GetHealth() + AmountPerTick);
+            break;
+        case EConsumableTargetStat::Hunger:
+            Status->SetHunger(Status->GetHunger() + AmountPerTick);
+            break;
+        case EConsumableTargetStat::Thirst:
+            Status->SetThirst(Status->GetThirst() + AmountPerTick);
+            break;
+        case EConsumableTargetStat::Infection:
+            Status->SetInfection(Status->GetInfection() + AmountPerTick);
+            break;
+        }
+
+        --(*RemainingTicks);
+        if (*RemainingTicks <= 0)
+        {
+            Character->GetWorldTimerManager().ClearTimer(*TimerHandle);
+            Character->OnOverTimeEffectFinished();
+        }
+    });
+
+    GetWorldTimerManager().SetTimer(*TimerHandle, Delegate, TickInterval, true);
+}
+
+void AProtoCharacter::OnQuickSlotKeyPressed()
+{
+    if (bIsInvetoryOpened) return;
+
+    bQuickSlotRadialOpen = false;
+    GetWorldTimerManager().SetTimer(QuickSlotHoldTimerHandle, this, &AProtoCharacter::OpenRadialQuickSlotMenu, QuickSlotHoldThreshold, false);
+}
+
+void AProtoCharacter::OpenRadialQuickSlotMenu()
+{
+    if (!RadialQuickSlotWidgetClass || !QuickSlotComponent) return;
+
+    bQuickSlotRadialOpen = true;
+
+    if (!RadialQuickSlotWidgetInstance)
+    {
+        RadialQuickSlotWidgetInstance = CreateWidget<URadialQuickSlotWidget>(GetWorld(), RadialQuickSlotWidgetClass);
+    }
+    if (!RadialQuickSlotWidgetInstance) return;
+
+    RadialQuickSlotWidgetInstance->OpenRadial(QuickSlotComponent);
+    if (!RadialQuickSlotWidgetInstance->IsInViewport())
+    {
+        RadialQuickSlotWidgetInstance->AddToViewport(500);
+    }
+
+    if (APlayerController* PC = Cast<APlayerController>(Controller))
+    {
+        PC->SetShowMouseCursor(true);
+        FInputModeGameAndUI InputMode;
+        InputMode.SetHideCursorDuringCapture(false);
+        PC->SetInputMode(InputMode);
+    }
+}
+
+void AProtoCharacter::OnQuickSlotKeyReleased()
+{
+    if (bIsInvetoryOpened) return;
+
+    GetWorldTimerManager().ClearTimer(QuickSlotHoldTimerHandle);
+
+    if (bQuickSlotRadialOpen)
+    {
+        int32 Selected = INDEX_NONE;
+        if (RadialQuickSlotWidgetInstance)
+        {
+            Selected = RadialQuickSlotWidgetInstance->GetHighlightedSlotIndex();
+            RadialQuickSlotWidgetInstance->RemoveFromParent();
+        }
+        bQuickSlotRadialOpen = false;
+
+        if (APlayerController* PC = Cast<APlayerController>(Controller))
+        {
+            PC->SetShowMouseCursor(false);
+            PC->SetInputMode(FInputModeGameOnly());
+        }
+
+        if (Selected != INDEX_NONE && QuickSlotComponent)
+        {
+            // 꾹 눌러 고르는 동작은 "다음에 쓸 슬롯"을 지정(등록)하는 것뿐이며 그 자리에서 소모하지 않는다.
+            // 실제 사용은 이후 4번 키를 짧게 탭했을 때 일어난다.
+            QuickSlotComponent->LastUsedSlotIndex = Selected;
+            QuickSlotComponent->OnQuickSlotChanged.Broadcast(Selected);
+        }
+    }
+    else if (QuickSlotComponent && QuickSlotComponent->LastUsedSlotIndex != INDEX_NONE)
+    {
+        QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
     }
 }

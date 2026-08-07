@@ -46,7 +46,7 @@ void UProtoNetClientSubsystem::ShowConnectPrompt()
 		return;
 
 	// Pre-fill from -ServerIP= if given, else 127.0.0.1 (this machine).
-	FString DefaultIp = TEXT("127.0.0.1");
+	FString DefaultIp = TEXT("");
 	FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
 
 	SAssignNew(ConnectPromptWidget, SProtoConnectPrompt)

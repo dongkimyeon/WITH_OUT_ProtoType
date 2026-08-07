@@ -28,7 +28,7 @@ public:
     FName MagazineBoneName = TEXT("b_gun_mag");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Reload")
-    FName AmmoHandSocketName = TEXT("hand_l");
+    FName AmmoHandSocketName = TEXT("HandGrip_L");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Reload")
     FTransform HandAmmoRelativeTransform = FTransform::Identity;

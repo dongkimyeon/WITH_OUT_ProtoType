@@ -235,7 +235,8 @@ AActor* AAK47::SpawnAmmoInHand(USkeletalMeshComponent* CharacterMesh)
         return nullptr;
     }
 
-    const FTransform SpawnTransform = CharacterMesh->GetSocketTransform(AmmoHandSocketName, RTS_World);
+    const FName AttachSocketName = CharacterMesh->DoesSocketExist(TEXT("HandGrip_L")) ? TEXT("HandGrip_L") : AmmoHandSocketName;
+    const FTransform SpawnTransform = CharacterMesh->GetSocketTransform(AttachSocketName, RTS_World);
     AActor* AmmoActor = GetWorld()->SpawnActor<AActor>(RifleAmmoClass, SpawnTransform);
     if (!AmmoActor)
     {
@@ -264,7 +265,7 @@ AActor* AAK47::SpawnAmmoInHand(USkeletalMeshComponent* CharacterMesh)
         EAttachmentRule::KeepRelative,
         false);
 
-    AmmoActor->AttachToComponent(CharacterMesh, AttachRules, AmmoHandSocketName);
+    AmmoActor->AttachToComponent(CharacterMesh, AttachRules, AttachSocketName);
     AmmoActor->SetActorRelativeTransform(HandAmmoRelativeTransform);
     return AmmoActor;
 }

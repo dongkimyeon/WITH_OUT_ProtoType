@@ -47,7 +47,6 @@ class PROTOPROJECT_API UConsumableItemData : public UItemDataBase
     GENERATED_BODY()
 
 public:
-    // 생성자: 이 클래스로 만들어지는 아이템은 무조건 카테고리가 'Consumable'이 되도록 고정
     UConsumableItemData() 
     { 
         Category = EItemCategory::Consumable; 
@@ -75,6 +74,5 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Consumable")
     FConsumableSideEffect SideEffect;
 
-    // 부모(ItemDataBase)의 가상 함수 덮어쓰기: "소모품은 우클릭해서 사용할 수 있다!"
-    virtual bool IsUsable() const override { return true; }
+    virtual EItemContextAction GetContextAction() const override { return EItemContextAction::Use; }
 };

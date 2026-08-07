@@ -30,6 +30,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Data")
 	UItemDataBase* ItemData;
 
+	
+	UPROPERTY(EditAnywhere, Category = "Data")
+	int32 StackCount = 1;
+
 	virtual void OnInteract_Implementation(AProtoCharacter* InPlayer) override;
 	virtual FText GetInteractPrompt_Implementation() const override;
 	virtual bool CanInteract_Implementation(AProtoCharacter* InPlayer) const override;

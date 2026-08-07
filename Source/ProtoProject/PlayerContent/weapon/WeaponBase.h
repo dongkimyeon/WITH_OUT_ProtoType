@@ -36,6 +36,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Swap", meta = (ClampMin = "0.0"))
     float UnequipSwapTime = 0.3f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
+    FVector LeftHandJointTarget = FVector(1000.0f, -2000.0f, 0.0f);
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Fire", meta = (ClampMin = "0.0"))
     float FireRate = 1.0f;
 

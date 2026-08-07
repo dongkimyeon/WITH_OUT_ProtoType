@@ -15,7 +15,8 @@ public:
 		Category = EItemCategory::Equipment; 
 	}
 
-	// 장비의 공통 속성: 내구도
 	UPROPERTY(EditDefaultsOnly, Category = "Equipment")
 	int32 Durability = 100;
+
+	virtual EItemContextAction GetContextAction() const override { return EItemContextAction::Equip; }
 };
