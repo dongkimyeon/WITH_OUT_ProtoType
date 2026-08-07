@@ -17,11 +17,18 @@ void UDropQuantityPopupWidget::InitPopup(UInventoryScreenWidget* InParentScreen,
 		QuantitySlider->SetMinValue(1.f);
 		QuantitySlider->SetMaxValue(static_cast<float>(MaxCount));
 		QuantitySlider->SetValue(static_cast<float>(SelectedCount));
+		
+		QuantitySlider->SetStepSize(1.f);	
 	}
 
 	if (QuantityText)
 	{
-		QuantityText->SetText(FText::AsNumber(SelectedCount));
+		FText FormattedText = FText::Format(
+			FText::FromString(TEXT("{0} / {1}")), 
+			SelectedCount, 
+			MaxCount
+		);
+		QuantityText->SetText(FormattedText);
 	}
 }
 

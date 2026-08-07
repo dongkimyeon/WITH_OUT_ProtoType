@@ -20,25 +20,7 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Bandage.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Bandage.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ContainerScreenWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ContainerScreenWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/DropQuantityPopupWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/DropQuantityPopupWidget.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/EquipmentSlotWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/EquipmentSlotWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryGridComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenBase.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/InventoryScreenWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ItemDragDropOperation.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/ItemDragDropOperation.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/QuickSlotComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/QuickSlotComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/QuickSlotComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/QuickSlotComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/QuickSlotHudWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/QuickSlotHudWidget.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/QuickSlotRegisterWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/QuickSlotRegisterWidget.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ConsumableItemData.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ConsumableItemData.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/EquipmentItemData.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/EquipmentItemData.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemDataBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemDataBase.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_DropQuantityPopup.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_DropQuantityPopup.uasset" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -325,7 +307,7 @@
       <workItem from="1785833895696" duration="316000" />
       <workItem from="1785834351838" duration="3546000" />
       <workItem from="1786026930424" duration="8976000" />
-      <workItem from="1786083396975" duration="2312000" />
+      <workItem from="1786083396975" duration="3977000" />
     </task>
     <servers />
   </component>
