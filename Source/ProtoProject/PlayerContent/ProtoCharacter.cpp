@@ -157,17 +157,24 @@ void AProtoCharacter::BeginPlay()
         if (TestBandage) InventoryComponent->AddItem(TestBandage);
     }
 
-    if (DefaultUIClass)
+    // Only the locally-controlled player's own HUD should go on screen; this
+    // BeginPlay also runs for remote players spawned by
+    // UProtoNetClientSubsystem (see ProtoNetClientSubsystem.cpp), which have
+    // no local controller.
+    if (IsLocallyControlled())
     {
-        DefaultUI = CreateWidget<UPlayerDefalutUI>(GetWorld(), DefaultUIClass);
-        if (DefaultUI)
+        if (DefaultUIClass)
         {
-            DefaultUI->AddToViewport();
+            DefaultUI = CreateWidget<UPlayerDefalutUI>(GetWorld(), DefaultUIClass);
+            if (DefaultUI)
+            {
+                DefaultUI->AddToViewport();
+            }
         }
-    }
-    else if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("DefaultUIClass is NULL"));
+        else if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("DefaultUIClass is NULL"));
+        }
     }
 }
 

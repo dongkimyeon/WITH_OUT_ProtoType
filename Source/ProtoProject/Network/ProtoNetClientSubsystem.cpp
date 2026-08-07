@@ -2,6 +2,7 @@
 #include "ProtoNetReceiveWorker.h"
 #include "ProtoRemotePlayer.h"
 #include "ProtoConnectPrompt.h"
+#include "../PlayerContent/ProtoCharacter.h"
 
 #include "Sockets.h"
 #include "SocketSubsystem.h"
@@ -10,13 +11,24 @@
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "DrawDebugHelpers.h"
+#include "UObject/ConstructorHelpers.h"
 
 #include "packet.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogProtoNet, Log, All);
 
-UProtoNetClientSubsystem::UProtoNetClientSubsystem() = default;
+UProtoNetClientSubsystem::UProtoNetClientSubsystem()
+{
+	// Same Blueprint the local player is spawned as, so remote players look
+	// like real characters (mesh + animations) instead of a placeholder.
+	static ConstructorHelpers::FClassFinder<AProtoCharacter> CharacterClassFinder(TEXT("/Game/Blueprint/BP_ProtoCharacter"));
+	if (CharacterClassFinder.Succeeded())
+	{
+		RemoteCharacterClass = CharacterClassFinder.Class;
+	}
+}
 UProtoNetClientSubsystem::~UProtoNetClientSubsystem() = default;
 UProtoNetClientSubsystem::UProtoNetClientSubsystem(FVTableHelper& Helper)
 	: Super(Helper)
@@ -350,10 +362,12 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 				{
 					const auto* Pos = State->position();
 					const auto* Look = State->look();
+					const bool bSprinting = (static_cast<uint16>(State->flags()) & static_cast<uint16>(ProtoType::Net::MoveFlags::Sprint)) != 0;
 					UpdateRemotePlayer(
 						State->player_id(),
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
-						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator);
+						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
+						bSprinting);
 				}
 			}
 			break;
@@ -363,15 +377,24 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 	}
 }
 
-void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation)
+void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting)
 {
 	const int32 Key = static_cast<int32>(PlayerId);
 
-	if (AProtoRemotePlayer** Existing = RemotePlayers.Find(Key))
+	RemoteTargetLocation.Add(Key, Location);
+	RemoteTargetRotation.Add(Key, Rotation);
+
+	if (AActor** Existing = RemotePlayers.Find(Key))
 	{
 		if (IsValid(*Existing))
 		{
-			(*Existing)->SetActorLocationAndRotation(Location, Rotation);
+			// Don't snap: TickRemotePlayers() walks it to the new target so
+			// CharacterMovementComponent produces real walk/run animation.
+			if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(*Existing))
+			{
+				RemoteCharacter->GetCharacterMovement()->MaxWalkSpeed =
+					bSprinting ? RemoteCharacter->SprintWalkSpeed : RemoteCharacter->BaseWalkSpeed;
+			}
 			return;
 		}
 		RemotePlayers.Remove(Key);
@@ -381,12 +404,57 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 	if (!World)
 		return;
 
-	AProtoRemotePlayer* NewRemote = World->SpawnActor<AProtoRemotePlayer>(Location, Rotation);
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AActor* NewRemote = nullptr;
+	if (RemoteCharacterClass)
+	{
+		// No controller is assigned, so this spawns as a plain (not
+		// locally-controlled) character -- see the IsLocallyControlled()
+		// guards in AProtoCharacter for what that changes. Spawned directly
+		// at Location so the first sighting doesn't walk in from the origin.
+		NewRemote = World->SpawnActor<AProtoCharacter>(RemoteCharacterClass, Location, Rotation, SpawnParams);
+	}
+	if (!NewRemote)
+	{
+		// Fallback placeholder if the character Blueprint couldn't be loaded.
+		NewRemote = World->SpawnActor<AProtoRemotePlayer>(Location, Rotation, SpawnParams);
+	}
+
 	if (NewRemote)
 	{
-		NewRemote->PlayerId = PlayerId;
 		RemotePlayers.Add(Key, NewRemote);
 		UE_LOG(LogProtoNet, Log, TEXT("Spawned remote player %u"), PlayerId);
+	}
+}
+
+void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
+{
+	constexpr float ArrivalToleranceCm = 5.0f;
+
+	for (const auto& Pair : RemotePlayers)
+	{
+		AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(Pair.Value);
+		if (!IsValid(RemoteCharacter))
+			continue; // fallback placeholder actor doesn't animate/move
+
+		if (const FRotator* TargetRotation = RemoteTargetRotation.Find(Pair.Key))
+		{
+			RemoteCharacter->SetActorRotation(*TargetRotation);
+		}
+
+		const FVector* TargetLocation = RemoteTargetLocation.Find(Pair.Key);
+		if (!TargetLocation)
+			continue;
+
+		FVector ToTarget = *TargetLocation - RemoteCharacter->GetActorLocation();
+		ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
+
+		if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
+		{
+			RemoteCharacter->AddMovementInput(ToTarget.GetSafeNormal(), 1.0f);
+		}
 	}
 }
 
@@ -412,6 +480,8 @@ void UProtoNetClientSubsystem::Tick(float DeltaTime)
 		Disconnect();
 		OnDisconnected.Broadcast(Reason);
 	}
+
+	TickRemotePlayers(DeltaTime);
 }
 
 TStatId UProtoNetClientSubsystem::GetStatId() const

@@ -7,10 +7,12 @@
 #include "HAL/CriticalSection.h"
 #include "ProtoNetClientSubsystem.generated.h"
 
+class AActor;
 class FSocket;
 class FRunnableThread;
 class FProtoNetReceiveWorker;
 class AProtoRemotePlayer;
+class AProtoCharacter;
 class SProtoConnectPrompt;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnPacketReceived, const TArray<uint8>&, PacketBytes);
@@ -113,9 +115,22 @@ private:
 
 	// Decodes one complete framed packet and, for the multiplayer-relevant
 	// types (login success / player join / move state), updates local state
-	// or spawns/moves the matching AProtoRemotePlayer.
+	// or spawns/moves the matching remote player actor.
 	void HandleIncomingPacket(const TArray<uint8>& PacketBytes);
-	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation);
+
+	// Spawns the remote player on first sight and/or records where it should
+	// be heading; TickRemotePlayers() is what actually walks it there every
+	// frame so CharacterMovementComponent produces real velocity for the
+	// walk/run animation blend (a straight SetActorLocation teleport would
+	// leave the character in its idle pose).
+	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting = false);
+	void TickRemotePlayers(float DeltaTime);
+
+	// The same Blueprint the local player uses (BP_ProtoCharacter), loaded in
+	// the constructor, so remote players look like real characters instead of
+	// the AProtoRemotePlayer placeholder. Falls back to the placeholder if
+	// this can't be loaded (e.g. the asset was moved/renamed).
+	TSubclassOf<AProtoCharacter> RemoteCharacterClass;
 
 	void HandleConnectPromptSubmitted(const FString& ServerIp);
 	void HideConnectPrompt();
@@ -130,7 +145,12 @@ private:
 	uint32 LocalPlayerId = 0;
 
 	UPROPERTY()
-	TMap<int32, AProtoRemotePlayer*> RemotePlayers;
+	TMap<int32, AActor*> RemotePlayers;
+
+	// Latest reported transform per remote player; TickRemotePlayers() walks
+	// each character toward its entry every frame.
+	TMap<int32, FVector> RemoteTargetLocation;
+	TMap<int32, FRotator> RemoteTargetRotation;
 
 	// Filled by the worker thread, drained on the game thread in Tick().
 	TQueue<TArray<uint8>, EQueueMode::Mpsc> ReceivedPackets;
