@@ -88,6 +88,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendMoveInput(FVector Position, FRotator Look, int32 Flags = 0);
 
+	// Called from AProtoCharacter::ReloadWeapon() so other clients can mirror
+	// the reload motion. WeaponType is EWeaponType cast to uint8 (reused as
+	// the "slot" field so the receiver knows which reload section to play).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendWeaponReload(uint8 WeaponType);
+
+	// Called from AProtoCharacter::BeginWeaponSwap() so other clients see
+	// this player holding (or storing, for EWeaponType::None) the right
+	// weapon. WeaponType is EWeaponType cast to uint8.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendWeaponEquip(uint8 WeaponType);
+
 	// This client's own player id, assigned by the server after login via
 	// S2C_LoginSuccess. 0 until then.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")

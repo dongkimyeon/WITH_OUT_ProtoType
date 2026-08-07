@@ -242,6 +242,23 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName PistolReloadSectionName = TEXT("pistolreload");
 
+    // Plays just the reload montage section for a remotely-controlled
+    // instance of this character (called by UProtoNetClientSubsystem on
+    // receiving S2C_ItemUseBroadcast for another player's reload). Unlike
+    // ReloadWeapon(), this never touches bIsReloading/ammo-attach state,
+    // which is only meaningful for the locally-controlled player.
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
+    void PlayRemoteReloadMontage(EWeaponType ForWeaponType);
+
+    // Instantly shows/hides/switches the held weapon for a remotely-controlled
+    // instance of this character (called by UProtoNetClientSubsystem on
+    // receiving S2C_ItemUseBroadcast{use_type: Equip} for another player).
+    // Unlike BeginWeaponSwap()/FinishWeaponSwap(), this skips the swap timer
+    // and swap montage (both are purely local-input-driven state) and just
+    // snaps CurrentWeapon/CurrentWeaponType and the socket attachment.
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    void ApplyRemoteWeaponEquip(EWeaponType ForWeaponType);
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
     float AimPitch = 0.0f;
 

@@ -789,6 +789,14 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType)
     CurrentWeaponType = TargetWeaponType;
     bHasWeapon = CurrentWeaponType != EWeaponType::None;
 
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendWeaponEquip(static_cast<uint8>(TargetWeaponType));
+        }
+    }
+
     const bool bIsEquippingWeapon = TargetWeaponType != EWeaponType::None;
     Swapping = bIsEquippingWeapon ? SwapWeapon->EquipSwapTime : SwapWeapon->UnequipSwapTime;
     Swapping = FMath::Max(0.0f, Swapping);
@@ -988,7 +996,62 @@ void AProtoCharacter::ReloadWeapon()
     {
         bIsReloading = false;
     }
+
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendWeaponReload(static_cast<uint8>(CurrentWeaponType));
+        }
+    }
 }
+
+void AProtoCharacter::PlayRemoteReloadMontage(EWeaponType ForWeaponType)
+{
+    if (!RifleReloadMontage)
+    {
+        return;
+    }
+
+    const FName ReloadSectionName = ForWeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
+    PlayAnimMontage(RifleReloadMontage, 1.0f, ReloadSectionName);
+}
+
+void AProtoCharacter::ApplyRemoteWeaponEquip(EWeaponType ForWeaponType)
+{
+    if (ForWeaponType == CurrentWeaponType)
+    {
+        return;
+    }
+
+    const EWeaponType PreviousWeaponType = CurrentWeaponType;
+    // Storing (ForWeaponType == None) re-attaches the weapon that was just
+    // holstered, so it's still the one from PreviousWeaponType.
+    CurrentWeapon = ForWeaponType == EWeaponType::None ? GetWeaponByType(PreviousWeaponType) : GetWeaponByType(ForWeaponType);
+    CurrentWeaponType = ForWeaponType;
+    bHasWeapon = CurrentWeaponType != EWeaponType::None;
+
+    if (!CurrentWeapon)
+    {
+        // The remote character doesn't have this weapon slot filled: nothing
+        // to attach.
+        return;
+    }
+
+    switch (CurrentWeaponType)
+    {
+    case EWeaponType::Rifle:
+        AttachCurrentWeaponToSocket(TEXT("WeaponSocket"));
+        break;
+    case EWeaponType::Pistol:
+        AttachCurrentWeaponToSocket(TEXT("PistolSocket"));
+        break;
+    default:
+        AttachCurrentWeaponToSocket(PreviousWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage"));
+        break;
+    }
+}
+
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
 {
     if (!CurrentWeapon || !GetMesh())

@@ -300,6 +300,42 @@ bool UProtoNetClientSubsystem::SendMoveInput(FVector Position, FRotator Look, in
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendWeaponReload(uint8 WeaponType)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Header Header(
+		NextSeq++,
+		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
+		LocalPlayerId);
+
+	auto Req = ProtoType::Net::CreateC2S_ItemUseRequest(
+		Fbb, &Header, 0, WeaponType, ProtoType::Net::ItemUseType::Reload);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_ItemUseRequest, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendWeaponEquip(uint8 WeaponType)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Header Header(
+		NextSeq++,
+		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
+		LocalPlayerId);
+
+	auto Req = ProtoType::Net::CreateC2S_ItemUseRequest(
+		Fbb, &Header, 0, WeaponType, ProtoType::Net::ItemUseType::Equip);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_ItemUseRequest, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketBytes)
 {
 	flatbuffers::Verifier Verifier(PacketBytes.GetData(), PacketBytes.Num());
@@ -369,6 +405,29 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
 						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
 						bSprinting);
+				}
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_ItemUseBroadcast:
+			if (const auto* Use = Packet->payload_as_S2C_ItemUseBroadcast())
+			{
+				if (Use->user_id() != LocalPlayerId)
+				{
+					if (AActor** Existing = RemotePlayers.Find(static_cast<int32>(Use->user_id())))
+					{
+						if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(*Existing))
+						{
+							if (Use->use_type() == ProtoType::Net::ItemUseType::Reload)
+							{
+								RemoteCharacter->PlayRemoteReloadMontage(static_cast<EWeaponType>(Use->slot()));
+							}
+							else if (Use->use_type() == ProtoType::Net::ItemUseType::Equip)
+							{
+								RemoteCharacter->ApplyRemoteWeaponEquip(static_cast<EWeaponType>(Use->slot()));
+							}
+						}
+					}
 				}
 			}
 			break;
