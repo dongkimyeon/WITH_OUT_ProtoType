@@ -30,8 +30,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Data")
 	UItemDataBase* ItemData;
 
-	// 겹칠 수 있는(스택 가능) 아이템일 때, 이 하나의 월드 액터가 실제로 담고 있는 개수.
-	// 보이는 건 하나지만 주웠을 때 이 수량만큼 인벤토리에 반영된다.
+	
 	UPROPERTY(EditAnywhere, Category = "Data")
 	int32 StackCount = 1;
 

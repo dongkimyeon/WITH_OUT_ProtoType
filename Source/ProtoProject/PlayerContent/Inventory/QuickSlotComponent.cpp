@@ -130,7 +130,10 @@ bool UQuickSlotComponent::UseQuickSlot(int32 SlotIndex, AProtoCharacter* OwningC
 	UConsumableItemData* ConsumableData = Cast<UConsumableItemData>(Entry.ItemData);
 	if (!ConsumableData) return false;
 
-	OwningCharacter->UseConsumable(ConsumableData);
+	if (!OwningCharacter->UseConsumable(ConsumableData))
+	{
+		return false;
+	}
 
 	Entry.StackCount -= 1;
 	if (Entry.StackCount <= 0)

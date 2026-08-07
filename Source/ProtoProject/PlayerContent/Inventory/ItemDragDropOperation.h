@@ -60,14 +60,12 @@ public:
 	UPROPERTY()
 	UInventoryScreenBase* SourceScreenWidget = nullptr;
 
-	// 장착 슬롯에서 시작된 드래그일 경우에만 유효 (그리드에서 시작된 드래그는 SourceInventoryComponent를 사용)
 	UPROPERTY()
 	UEquipmentComponent* SourceEquipmentComponent = nullptr;
 
 	UPROPERTY()
 	EEquipmentSlot SourceEquipmentSlot = EEquipmentSlot::Helmet;
 
-	// 퀵슬롯 등록 칸에서 시작된 드래그일 경우에만 유효
 	UPROPERTY()
 	UQuickSlotComponent* SourceQuickSlotComponent = nullptr;
 

@@ -1043,9 +1043,15 @@ void AProtoCharacter::ReloadNewAmmoAttach()
     }
 }
 
-void AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
+bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
 {
-    if (!ConsumableData || !StatusComponent) return;
+    if (!ConsumableData || !StatusComponent) return false;
+
+    // OverTime 효과가 이미 진행 중이면 사용 불가 (같은 아이템 연타로 중첩 섭취하는 것도 막는다).
+    if (bOverTimeEffectActive)
+    {
+        return false;
+    }
 
     if (ConsumableData->Application == EEffectApplication::Instant ||
         ConsumableData->Application == EEffectApplication::InstantThenOverTime)
@@ -1072,7 +1078,75 @@ void AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
         StatusComponent->SetInfection(StatusComponent->GetInfection() + ConsumableData->SideEffect.InfectionIncrease);
     }
 
-    // OverTime 효과 적용은 후속 작업으로 남겨둔다.
+    if ((ConsumableData->Application == EEffectApplication::OverTime ||
+         ConsumableData->Application == EEffectApplication::InstantThenOverTime) &&
+        ConsumableData->OverTimeDurationSeconds > 0.0f)
+    {
+        bOverTimeEffectActive = true;
+        ApplyOverTimeStatEffect(ConsumableData->TargetStat, ConsumableData->OverTimeAmount, ConsumableData->OverTimeDurationSeconds);
+    }
+
+    return true;
+}
+
+void AProtoCharacter::OnOverTimeEffectFinished()
+{
+    bOverTimeEffectActive = false;
+}
+
+void AProtoCharacter::ApplyOverTimeStatEffect(EConsumableTargetStat TargetStat, float TotalAmount, float Duration)
+{
+    if (!StatusComponent || Duration <= 0.0f) return;
+    
+
+    constexpr float TickInterval = 0.5f;
+    const int32 TotalTicks = FMath::Max(1, FMath::RoundToInt(Duration / TickInterval));
+    const float AmountPerTick = TotalAmount / TotalTicks;
+
+    TSharedPtr<FTimerHandle> TimerHandle = MakeShared<FTimerHandle>();
+    TSharedPtr<int32> RemainingTicks = MakeShared<int32>(TotalTicks);
+    TWeakObjectPtr<UPlayerStatusComponent> WeakStatus(StatusComponent);
+    TWeakObjectPtr<AProtoCharacter> WeakThis(this);
+
+    FTimerDelegate Delegate;
+    Delegate.BindLambda([WeakThis, WeakStatus, TargetStat, AmountPerTick, RemainingTicks, TimerHandle]()
+    {
+        AProtoCharacter* Character = WeakThis.Get();
+        UPlayerStatusComponent* Status = WeakStatus.Get();
+        if (!Character || !Status)
+        {
+            if (Character)
+            {
+                Character->GetWorldTimerManager().ClearTimer(*TimerHandle);
+            }
+            return;
+        }
+
+        switch (TargetStat)
+        {
+        case EConsumableTargetStat::Health:
+            Status->SetHealth(Status->GetHealth() + AmountPerTick);
+            break;
+        case EConsumableTargetStat::Hunger:
+            Status->SetHunger(Status->GetHunger() + AmountPerTick);
+            break;
+        case EConsumableTargetStat::Thirst:
+            Status->SetThirst(Status->GetThirst() + AmountPerTick);
+            break;
+        case EConsumableTargetStat::Infection:
+            Status->SetInfection(Status->GetInfection() + AmountPerTick);
+            break;
+        }
+
+        --(*RemainingTicks);
+        if (*RemainingTicks <= 0)
+        {
+            Character->GetWorldTimerManager().ClearTimer(*TimerHandle);
+            Character->OnOverTimeEffectFinished();
+        }
+    });
+
+    GetWorldTimerManager().SetTimer(*TimerHandle, Delegate, TickInterval, true);
 }
 
 void AProtoCharacter::OnQuickSlotKeyPressed()

@@ -38,6 +38,5 @@ public:
 	// 퀵슬롯 등록 UI를 다시 그린다 (등록/해제/스왑 이후 호출)
 	virtual void RefreshQuickSlots() {}
 
-	// 크로스 그리드 드롭 후 소스/타겟 그리드를 재구성
 	virtual void RefreshGrid(UInventoryGridComponent* Component) {}
 };

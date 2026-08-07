@@ -247,8 +247,7 @@ bool UInventoryGridComponent::MergeStackFrom(UInventoryGridComponent* SourceInve
     int32 ActuallySplit = 0;
     SourceInventory->SplitStack(SourceInstanceId, RequestCount, ActuallySplit);
     if (ActuallySplit <= 0) return false;
-
-    // SplitStack이 같은 그리드의 배열을 변경했을 수 있으므로(같은 그리드 내 병합 시 인덱스 shift) ID로 다시 조회한다.
+    
     const int32 TargetIndex = FindIndexById(TargetInstanceId);
     if (TargetIndex == INDEX_NONE) return false;
 

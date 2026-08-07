@@ -23,9 +23,7 @@ struct FQuickSlotEntry
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnQuickSlotChanged, int32, SlotIndex);
 
-// 인벤토리 화면의 8칸 등록 UI를 통해 소비 아이템을 미리 등록해두고, 게임플레이 중 4번 키(꾹 눌러 Radial 선택,
-// 짧게 탭해 마지막 슬롯 재사용)로 사용하는 퀵슬롯. 장착(EquipmentComponent)과 동일하게 등록 시
-// 그리드에서 아이템을 물리적으로 제거해 슬롯이 소유권을 갖는다.
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent, PrioritizeCategories = "QuickSlot"))
 class PROTOPROJECT_API UQuickSlotComponent : public UActorComponent
 {

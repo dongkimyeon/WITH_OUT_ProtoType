@@ -178,8 +178,11 @@ bool UContainerScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* D
 
 	if (!TargetComponent->CanPlaceAt(TargetPosition, ItemSize)) return false;
 
-	DragOp->SourceInventoryComponent->RemoveItemAt(DragOp->ItemIndex);
-	TargetComponent->AddItemAt(ItemData, TargetPosition, bDropRotated);
+	FInventoryItemInstance SourceInstance;
+	const int32 StackCount = DragOp->SourceInventoryComponent->FindInstanceById(DragOp->InstanceId, SourceInstance) ? SourceInstance.StackCount : 1;
+
+	DragOp->SourceInventoryComponent->RemoveInstanceById(DragOp->InstanceId);
+	TargetComponent->AddItemAt(ItemData, TargetPosition, bDropRotated, StackCount);
 
 	if (DragOp->SourceScreenWidget)
 		DragOp->SourceScreenWidget->RefreshGrid(DragOp->SourceInventoryComponent);

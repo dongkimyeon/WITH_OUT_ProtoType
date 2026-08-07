@@ -15,7 +15,6 @@ enum class EItemCategory : uint8
     Bag             // 가방 (인벤토리 확장용)
 };
 
-// 인벤토리에서 아이템을 우클릭했을 때 수행할 동작. 카테고리가 늘어나도 이 enum의 케이스만으로 UI가 분기하도록 한다.
 UENUM(BlueprintType)
 enum class EItemContextAction : uint8
 {
@@ -42,7 +41,7 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     FText Description;
 
-    // 아이템 아이콘 (TSoftObjectPtr를 써서 필요할 때만 메모리에 로드하도록 최적화)
+    // 아이템 아이콘 
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     TSoftObjectPtr<class UTexture2D> Icon;
 
@@ -67,7 +66,6 @@ public:
     // 우클릭 시 수행할 동작. 서브클래스는 이 함수만 override하면 우클릭 UI/디스패치에 자동으로 반영된다.
     virtual EItemContextAction GetContextAction() const { return EItemContextAction::None; }
 
-    // GetContextAction()에 대응하는 UI 표시 텍스트("장착"/"사용" 등). 구현은 .cpp 참고.
     virtual FText GetContextActionText() const;
 
     virtual bool IsUsable() const { return GetContextAction() == EItemContextAction::Use; }

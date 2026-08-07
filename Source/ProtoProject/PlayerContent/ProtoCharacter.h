@@ -23,6 +23,7 @@ class UPlayerStatusComponent;
 class ULevelChangeSelectWidget;
 class ALevelChanger;
 struct FBranchingPointNotifyPayload;
+enum class EConsumableTargetStat : uint8;
 
 UENUM(BlueprintType)
 enum class EWeaponType : uint8
@@ -172,6 +173,15 @@ private:
 
     void UpdateStamina(float DeltaTime);
 
+    // 소비 아이템의 OverTime 효과를 반복 타이머로 서서히 적용한다 (자가 종료).
+    void ApplyOverTimeStatEffect(EConsumableTargetStat TargetStat, float TotalAmount, float Duration);
+
+    // OverTime 반복 타이머가 끝나면 호출되어 진행 상태를 정리한다.
+    void OnOverTimeEffectFinished();
+
+    // OverTime 회복이 진행 중인 동안에는 (같은 아이템이라도) 다른 소비 아이템 사용을 막는다.
+    bool bOverTimeEffectActive = false;
+
     float StaminaRegenTimer = 0.0f;
     bool bStaminaDepleted = false;
 
@@ -297,8 +307,9 @@ public:
     UEquipmentComponent* GetEquipmentComponent() const { return EquipmentComponent; }
     UQuickSlotComponent* GetQuickSlotComponent() const { return QuickSlotComponent; }
 
-    // 소비 아이템의 즉시 효과를 스탯에 적용한다. 우클릭 사용과 퀵슬롯 사용이 공유한다.
-    void UseConsumable(UConsumableItemData* ConsumableData);
+    // 소비 아이템의 효과를 스탯에 적용한다. 우클릭 사용과 퀵슬롯 사용이 공유한다.
+    // 다른 OverTime 효과가 이미 진행 중이면(같은 아이템 연타 포함) 실패(false)한다.
+    bool UseConsumable(UConsumableItemData* ConsumableData);
 
     UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
     void ReloadAmmoAttach();

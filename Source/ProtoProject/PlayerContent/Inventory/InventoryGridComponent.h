@@ -5,7 +5,6 @@
 #include "ItemDataBase.h" // 우리가 만든 아이템 데이터 원본
 #include "InventoryGridComponent.generated.h"
 
-// 아이템 인스턴스 정보 
 USTRUCT(BlueprintType)
 struct FInventoryItemInstance
 {
@@ -23,8 +22,8 @@ struct FInventoryItemInstance
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     int32 StackCount = 1;
-
-    // 배열 인덱스는 다른 아이템 제거 시 shift되어 불안정하므로, 퀵슬롯/장착처럼 특정 인스턴스를 오래 참조해야 하는 기능은 이 ID를 사용한다.
+    
+    //고유 GUID
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     FGuid InstanceId;
 
@@ -114,13 +113,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     UItemDataBase* RemoveInstanceById(const FGuid& InstanceId);
 
-    // 스택에서 Count만큼만 떼어낸다 (수량 지정 버리기용). Count가 남은 수량 이상이면 인스턴스를 통째로 제거한다.
-    // 실제로 떼어낸 개수를 OutSplitCount에 담아 반환하고, 대상 아이템 데이터를 반환한다(못 찾으면 nullptr).
+    // 스택에서 Count만큼만 떼어낸다 (수량 지정 버리기용). 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     UItemDataBase* SplitStack(const FGuid& InstanceId, int32 Count, int32& OutSplitCount);
 
-    // 겹칠 수 있는 같은 아이템끼리 드래그드롭했을 때 병합한다. 같은 그리드/다른 그리드(컨테이너 등) 모두 지원.
-    // TargetInstanceId가 가득 차 있어도 들어갈 수 있는 만큼만 옮기고 true를 반환한다 (일부라도 옮겨졌으면 성공).
+    // 겹칠 수 있는 같은 아이템끼리 드래그드롭했을 때 병합한다. 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool MergeStackFrom(UInventoryGridComponent* SourceInventory, const FGuid& SourceInstanceId, const FGuid& TargetInstanceId);
 

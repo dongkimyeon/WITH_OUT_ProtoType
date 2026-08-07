@@ -10,8 +10,7 @@ class UButton;
 class UInventoryScreenWidget;
 class UInventoryGridComponent;
 
-// Ctrl+우클릭으로 스택 아이템을 버릴 때 뜨는 수량 선택 팝업.
-// 슬라이더로 1 ~ MaxCount 사이 수량을 고르고 확인을 누르면 그만큼만 월드에 버려진다.
+// Ctrl+우클릭으로 스택 아이템을 버릴 때 뜨는 수량 선택 팝업
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UDropQuantityPopupWidget : public UUserWidget
 {

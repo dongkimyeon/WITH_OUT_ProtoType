@@ -79,8 +79,11 @@ bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* D
 
 	if (!CachedInventoryComponent->CanPlaceAt(TargetPosition, ItemSize)) return false;
 
-	DragOp->SourceInventoryComponent->RemoveItemAt(DragOp->ItemIndex);
-	CachedInventoryComponent->AddItemAt(ItemData, TargetPosition, bDropRotated);
+	FInventoryItemInstance SourceInstance;
+	const int32 StackCount = DragOp->SourceInventoryComponent->FindInstanceById(DragOp->InstanceId, SourceInstance) ? SourceInstance.StackCount : 1;
+
+	DragOp->SourceInventoryComponent->RemoveInstanceById(DragOp->InstanceId);
+	CachedInventoryComponent->AddItemAt(ItemData, TargetPosition, bDropRotated, StackCount);
 
 	if (DragOp->SourceScreenWidget)
 	{
@@ -169,8 +172,13 @@ void UInventoryScreenWidget::OnItemContextAction(int32 ItemIndex, UInventoryGrid
 	{
 		if (UConsumableItemData* ConsumableData = Cast<UConsumableItemData>(ItemData))
 		{
-			OwningCharacter->UseConsumable(ConsumableData);
-			RefreshGrid(OwningComponent);
+			if (OwningCharacter->UseConsumable(ConsumableData))
+			{
+				int32 SplitCount = 0;
+				OwningComponent->SplitStack(OwningComponent->Items[ItemIndex].InstanceId, 1, SplitCount);
+
+				RefreshGrid(OwningComponent);
+			}
 		}
 		break;
 	}
@@ -270,7 +278,6 @@ void UInventoryScreenWidget::DropItemToWorld(UItemDragDropOperation* DragOp)
 {
 	if (!DragOp || !DragOp->SourceInventoryComponent || !DragOp->DraggedItemData) return;
 
-	// 드래그로 그리드 밖에 버릴 때는 항상 스택 전체를 버린다.
 	FInventoryItemInstance SourceInstance;
 	const int32 FullStackCount = DragOp->SourceInventoryComponent->FindInstanceById(DragOp->InstanceId, SourceInstance) ? SourceInstance.StackCount : 1;
 

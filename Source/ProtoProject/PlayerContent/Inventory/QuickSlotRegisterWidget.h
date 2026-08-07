@@ -11,7 +11,7 @@
 class UBorder;
 class UInventoryScreenWidget;
 
-// 인벤토리 화면의 8칸 퀵슬롯 등록 UI 중 한 칸. 드래그로 소비 아이템을 등록하면
+// 인벤토리 화면의 8칸 퀵슬롯 등록 UI 한칸
 // 장착 슬롯과 마찬가지로 그리드에서 물리적으로 제거되어 이 슬롯이 소유권을 갖는다.
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UQuickSlotRegisterWidget : public UUserWidget
@@ -29,7 +29,6 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UBorder* SlotBorder;
 
-	// 겹칠 수 있는(스택 가능) 아이템의 수량을 우측 하단에 표시. 수량이 1개뿐이면 숨긴다.
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* StackCountText;
 

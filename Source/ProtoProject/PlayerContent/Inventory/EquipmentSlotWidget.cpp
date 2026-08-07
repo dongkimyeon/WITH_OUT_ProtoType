@@ -88,8 +88,6 @@ bool UEquipmentSlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 
 	if (DragOp->SourceEquipmentComponent == EquipmentComponentRef && DragOp->SourceEquipmentSlot != Slot)
 	{
-		// 다른 장착 슬롯(예: 무기1 <-> 무기2)에서 드래그된 경우 - 스왑/이동.
-		// 성공/실패와 무관하게 항상 갱신해야, 드래그 시작 시 숨겨졌던 원본 슬롯의 아이콘이 복원된다.
 		EquipmentComponentRef->SwapOrMoveSlots(DragOp->SourceEquipmentSlot, Slot);
 		if (ParentScreen) ParentScreen->RefreshEquipmentSlots();
 		else RefreshVisual();
@@ -98,7 +96,6 @@ bool UEquipmentSlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 
 	if (DragOp->SourceInventoryComponent)
 	{
-		// 성공/실패와 무관하게 항상 갱신해야, 드래그 시작 시 숨겨졌던 인벤토리 그리드의 원본 아이콘이 복원된다.
 		EquipmentComponentRef->EquipFromInventory(DragOp->SourceInventoryComponent, DragOp->InstanceId, Slot);
 		RefreshVisual();
 		if (DragOp->SourceScreenWidget)
@@ -161,7 +158,6 @@ void UEquipmentSlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 		}
 	}
 
-	// 드래그 중 보이는 아이콘 크기를 하드코딩하지 않고 실제 슬롯 크기(InGeometry)에 맞춰, 드래그 시작 시 크기가 튀지 않도록 한다.
 	const FVector2D SlotSize = InGeometry.GetLocalSize();
 
 	USizeBox* DragWrapper = NewObject<USizeBox>(this);
