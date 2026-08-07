@@ -7,10 +7,12 @@
 #include "HAL/CriticalSection.h"
 #include "ProtoNetClientSubsystem.generated.h"
 
+class AActor;
 class FSocket;
 class FRunnableThread;
 class FProtoNetReceiveWorker;
 class AProtoRemotePlayer;
+class AProtoCharacter;
 class SProtoConnectPrompt;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnPacketReceived, const TArray<uint8>&, PacketBytes);
@@ -86,6 +88,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendMoveInput(FVector Position, FRotator Look, int32 Flags = 0);
 
+	// Called from AProtoCharacter::ReloadWeapon() so other clients can mirror
+	// the reload motion. WeaponType is EWeaponType cast to uint8 (reused as
+	// the "slot" field so the receiver knows which reload section to play).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendWeaponReload(uint8 WeaponType);
+
+	// Called from AProtoCharacter::BeginWeaponSwap() so other clients see
+	// this player holding (or storing, for EWeaponType::None) the right
+	// weapon. WeaponType is EWeaponType cast to uint8.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendWeaponEquip(uint8 WeaponType);
+
 	// This client's own player id, assigned by the server after login via
 	// S2C_LoginSuccess. 0 until then.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
@@ -113,9 +127,22 @@ private:
 
 	// Decodes one complete framed packet and, for the multiplayer-relevant
 	// types (login success / player join / move state), updates local state
-	// or spawns/moves the matching AProtoRemotePlayer.
+	// or spawns/moves the matching remote player actor.
 	void HandleIncomingPacket(const TArray<uint8>& PacketBytes);
-	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation);
+
+	// Spawns the remote player on first sight and/or records where it should
+	// be heading; TickRemotePlayers() is what actually walks it there every
+	// frame so CharacterMovementComponent produces real velocity for the
+	// walk/run animation blend (a straight SetActorLocation teleport would
+	// leave the character in its idle pose).
+	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting = false);
+	void TickRemotePlayers(float DeltaTime);
+
+	// The same Blueprint the local player uses (BP_ProtoCharacter), loaded in
+	// the constructor, so remote players look like real characters instead of
+	// the AProtoRemotePlayer placeholder. Falls back to the placeholder if
+	// this can't be loaded (e.g. the asset was moved/renamed).
+	TSubclassOf<AProtoCharacter> RemoteCharacterClass;
 
 	void HandleConnectPromptSubmitted(const FString& ServerIp);
 	void HideConnectPrompt();
@@ -130,7 +157,12 @@ private:
 	uint32 LocalPlayerId = 0;
 
 	UPROPERTY()
-	TMap<int32, AProtoRemotePlayer*> RemotePlayers;
+	TMap<int32, AActor*> RemotePlayers;
+
+	// Latest reported transform per remote player; TickRemotePlayers() walks
+	// each character toward its entry every frame.
+	TMap<int32, FVector> RemoteTargetLocation;
+	TMap<int32, FRotator> RemoteTargetRotation;
 
 	// Filled by the worker thread, drained on the game thread in Tick().
 	TQueue<TArray<uint8>, EQueueMode::Mpsc> ReceivedPackets;

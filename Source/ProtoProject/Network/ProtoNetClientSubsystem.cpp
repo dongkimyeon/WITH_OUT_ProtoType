@@ -2,6 +2,7 @@
 #include "ProtoNetReceiveWorker.h"
 #include "ProtoRemotePlayer.h"
 #include "ProtoConnectPrompt.h"
+#include "../PlayerContent/ProtoCharacter.h"
 
 #include "Sockets.h"
 #include "SocketSubsystem.h"
@@ -10,13 +11,24 @@
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "DrawDebugHelpers.h"
+#include "UObject/ConstructorHelpers.h"
 
 #include "packet.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogProtoNet, Log, All);
 
-UProtoNetClientSubsystem::UProtoNetClientSubsystem() = default;
+UProtoNetClientSubsystem::UProtoNetClientSubsystem()
+{
+	// Same Blueprint the local player is spawned as, so remote players look
+	// like real characters (mesh + animations) instead of a placeholder.
+	static ConstructorHelpers::FClassFinder<AProtoCharacter> CharacterClassFinder(TEXT("/Game/Blueprint/BP_ProtoCharacter"));
+	if (CharacterClassFinder.Succeeded())
+	{
+		RemoteCharacterClass = CharacterClassFinder.Class;
+	}
+}
 UProtoNetClientSubsystem::~UProtoNetClientSubsystem() = default;
 UProtoNetClientSubsystem::UProtoNetClientSubsystem(FVTableHelper& Helper)
 	: Super(Helper)
@@ -33,7 +45,8 @@ void UProtoNetClientSubsystem::ShowConnectPrompt()
 	if (ConnectPromptWidget.IsValid() || IsConnected())
 		return;
 
-	// Pre-fill from -ServerIP= if given, else 127.0.0.1 (this machine).
+	// Pre-fill from -ServerIP= if given, else leave blank (Connect submits
+	// blank/"0" as "skip connecting, play offline" -- see HandleConnectPromptSubmitted).
 	FString DefaultIp = TEXT("");
 	FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
 
@@ -287,6 +300,42 @@ bool UProtoNetClientSubsystem::SendMoveInput(FVector Position, FRotator Look, in
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendWeaponReload(uint8 WeaponType)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Header Header(
+		NextSeq++,
+		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
+		LocalPlayerId);
+
+	auto Req = ProtoType::Net::CreateC2S_ItemUseRequest(
+		Fbb, &Header, 0, WeaponType, ProtoType::Net::ItemUseType::Reload);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_ItemUseRequest, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendWeaponEquip(uint8 WeaponType)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Header Header(
+		NextSeq++,
+		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
+		LocalPlayerId);
+
+	auto Req = ProtoType::Net::CreateC2S_ItemUseRequest(
+		Fbb, &Header, 0, WeaponType, ProtoType::Net::ItemUseType::Equip);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_ItemUseRequest, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketBytes)
 {
 	flatbuffers::Verifier Verifier(PacketBytes.GetData(), PacketBytes.Num());
@@ -350,10 +399,35 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 				{
 					const auto* Pos = State->position();
 					const auto* Look = State->look();
+					const bool bSprinting = (static_cast<uint16>(State->flags()) & static_cast<uint16>(ProtoType::Net::MoveFlags::Sprint)) != 0;
 					UpdateRemotePlayer(
 						State->player_id(),
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
-						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator);
+						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
+						bSprinting);
+				}
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_ItemUseBroadcast:
+			if (const auto* Use = Packet->payload_as_S2C_ItemUseBroadcast())
+			{
+				if (Use->user_id() != LocalPlayerId)
+				{
+					if (AActor** Existing = RemotePlayers.Find(static_cast<int32>(Use->user_id())))
+					{
+						if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(*Existing))
+						{
+							if (Use->use_type() == ProtoType::Net::ItemUseType::Reload)
+							{
+								RemoteCharacter->PlayRemoteReloadMontage(static_cast<EWeaponType>(Use->slot()));
+							}
+							else if (Use->use_type() == ProtoType::Net::ItemUseType::Equip)
+							{
+								RemoteCharacter->ApplyRemoteWeaponEquip(static_cast<EWeaponType>(Use->slot()));
+							}
+						}
+					}
 				}
 			}
 			break;
@@ -363,15 +437,24 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 	}
 }
 
-void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation)
+void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting)
 {
 	const int32 Key = static_cast<int32>(PlayerId);
 
-	if (AProtoRemotePlayer** Existing = RemotePlayers.Find(Key))
+	RemoteTargetLocation.Add(Key, Location);
+	RemoteTargetRotation.Add(Key, Rotation);
+
+	if (AActor** Existing = RemotePlayers.Find(Key))
 	{
 		if (IsValid(*Existing))
 		{
-			(*Existing)->SetActorLocationAndRotation(Location, Rotation);
+			// Don't snap: TickRemotePlayers() walks it to the new target so
+			// CharacterMovementComponent produces real walk/run animation.
+			if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(*Existing))
+			{
+				RemoteCharacter->GetCharacterMovement()->MaxWalkSpeed =
+					bSprinting ? RemoteCharacter->SprintWalkSpeed : RemoteCharacter->BaseWalkSpeed;
+			}
 			return;
 		}
 		RemotePlayers.Remove(Key);
@@ -381,12 +464,69 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 	if (!World)
 		return;
 
-	AProtoRemotePlayer* NewRemote = World->SpawnActor<AProtoRemotePlayer>(Location, Rotation);
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AActor* NewRemote = nullptr;
+	if (RemoteCharacterClass)
+	{
+		// No controller is assigned, so this spawns as a plain (not
+		// locally-controlled) character -- see the IsLocallyControlled()
+		// guards in AProtoCharacter for what that changes. Spawned directly
+		// at Location so the first sighting doesn't walk in from the origin.
+		NewRemote = World->SpawnActor<AProtoCharacter>(RemoteCharacterClass, Location, Rotation, SpawnParams);
+	}
+	if (!NewRemote)
+	{
+		// Fallback placeholder if the character Blueprint couldn't be loaded.
+		NewRemote = World->SpawnActor<AProtoRemotePlayer>(Location, Rotation, SpawnParams);
+	}
+
 	if (NewRemote)
 	{
-		NewRemote->PlayerId = PlayerId;
 		RemotePlayers.Add(Key, NewRemote);
 		UE_LOG(LogProtoNet, Log, TEXT("Spawned remote player %u"), PlayerId);
+	}
+}
+
+void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
+{
+	constexpr float ArrivalToleranceCm = 5.0f;
+
+	for (const auto& Pair : RemotePlayers)
+	{
+		AActor* RemoteActor = Pair.Value;
+		if (!IsValid(RemoteActor))
+			continue;
+
+		const FVector* TargetLocation = RemoteTargetLocation.Find(Pair.Key);
+		if (!TargetLocation)
+			continue;
+		const FRotator* TargetRotation = RemoteTargetRotation.Find(Pair.Key);
+
+		if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(RemoteActor))
+		{
+			// Walk toward the target so CharacterMovementComponent produces
+			// real velocity for the walk/run animation blend.
+			if (TargetRotation)
+				RemoteCharacter->SetActorRotation(*TargetRotation);
+
+			FVector ToTarget = *TargetLocation - RemoteCharacter->GetActorLocation();
+			ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
+
+			if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
+			{
+				RemoteCharacter->AddMovementInput(ToTarget.GetSafeNormal(), 1.0f);
+			}
+		}
+		else
+		{
+			// Fallback placeholder (AProtoRemotePlayer, used only if
+			// BP_ProtoCharacter failed to load): no movement component to
+			// drive, so just snap it to the latest reported transform.
+			RemoteActor->SetActorLocationAndRotation(
+				*TargetLocation, TargetRotation ? *TargetRotation : RemoteActor->GetActorRotation());
+		}
 	}
 }
 
@@ -412,6 +552,8 @@ void UProtoNetClientSubsystem::Tick(float DeltaTime)
 		Disconnect();
 		OnDisconnected.Broadcast(Reason);
 	}
+
+	TickRemotePlayers(DeltaTime);
 }
 
 TStatId UProtoNetClientSubsystem::GetStatId() const
