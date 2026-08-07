@@ -12,7 +12,9 @@ AProtoRemotePlayer::AProtoRemotePlayer()
 	BodyMesh->SetGenerateOverlapEvents(false);
 
 	// A basic engine shape so this works out of the box with no project
-	// content dependency; swap for a real character mesh later.
+	// content dependency. Only used if BP_ProtoCharacter fails to load (see
+	// UProtoNetClientSubsystem::RemoteCharacterClass); the normal case spawns
+	// the real character mesh instead of this placeholder.
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMeshFinder(
 		TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (CylinderMeshFinder.Succeeded())

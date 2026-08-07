@@ -6,13 +6,10 @@
 
 class UStaticMeshComponent;
 
-// Visual placeholder for another connected player, positioned from
-// S2C_SendPlayerInfo / S2C_MoveState by UProtoNetClientSubsystem.
-//
-// Deliberately NOT an AProtoCharacter: that class's BeginPlay assumes a
-// locally-controlled player (adds UI to the viewport, grants starter
-// inventory, binds input, ...), all of which would misfire for a remote
-// player spawned with no controller. This is just a simple mesh stand-in.
+// Fallback visual for a remote player, used only if BP_ProtoCharacter fails
+// to load (see UProtoNetClientSubsystem::RemoteCharacterClass). Deliberately
+// not an AProtoCharacter: that class's BeginPlay assumes a locally-controlled
+// player (viewport UI, starter inventory, input binds), which would misfire here.
 UCLASS()
 class PROTOPROJECT_API AProtoRemotePlayer : public AActor
 {

@@ -7,9 +7,8 @@ class FSocket;
 class UProtoNetClientSubsystem;
 
 // Background thread that blocks on FSocket::Recv() and turns the raw byte
-// stream into complete, verified Protocol packets, matching the framing used
-// by the WOP_SERVER RIO echo server: a 4-byte little-endian size prefix
-// followed by a size-prefixed FlatBuffers Packet buffer ("PTPK").
+// stream into complete, verified Protocol packets (4-byte size prefix +
+// FlatBuffers Packet buffer, "PTPK"), matching the server's framing.
 class FProtoNetReceiveWorker : public FRunnable
 {
 public:

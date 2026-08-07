@@ -208,6 +208,9 @@ void AProtoCharacter::Tick(float DeltaTime)
     }
     UpdateStamina(DeltaTime);
 
+    /*-------------------
+     네트워킹: 위치 브로드캐스트 (NetSyncInterval 간격으로 주기 전송)
+    -------------------*/
     if (IsLocallyControlled())
     {
         NetSyncTimer -= DeltaTime;
@@ -232,6 +235,9 @@ void AProtoCharacter::BeginPlay()
     StopAim();
     StopSprint();
 
+    /*-------------------
+     네트워킹: 서버 접속 프롬프트 표시 (로컬 플레이어만)
+    -------------------*/
     if (IsLocallyControlled())
     {
         if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
@@ -789,6 +795,9 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType)
     CurrentWeaponType = TargetWeaponType;
     bHasWeapon = CurrentWeaponType != EWeaponType::None;
 
+    /*-------------------
+     네트워킹: 무기 장착 브로드캐스트
+    -------------------*/
     if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
@@ -997,6 +1006,9 @@ void AProtoCharacter::ReloadWeapon()
         bIsReloading = false;
     }
 
+    /*-------------------
+     네트워킹: 재장전 브로드캐스트
+    -------------------*/
     if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
@@ -1006,6 +1018,9 @@ void AProtoCharacter::ReloadWeapon()
     }
 }
 
+/*-------------------
+ 네트워킹: 원격 플레이어 시각 동기화
+-------------------*/
 void AProtoCharacter::PlayRemoteReloadMontage(EWeaponType ForWeaponType)
 {
     if (!RifleReloadMontage)

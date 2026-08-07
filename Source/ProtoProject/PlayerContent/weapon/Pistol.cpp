@@ -112,6 +112,9 @@ void APistol::Fire()
         AimTarget = MuzzleStart + FireDirection * TraceRange;
     }
 
+    /*-------------------
+     네트워킹: 발사 브로드캐스트
+    -------------------*/
     if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
