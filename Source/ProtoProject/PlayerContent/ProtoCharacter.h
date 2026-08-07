@@ -162,6 +162,10 @@ private:
 
     UFUNCTION()
     void HandleMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
+
+    UFUNCTION()
+    void HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
     void AttachCurrentWeaponToSocket(FName SocketName);
     AWeaponBase* GetWeaponByType(EWeaponType WeaponType) const;
 

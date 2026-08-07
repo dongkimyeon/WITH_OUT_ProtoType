@@ -262,6 +262,7 @@ void AProtoCharacter::BeginPlay()
         if (UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance())
         {
             AnimInstance->OnPlayMontageNotifyBegin.AddUniqueDynamic(this, &AProtoCharacter::HandleMontageNotifyBegin);
+            AnimInstance->OnMontageEnded.AddUniqueDynamic(this, &AProtoCharacter::HandleMontageEnded);
         }
     }
     if (InventoryComponent)
@@ -954,13 +955,11 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
         else
         {
             ReloadNewAmmoAttach();
-            bIsReloading = false;
         }
     }
     else if (NotifyName == NewAmmoDetachNotifyName)
     {
         ReloadNewAmmoAttach();
-        bIsReloading = false;
     }
     else
     {
@@ -976,6 +975,26 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
             FString::Printf(TEXT("Reload Notify: %s"), *NotifyName.ToString()));
     }
 }
+void AProtoCharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    if (Montage != RifleReloadMontage || !bIsReloading)
+    {
+        return;
+    }
+
+    bIsReloading = false;
+    SwappingAlpha = true;
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(
+            12005,
+            1.0f,
+            bInterrupted ? FColor::Red : FColor::Green,
+            bInterrupted ? TEXT("Reload Montage Interrupted") : TEXT("Reload Montage Ended"));
+    }
+}
+
 void AProtoCharacter::ReloadWeapon()
 {
     if (Swapping > 0.0f || !CurrentWeapon)
@@ -1001,12 +1020,14 @@ void AProtoCharacter::ReloadWeapon()
     }
 
     bIsReloading = true;
+    SwappingAlpha = false;
 
     const FName ReloadSectionName = CurrentWeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
     const float MontageLength = PlayAnimMontage(RifleReloadMontage, 1.0f, ReloadSectionName);
     if (MontageLength <= 0.0f)
     {
         bIsReloading = false;
+        SwappingAlpha = true;
     }
 
     /*-------------------
