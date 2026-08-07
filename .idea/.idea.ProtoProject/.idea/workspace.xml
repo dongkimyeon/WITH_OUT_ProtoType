@@ -20,7 +20,7 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_DropQuantityPopup.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_DropQuantityPopup.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -31,7 +31,7 @@
     <option name="firstShow" value="false" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="12442" />
+    <option name="cachedIndexableFilesCount" value="12443" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -307,7 +307,7 @@
       <workItem from="1785833895696" duration="316000" />
       <workItem from="1785834351838" duration="3546000" />
       <workItem from="1786026930424" duration="8976000" />
-      <workItem from="1786083396975" duration="3977000" />
+      <workItem from="1786083396975" duration="5999000" />
     </task>
     <servers />
   </component>
