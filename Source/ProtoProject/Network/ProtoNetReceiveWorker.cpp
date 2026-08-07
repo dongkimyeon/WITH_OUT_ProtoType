@@ -12,6 +12,9 @@ FProtoNetReceiveWorker::FProtoNetReceiveWorker(FSocket* InSocket, UProtoNetClien
 	Buffer.SetNumUninitialized(BufferCapacity);
 }
 
+/*-------------------
+ FRunnable 생명주기
+-------------------*/
 bool FProtoNetReceiveWorker::Init()
 {
 	return true;
@@ -54,6 +57,9 @@ uint32 FProtoNetReceiveWorker::Run()
 	}
 }
 
+/*-------------------
+ 수신 버퍼 프레이밍
+-------------------*/
 bool FProtoNetReceiveWorker::ProcessBuffer()
 {
 	for (;;)

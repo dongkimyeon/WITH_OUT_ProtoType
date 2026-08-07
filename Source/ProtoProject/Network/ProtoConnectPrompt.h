@@ -8,10 +8,8 @@ class STextBlock;
 
 DECLARE_DELEGATE_OneParam(FProtoOnConnectRequested, const FString& /*ServerIp*/);
 
-// Tiny on-screen prompt: an IP text box + Connect button. Lets a player type
-// the host's address in-game instead of needing a -ServerIP= launch
-// argument. Purely presentational; UProtoNetClientSubsystem owns the actual
-// Connect()/login call and this widget's lifetime.
+// Tiny on-screen prompt: an IP text box + Connect button. Purely
+// presentational; UProtoNetClientSubsystem owns the actual Connect() call.
 class SProtoConnectPrompt : public SCompoundWidget
 {
 public:

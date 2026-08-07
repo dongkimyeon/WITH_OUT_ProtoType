@@ -20,24 +20,23 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProtoOnConnected);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnDisconnected, const FString&, Reason);
 
 // Client-side counterpart to the WOP_SERVER RIO echo server: a plain TCP
-// connection (blocking recv on a background thread) that speaks the same
-// Protocol (FlatBuffers, size-prefixed "PTPK" packets). Runs as a
-// GameInstanceSubsystem so it is reachable from Blueprint without needing to
-// place anything in a level.
+// connection speaking the same Protocol (FlatBuffers, size-prefixed "PTPK").
+// A GameInstanceSubsystem so it's reachable from Blueprint anywhere.
 UCLASS()
 class PROTOPROJECT_API UProtoNetClientSubsystem : public UGameInstanceSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
 
 public:
+	/*-------------------
+	 생성/소멸
+	-------------------*/
 	UProtoNetClientSubsystem();
-	// Declared (and defined in the .cpp, where FProtoNetReceiveWorker's full
-	// definition is visible) so the compiler doesn't try to instantiate
-	// TUniquePtr<FProtoNetReceiveWorker>'s deleter against an incomplete type.
+	// Defined in the .cpp (where FProtoNetReceiveWorker is complete) so
+	// TUniquePtr's deleter isn't instantiated against an incomplete type.
 	virtual ~UProtoNetClientSubsystem() override;
-	// UHT also auto-generates an FVTableHelper constructor in its .gen.cpp,
-	// which only sees this header (not FProtoNetReceiveWorker's full
-	// definition) unless it is declared here and defined in the .cpp too.
+	// UHT's auto-generated FVTableHelper ctor needs this declared+defined
+	// the same way, for the same reason.
 	UProtoNetClientSubsystem(FVTableHelper& Helper);
 
 	//~ UGameInstanceSubsystem
@@ -45,15 +44,16 @@ public:
 	virtual void Deinitialize() override;
 	//~ End UGameInstanceSubsystem
 
+	/*-------------------
+	 접속 관리
+	-------------------*/
 	// Connects to the echo server. Defaults to the server running on this
 	// same machine (127.0.0.1:7777).
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool Connect(const FString& ServerIp = TEXT("127.0.0.1"), int32 ServerPort = 7777);
 
-	// Shows an on-screen "enter server IP" prompt (defaults to -ServerIP=
-	// from the command line, or 127.0.0.1) and connects + logs in once the
-	// player submits it. Called from AProtoCharacter::BeginPlay() for the
-	// locally-controlled player. No-op if already connected or already shown.
+	// Shows an on-screen "enter server IP" prompt and connects + logs in once
+	// submitted. No-op if already connected or already shown.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	void ShowConnectPrompt();
 
@@ -63,6 +63,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool IsConnected() const;
 
+	/*-------------------
+	 패킷 송신
+	-------------------*/
 	// Sends an already-framed (4-byte size-prefixed) Protocol Packet buffer.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendPacketBytes(const TArray<uint8>& PacketBytes);
@@ -76,30 +79,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendAttackFire(FVector Origin, FVector Direction, uint8 WeaponSlot = 0);
 
-	// Called from ADropItem::OnInteract_Implementation() when a weapon or
-	// item is picked up (the protocol has no separate "weapon vs item"
-	// interact type, so both use InteractType::Loot).
+	// Weapon and item pickups both use InteractType::Loot; the protocol has
+	// no separate type to tell them apart.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendInteractLoot(int32 TargetId);
 
-	// Reports the local player's current world position/facing so other
-	// connected clients can see this player move. Called periodically from
-	// AProtoCharacter::Tick() (throttled), not meant to be spammed every frame.
+	// Reports the local player's position/facing so others can see them move.
+	// Called periodically (throttled), not meant to be spammed every frame.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendMoveInput(FVector Position, FRotator Look, int32 Flags = 0);
 
-	// Called from AProtoCharacter::ReloadWeapon() so other clients can mirror
-	// the reload motion. WeaponType is EWeaponType cast to uint8 (reused as
-	// the "slot" field so the receiver knows which reload section to play).
+	// Lets other clients mirror the reload motion. WeaponType (EWeaponType)
+	// is reused as the "slot" field so the receiver knows which section to play.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendWeaponReload(uint8 WeaponType);
 
-	// Called from AProtoCharacter::BeginWeaponSwap() so other clients see
-	// this player holding (or storing, for EWeaponType::None) the right
-	// weapon. WeaponType is EWeaponType cast to uint8.
+	// Lets other clients show the right held weapon (None = storing it).
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendWeaponEquip(uint8 WeaponType);
 
+	/*-------------------
+	 상태 조회 / 델리게이트
+	-------------------*/
 	// This client's own player id, assigned by the server after login via
 	// S2C_LoginSuccess. 0 until then.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
@@ -125,30 +126,37 @@ public:
 private:
 	friend class FProtoNetReceiveWorker;
 
-	// Decodes one complete framed packet and, for the multiplayer-relevant
-	// types (login success / player join / move state), updates local state
-	// or spawns/moves the matching remote player actor.
+	/*-------------------
+	 수신 패킷 처리
+	-------------------*/
+	// Decodes one framed packet and updates local state or the matching
+	// remote player actor, depending on payload type.
 	void HandleIncomingPacket(const TArray<uint8>& PacketBytes);
 
-	// Spawns the remote player on first sight and/or records where it should
-	// be heading; TickRemotePlayers() is what actually walks it there every
-	// frame so CharacterMovementComponent produces real velocity for the
-	// walk/run animation blend (a straight SetActorLocation teleport would
-	// leave the character in its idle pose).
+	/*-------------------
+	 원격 플레이어 관리
+	-------------------*/
+	// Spawns the remote player on first sight and records its target
+	// transform; TickRemotePlayers() walks it there every frame so
+	// CharacterMovementComponent produces real walk/run animation.
 	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting = false);
 	void TickRemotePlayers(float DeltaTime);
 
-	// The same Blueprint the local player uses (BP_ProtoCharacter), loaded in
-	// the constructor, so remote players look like real characters instead of
-	// the AProtoRemotePlayer placeholder. Falls back to the placeholder if
-	// this can't be loaded (e.g. the asset was moved/renamed).
+	// Same Blueprint the local player uses, so remote players look real.
+	// Falls back to the AProtoRemotePlayer placeholder if it fails to load.
 	TSubclassOf<AProtoCharacter> RemoteCharacterClass;
 
+	/*-------------------
+	 접속 프롬프트
+	-------------------*/
 	void HandleConnectPromptSubmitted(const FString& ServerIp);
 	void HideConnectPrompt();
 
 	TSharedPtr<SProtoConnectPrompt> ConnectPromptWidget;
 
+	/*-------------------
+	 멤버 변수
+	-------------------*/
 	FSocket* Socket = nullptr;
 	TUniquePtr<FProtoNetReceiveWorker> Worker;
 	FRunnableThread* WorkerThread = nullptr;

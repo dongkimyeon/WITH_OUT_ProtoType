@@ -65,6 +65,9 @@ void ADropItem::OnInteract_Implementation(AProtoCharacter* InPlayer)
 {
 	if (!InPlayer || !ItemData) return;
 
+	/*-------------------
+	 네트워킹: 아이템 습득 브로드캐스트
+	-------------------*/
 	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
 	{
 		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())

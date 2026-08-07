@@ -19,6 +19,9 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogProtoNet, Log, All);
 
+/*-------------------
+ 생성/소멸
+-------------------*/
 UProtoNetClientSubsystem::UProtoNetClientSubsystem()
 {
 	// Same Blueprint the local player is spawned as, so remote players look
@@ -35,11 +38,17 @@ UProtoNetClientSubsystem::UProtoNetClientSubsystem(FVTableHelper& Helper)
 {
 }
 
+/*-------------------
+ UGameInstanceSubsystem 오버라이드
+-------------------*/
 void UProtoNetClientSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 }
 
+/*-------------------
+ 접속 프롬프트 UI
+-------------------*/
 void UProtoNetClientSubsystem::ShowConnectPrompt()
 {
 	if (ConnectPromptWidget.IsValid() || IsConnected())
@@ -117,6 +126,9 @@ void UProtoNetClientSubsystem::HideConnectPrompt()
 	}
 }
 
+/*-------------------
+ 접속 관리
+-------------------*/
 bool UProtoNetClientSubsystem::Connect(const FString& ServerIp, int32 ServerPort)
 {
 	if (Socket != nullptr)
@@ -196,6 +208,9 @@ bool UProtoNetClientSubsystem::IsConnected() const
 	return Socket != nullptr && Socket->GetConnectionState() == SCS_Connected;
 }
 
+/*-------------------
+ 패킷 송신 헬퍼
+-------------------*/
 bool UProtoNetClientSubsystem::SendPacketBytes(const TArray<uint8>& PacketBytes)
 {
 	if (!Socket || PacketBytes.Num() == 0)
@@ -336,6 +351,9 @@ bool UProtoNetClientSubsystem::SendWeaponEquip(uint8 WeaponType)
 	return SendPacketBytes(Bytes);
 }
 
+/*-------------------
+ 수신 패킷 처리
+-------------------*/
 void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketBytes)
 {
 	flatbuffers::Verifier Verifier(PacketBytes.GetData(), PacketBytes.Num());
@@ -383,8 +401,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						const FVector End = Start + Dir.GetSafeNormal() * 10000.0f;
 						if (UWorld* World = GetWorld())
 						{
-							// Simple placeholder tracer; swap for a real muzzle
-							// flash/impact FX once remote players have a real mesh.
+							// Placeholder tracer; swap for a real muzzle flash/impact FX later.
 							DrawDebugLine(World, Start, End, FColor::Yellow, false, 1.0f, 0, 1.5f);
 						}
 					}
@@ -437,6 +454,9 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 	}
 }
 
+/*-------------------
+ 원격 플레이어 관리
+-------------------*/
 void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting)
 {
 	const int32 Key = static_cast<int32>(PlayerId);
@@ -470,10 +490,8 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 	AActor* NewRemote = nullptr;
 	if (RemoteCharacterClass)
 	{
-		// No controller is assigned, so this spawns as a plain (not
-		// locally-controlled) character -- see the IsLocallyControlled()
-		// guards in AProtoCharacter for what that changes. Spawned directly
-		// at Location so the first sighting doesn't walk in from the origin.
+		// No controller assigned, so IsLocallyControlled() guards in
+		// AProtoCharacter treat this as a remote spawn.
 		NewRemote = World->SpawnActor<AProtoCharacter>(RemoteCharacterClass, Location, Rotation, SpawnParams);
 	}
 	if (!NewRemote)
@@ -521,9 +539,7 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 		}
 		else
 		{
-			// Fallback placeholder (AProtoRemotePlayer, used only if
-			// BP_ProtoCharacter failed to load): no movement component to
-			// drive, so just snap it to the latest reported transform.
+			// Fallback placeholder: no movement component, so just snap it.
 			RemoteActor->SetActorLocationAndRotation(
 				*TargetLocation, TargetRotation ? *TargetRotation : RemoteActor->GetActorRotation());
 		}
@@ -536,6 +552,9 @@ void UProtoNetClientSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+/*-------------------
+ FTickableGameObject 오버라이드
+-------------------*/
 void UProtoNetClientSubsystem::Tick(float DeltaTime)
 {
 	TArray<uint8> Packet;
