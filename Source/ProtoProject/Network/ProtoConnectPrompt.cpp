@@ -7,6 +7,9 @@
 #include "Widgets/SBoxPanel.h"
 #include "Styling/CoreStyle.h"
 
+/*-------------------
+ 위젯 구성
+-------------------*/
 void SProtoConnectPrompt::Construct(const FArguments& InArgs)
 {
 	OnConnectRequested = InArgs._OnConnectRequested;
@@ -53,6 +56,9 @@ void SProtoConnectPrompt::Construct(const FArguments& InArgs)
 	];
 }
 
+/*-------------------
+ 이벤트 핸들러
+-------------------*/
 FReply SProtoConnectPrompt::HandleConnectClicked()
 {
 	if (IpTextBox.IsValid() && OnConnectRequested.IsBound())
