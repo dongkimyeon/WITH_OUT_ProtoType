@@ -45,7 +45,8 @@ void UProtoNetClientSubsystem::ShowConnectPrompt()
 	if (ConnectPromptWidget.IsValid() || IsConnected())
 		return;
 
-	// Pre-fill from -ServerIP= if given, else 127.0.0.1 (this machine).
+	// Pre-fill from -ServerIP= if given, else leave blank (Connect submits
+	// blank/"0" as "skip connecting, play offline" -- see HandleConnectPromptSubmitted).
 	FString DefaultIp = TEXT("");
 	FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
 
@@ -435,25 +436,37 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 
 	for (const auto& Pair : RemotePlayers)
 	{
-		AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(Pair.Value);
-		if (!IsValid(RemoteCharacter))
-			continue; // fallback placeholder actor doesn't animate/move
-
-		if (const FRotator* TargetRotation = RemoteTargetRotation.Find(Pair.Key))
-		{
-			RemoteCharacter->SetActorRotation(*TargetRotation);
-		}
+		AActor* RemoteActor = Pair.Value;
+		if (!IsValid(RemoteActor))
+			continue;
 
 		const FVector* TargetLocation = RemoteTargetLocation.Find(Pair.Key);
 		if (!TargetLocation)
 			continue;
+		const FRotator* TargetRotation = RemoteTargetRotation.Find(Pair.Key);
 
-		FVector ToTarget = *TargetLocation - RemoteCharacter->GetActorLocation();
-		ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
-
-		if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
+		if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(RemoteActor))
 		{
-			RemoteCharacter->AddMovementInput(ToTarget.GetSafeNormal(), 1.0f);
+			// Walk toward the target so CharacterMovementComponent produces
+			// real velocity for the walk/run animation blend.
+			if (TargetRotation)
+				RemoteCharacter->SetActorRotation(*TargetRotation);
+
+			FVector ToTarget = *TargetLocation - RemoteCharacter->GetActorLocation();
+			ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
+
+			if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
+			{
+				RemoteCharacter->AddMovementInput(ToTarget.GetSafeNormal(), 1.0f);
+			}
+		}
+		else
+		{
+			// Fallback placeholder (AProtoRemotePlayer, used only if
+			// BP_ProtoCharacter failed to load): no movement component to
+			// drive, so just snap it to the latest reported transform.
+			RemoteActor->SetActorLocationAndRotation(
+				*TargetLocation, TargetRotation ? *TargetRotation : RemoteActor->GetActorRotation());
 		}
 	}
 }
