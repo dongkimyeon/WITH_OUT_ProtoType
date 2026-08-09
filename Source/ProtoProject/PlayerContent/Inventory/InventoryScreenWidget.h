@@ -53,17 +53,17 @@ public:
 	UInventoryGridComponent* GetCachedInventoryComponent() const { return CachedInventoryComponent; }
 	UEquipmentComponent* GetCachedEquipmentComponent() const { return CachedEquipmentComponent; }
 
-	// 마우스를 따라다니는 액션 툴팁 표시/숨김 (장착 슬롯 호버 등 그리드 외부에서도 호출됨)
+	// 액션 툴팁 표시/숨김
 	void ShowActionTooltip(const FText& Text);
 	void HideActionTooltip();
 
-	// 수량 선택 팝업(DropQuantityPopupWidget)에서 확인을 눌렀을 때 호출됨 - Count만큼만 떼어내 월드에 버린다.
+	// 수량 지정 버리기 실행
 	void PerformPartialDrop(UInventoryGridComponent* SourceInventory, const FGuid& InstanceId, int32 Count);
 
 protected:
 	virtual void NativeConstruct() override;
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
-	// 그리드/장착 슬롯 어느 쪽도 처리하지 못한 드롭 - 화면 바깥 여백에 놓인 것으로 간주해 월드에 버린다.
+	// 화면 바깥 드롭 = 월드에 버리기
 	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")

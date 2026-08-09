@@ -44,7 +44,7 @@ bool UEquipmentSlotWidget::NativeOnDragOver(const FGeometry& InGeometry, const F
 		bool bValid;
 		if (DragOp->SourceEquipmentComponent == EquipmentComponentRef)
 		{
-			// 다른 장착 슬롯에서 시작된 드래그 - 자기 자신 위는 무효, 그 외엔 타입 매칭만 검사 (스왑)
+			// 슬롯 간 스왑 유효성 검사
 			bValid = (DragOp->SourceEquipmentSlot != Slot) && EquipmentComponentRef->CanEquipToSlot(DragOp->DraggedItemData, Slot);
 		}
 		else

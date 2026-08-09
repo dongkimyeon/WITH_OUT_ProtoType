@@ -72,7 +72,7 @@ bool UEquipmentComponent::EquipFromInventory(UInventoryGridComponent* SourceInve
     {
         if (!SourceInventory->AddItem(PrevEquipped.ItemData))
         {
-            // 기존 장착 아이템을 되돌릴 공간이 없으면 장착 실패 - 새 아이템을 원래 위치/수량으로 롤백
+            // 롤백
             SourceInventory->AddItemAt(NewItemData, SourceInstance.GridPosition, SourceInstance.bIsRotated, SourceInstance.StackCount);
             return false;
         }

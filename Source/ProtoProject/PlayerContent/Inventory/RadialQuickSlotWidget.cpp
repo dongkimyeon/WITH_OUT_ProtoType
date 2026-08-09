@@ -35,7 +35,7 @@ void URadialQuickSlotWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
 
-	// 실제 플레이 중엔 OpenRadial()이 매번 다시 채우므로, 여기서는 에디터 디자이너 미리보기만 처리한다.
+	// 디자이너 미리보기 전용
 	if (!IsDesignTime() || !RadialCanvas) return;
 
 	RadialCanvas->ClearChildren();
@@ -52,7 +52,7 @@ void URadialQuickSlotWidget::NativePreConstruct()
 
 void URadialQuickSlotWidget::BuildEntry(int32 SlotIndex, int32 IndexInCircle, int32 TotalCount, const FQuickSlotEntry& SlotEntry)
 {
-	// 12시 방향부터 시계방향으로 균등 배치
+	// 12시 방향 기준 균등 배치
 	const float Angle = ((2.f * PI * IndexInCircle) / TotalCount) - (PI * 0.5f);
 
 	FRadialEntryInfo Info;
@@ -70,7 +70,7 @@ void URadialQuickSlotWidget::BuildEntry(int32 SlotIndex, int32 IndexInCircle, in
 	FInventoryIconUtils::UpdateStackCountText(StackCountText, SlotEntry.ItemData && SlotEntry.ItemData->bIsStackable, SlotEntry.StackCount);
 	EntryStackCountTexts.Add(StackCountText);
 
-	// UBorder는 자식을 하나만 가질 수 있으므로 Overlay로 아이콘 위에 수량 텍스트를 얹는다.
+	// 아이콘 + 수량 텍스트 오버레이
 	UOverlay* EntryOverlay = NewObject<UOverlay>(this);
 	if (UOverlaySlot* IconSlot = EntryOverlay->AddChildToOverlay(Icon))
 	{
@@ -101,7 +101,7 @@ int32 URadialQuickSlotWidget::GetHighlightedSlotIndex() const
 	if (!Entries.IsValidIndex(HighlightedEntryIndex) || !QuickSlotComponentRef) return INDEX_NONE;
 
 	const int32 SlotIndex = Entries[HighlightedEntryIndex].SlotIndex;
-	// 빈 슬롯을 가리키고 있으면 선택 안 한 것으로 취급 (등록되지 않은 칸은 사용/선택 불가)
+	// 빈 슬롯이면 선택 무시
 	return QuickSlotComponentRef->GetQuickSlotEntry(SlotIndex).ItemData ? SlotIndex : INDEX_NONE;
 }
 

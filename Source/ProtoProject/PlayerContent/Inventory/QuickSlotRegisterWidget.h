@@ -11,8 +11,7 @@
 class UBorder;
 class UInventoryScreenWidget;
 
-// 인벤토리 화면의 8칸 퀵슬롯 등록 UI 한칸
-// 장착 슬롯과 마찬가지로 그리드에서 물리적으로 제거되어 이 슬롯이 소유권을 갖는다.
+// 퀵슬롯 등록 칸 하나
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UQuickSlotRegisterWidget : public UUserWidget
 {

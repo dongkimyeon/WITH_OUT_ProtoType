@@ -81,7 +81,7 @@ void UContainerScreenWidget::RefreshSingleItem(UInventoryGridComponent* Componen
 
 	if (!TryLightRefresh(Component, ItemIndex, ExpectedInstanceId, *TargetItemWidgets))
 	{
-		// 같은 그리드 안에서의 병합 등으로 다른 아이템이 제거되어 인덱스가 밀린 경우 - 안전하게 전체를 다시 만든다.
+		// 인덱스 밀림 시 전체 재생성
 		RefreshGrid(Component);
 	}
 }

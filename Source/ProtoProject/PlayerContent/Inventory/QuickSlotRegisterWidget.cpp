@@ -46,7 +46,7 @@ bool UQuickSlotRegisterWidget::NativeOnDragOver(const FGeometry& InGeometry, con
 		bool bValid;
 		if (DragOp->SourceQuickSlotComponent == QuickSlotComponentRef)
 		{
-			// 다른 퀵슬롯 칸에서 시작된 드래그 - 자기 자신 위는 무효, 그 외엔 항상 스왑 가능
+			// 자기 자신 위는 무효, 그 외엔 스왑 가능
 			bValid = DragOp->SourceQuickSlotIndex != SlotIndex;
 		}
 		else
@@ -79,7 +79,7 @@ bool UQuickSlotRegisterWidget::NativeOnDrop(const FGeometry& InGeometry, const F
 
 	if (DragOp->SourceQuickSlotComponent == QuickSlotComponentRef && DragOp->SourceQuickSlotIndex != SlotIndex)
 	{
-		// 성공/실패와 무관하게 항상 갱신해야, 드래그 시작 시 숨겨졌던 원본 퀵슬롯 아이콘이 복원된다.
+		// 퀵슬롯 칸 스왑
 		QuickSlotComponentRef->SwapOrMoveSlots(DragOp->SourceQuickSlotIndex, SlotIndex);
 		if (ParentScreen) ParentScreen->RefreshQuickSlots();
 		else RefreshVisual();
@@ -88,7 +88,7 @@ bool UQuickSlotRegisterWidget::NativeOnDrop(const FGeometry& InGeometry, const F
 
 	if (DragOp->SourceInventoryComponent)
 	{
-		// 성공/실패와 무관하게 항상 갱신해야, 드래그 시작 시 숨겨졌던 원본 그리드 아이콘이 복원된다.
+		// 인벤토리 → 퀵슬롯 등록
 		QuickSlotComponentRef->RegisterFromInventory(SlotIndex, DragOp->SourceInventoryComponent, DragOp->InstanceId);
 		RefreshVisual();
 		if (DragOp->SourceScreenWidget)
@@ -143,7 +143,7 @@ void UQuickSlotRegisterWidget::NativeOnDragDetected(const FGeometry& InGeometry,
 	UImage* DragVisual = NewObject<UImage>(this);
 	FInventoryIconUtils::ApplyIcon(DragVisual, IconBaseMaterial, Entry.ItemData->Icon.LoadSynchronous(), DragVisual);
 
-	// 드래그 중 보이는 아이콘 크기를 실제 슬롯 크기(InGeometry)에 맞춰, 드래그 시작 시 크기가 튀지 않도록 한다.
+	// 드래그 아이콘 크기를 슬롯 크기에 맞춤
 	const FVector2D SlotSize = InGeometry.GetLocalSize();
 
 	USizeBox* DragWrapper = NewObject<USizeBox>(this);

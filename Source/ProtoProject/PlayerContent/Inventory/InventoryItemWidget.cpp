@@ -99,7 +99,7 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 			DragOp->DragVisualMatInst = DragMatInst;
 		}
 
-		// 드래그 프리뷰는 InitItem()을 거치지 않으므로 수량 텍스트를 직접 반영해야 디자인 타임 기본값이 그대로 노출되지 않는다.
+		// 드래그 프리뷰 수량 텍스트 반영
 		FInventoryIconUtils::UpdateStackCountText(DragVisual->StackCountText, Item.ItemData->bIsStackable, Item.StackCount);
 	}
 
@@ -162,8 +162,7 @@ void UInventoryItemWidget::NativeOnDragLeave(const FDragDropEvent& InDragDropEve
 
 bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
 {
-	// 이미 아이템이 있는 칸(=배치 무효/빨간 하이라이트) 위에 드롭하면 이 위젯이 커서를 가로챈다.
-	// 여기서 처리하지 않으면 이벤트가 상위로 전파되어 "그리드 밖 버리기"로 오인되므로 슬롯과 동일하게 처리한다.
+	// 점유 칸 위 드롭 처리 (그리드 밖 버리기로 오인 방지)
 	UItemDragDropOperation* DragOp = Cast<UItemDragDropOperation>(InOperation);
 	if (!DragOp || !ParentScreen || !InventoryComponent || !InventoryComponent->Items.IsValidIndex(ItemIndex))
 	{
@@ -184,7 +183,7 @@ bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 
 	if (DragOp->SourceEquipmentComponent)
 	{
-		// 우클릭 해제(자동 배치)와 달리 드롭한 정확한 위치에 배치한다.
+		// 드래그 위치 지정 배치
 		if (DragOp->SourceEquipmentComponent->UnequipToInventoryAt(InventoryComponent, DragOp->SourceEquipmentSlot, TargetTopLeft, DragOp->bCurrentRotated))
 		{
 			ParentScreen->RefreshGrid(InventoryComponent);
@@ -195,7 +194,7 @@ bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 
 	if (DragOp->SourceQuickSlotComponent)
 	{
-		// 우클릭 해제(자동 배치)와 달리 드롭한 정확한 위치에 배치한다.
+		// 드래그 위치 지정 배치
 		if (DragOp->SourceQuickSlotComponent->UnregisterToInventoryAt(DragOp->SourceQuickSlotIndex, InventoryComponent, HoveredSlot, DragOp->bCurrentRotated))
 		{
 			ParentScreen->RefreshGrid(InventoryComponent);
@@ -204,13 +203,12 @@ bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 		return true;
 	}
 
-	// 겹칠 수 있는 같은 아이템 위에 놓으면 위치 배치 대신 수량을 합친다.
+	// 같은 아이템이면 배치 대신 스택 병합
 	if (DragOp->InstanceId != Item.InstanceId && Item.ItemData && Item.ItemData->bIsStackable && DragOp->DraggedItemData == Item.ItemData)
 	{
 		if (InventoryComponent->MergeStackFrom(DragOp->SourceInventoryComponent, DragOp->InstanceId, Item.InstanceId))
 		{
-			// 합쳐지는 대상(이 위젯) 자체는 제거되지 않지만, 같은 그리드 안에서 병합될 때 원본 아이템이 완전히
-			// 흡수되면 배열에서 제거되어 인덱스가 밀릴 수 있다 - 인스턴스ID로 확인 후 필요하면 전체를 다시 만든다.
+			// 부분 갱신 (인덱스 밀림 시 전체 재생성)
 			ParentScreen->RefreshSingleItem(InventoryComponent, ItemIndex, Item.InstanceId);
 			if (DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != InventoryComponent && DragOp->SourceScreenWidget)
 			{
@@ -218,7 +216,7 @@ bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 			}
 			return true;
 		}
-		// 병합이 불가능하면(꽉 참 등) 기존처럼 위치 기반 배치를 시도한다.
+		// 병합 실패 시 위치 기반 배치로 폴백
 	}
 
 	bool bCrossGrid = DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != InventoryComponent;

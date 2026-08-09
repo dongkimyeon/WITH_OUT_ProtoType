@@ -22,7 +22,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UImage* ItemImage;
 
-	// 겹칠 수 있는(스택 가능) 아이템의 수량을 우측 하단에 표시. 수량이 1개뿐이면 숨긴다.
+	// 스택 수량 표시
 	UPROPERTY(meta = (BindWidgetOptional))
 	UTextBlock* StackCountText;
 

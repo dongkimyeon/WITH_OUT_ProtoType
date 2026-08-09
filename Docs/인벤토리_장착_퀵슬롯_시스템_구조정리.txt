@@ -1,0 +1,509 @@
+====================================================================
+인벤토리 장비 장착 + 퀵슬롯 시스템 - 구조 정리
+====================================================================
+이 문서는 이번에 추가된 "장착 슬롯 / 우클릭 사용·장착 / 인벤토리 밖으로
+버리기 / 8칸 퀵슬롯 + Radial 사용" 기능 전체의 구조와 동작 원리를
+공부용으로 정리한 것이다. 코드 자체는 D:\WITH_OUT_ProtoType\Source\ProtoProject
+아래에 있으며, 이 문서는 "왜 이렇게 짰는지"와 "무엇이 무엇을 부르는지"에
+집중한다.
+
+
+====================================================================
+1. 전체 그림
+====================================================================
+
+기존에 이미 있던 것 (이번에 손대지 않음):
+  - UInventoryGridComponent : 테트리스식 그리드 인벤토리 (좌표, 회전, 드래그앤드롭)
+  - UInventoryScreenWidget  : 그리드 UI, 드래그드롭 이벤트 라우팅
+  - UPlayerStatusComponent  : 체력/허기/갈증/감염/스태미나
+  - ADropItem               : 월드에 떨어진 아이템 (줍기 전용이었음)
+
+이번에 새로 추가한 것 (아래에서 하나씩 설명):
+  - 장착 시스템   : UEquipmentComponent, UEquipmentSlotWidget (헬멧/조끼/무기1/무기2)
+  - 우클릭 시스템 : EItemContextAction (장착/사용을 데이터가 스스로 결정)
+  - 버리기 시스템 : InventoryScreenWidget::NativeOnDrop 폴백, DropQuantityPopupWidget
+  - 퀵슬롯 시스템 : UQuickSlotComponent, UQuickSlotRegisterWidget (8칸),
+                    URadialQuickSlotWidget, UQuickSlotHudWidget
+  - 공통 인프라   : FInventoryItemInstance::InstanceId (Guid), 스택 병합/분할
+
+
+====================================================================
+2. 핵심 데이터 구조
+====================================================================
+
+--------------------------------------------------------------------
+2.1 FInventoryItemInstance  (InventoryGridComponent.h)
+--------------------------------------------------------------------
+  UItemDataBase* ItemData      : 어떤 아이템인지 (에셋 자체를 가리킴)
+  FIntPoint GridPosition       : 그리드 좌상단 좌표
+  bool bIsRotated               : 90도 회전 여부
+  int32 StackCount              : 겹친 개수
+  FGuid InstanceId              : 이 "칸에 놓인 아이템 한 덩어리"의 고유 ID
+
+  ▶ 왜 InstanceId가 필요한가?
+    Items는 TArray라서 RemoveAt이 일어나면 뒤의 원소들이 앞으로 당겨진다.
+    즉 "배열 인덱스"는 언제든 바뀔 수 있는 불안정한 참조다.
+    장착/퀵슬롯처럼 "이 아이템을 좀 오래 기억해뒀다가 나중에 다시 찾아야
+    하는" 기능들은 인덱스 대신 InstanceId로 FindIndexById() / FindInstanceById()
+    / RemoveInstanceById()를 통해 찾는다. 그리드 UI 자체(위젯 배열 등)는
+    여전히 인덱스 기반으로 동작한다 (매번 InitializeGrid로 통째로 다시 그리므로
+    문제없음).
+
+--------------------------------------------------------------------
+2.2 EItemContextAction  (ItemDataBase.h)
+--------------------------------------------------------------------
+  enum class EItemContextAction : uint8 { None, Equip, Use };
+
+  UItemDataBase::GetContextAction() 가상함수가 기본적으로 None을 리턴하고,
+  UEquipmentItemData(장비 전체 부모)가 Equip으로, UConsumableItemData(소비품)가
+  Use로 override한다.
+
+  ▶ 왜 이렇게 만들었나?
+    "우클릭했을 때 장착할지 사용할지"를 UI 코드에서 `if (Category == Equipment)`
+    식으로 하드코딩하면, 나중에 "음식" 같은 새 카테고리가 생길 때마다 UI 코드를
+    계속 고쳐야 한다. 대신 "행동 종류(Equip/Use)"를 아이템 데이터 스스로
+    선언하게 만들면, UI는 그냥 `switch (ItemData->GetContextAction())` 하나만
+    보면 되고, 새 카테고리는 새 서브클래스에서 GetContextAction()만 override
+    하면 자동으로 우클릭 동작이 붙는다. (InventoryScreenWidget::OnItemContextAction
+    참고)
+
+  GetContextActionText()는 같은 원리로 "장착"/"사용" 문자열을 돌려준다
+  (호버 툴팁에 사용).
+
+--------------------------------------------------------------------
+2.3 EEquipmentSlot / FEquippedItem  (EquipmentComponent.h)
+--------------------------------------------------------------------
+  enum class EEquipmentSlot : uint8 { Helmet, Vest, Weapon1, Weapon2 };
+
+  FEquippedItem { UItemDataBase* ItemData; FGuid SourceInstanceId; }
+
+  장착은 "그리드 좌표계"와 완전히 무관한 별도의 상태다. EquippedSlots라는
+  길이 4짜리 배열(TArray<FEquippedItem>)에 그냥 아이템 데이터 포인터만
+  들고 있다 - 그리드 크기(GridWidth/Height)는 아예 검사하지 않으므로
+  원래 몇 칸짜리 아이템이든 장착 슬롯 1칸에 들어간다.
+
+--------------------------------------------------------------------
+2.4 EArmorSlot  (ArmorItemData.h)
+--------------------------------------------------------------------
+  enum class EArmorSlot : uint8 { Helmet, Vest };
+  UArmorItemData에 ArmorSlot 필드로 존재. 헬멧용/조끼용 방어구를 구분하는
+  용도 (둘 다 같은 UArmorItemData 클래스라서 이 필드로만 구분됨).
+
+--------------------------------------------------------------------
+2.5 FQuickSlotEntry  (QuickSlotComponent.h)
+--------------------------------------------------------------------
+  { UItemDataBase* ItemData; int32 StackCount; }
+
+  퀵슬롯도 장착과 마찬가지로 그리드 좌표계와 무관한 별도 저장소
+  (TArray<FQuickSlotEntry> Slots, 길이 8). 등록되는 순간 그리드에서
+  물리적으로 사라지고 이 배열이 소유권을 갖는다.
+
+
+====================================================================
+3. 장착 시스템 (UEquipmentComponent + UEquipmentSlotWidget)
+====================================================================
+
+--------------------------------------------------------------------
+3.1 UEquipmentComponent - 핵심 함수
+--------------------------------------------------------------------
+  CanEquipToSlot(ItemData, Slot)
+    Helmet/Vest → Cast<UArmorItemData>가 성공하고 ArmorSlot이 일치해야 true
+    Weapon1/Weapon2 → ItemData->IsA<UWeaponItemData>()면 true
+    (그리드 크기는 검사하지 않음)
+
+  ResolveTargetSlot(ItemData, OutSlot)
+    우클릭 자동 장착용. 방어구면 ArmorSlot에 따라 Helmet/Vest 자동 결정,
+    무기면 Weapon1이 비어있으면 Weapon1, 차있으면 Weapon2.
+
+  EquipFromInventory(SourceInventory, InstanceId, Slot)
+    1) SourceInventory에서 InstanceId로 아이템을 찾는다
+    2) CanEquipToSlot 통과 못하면 실패
+    3) 그리드에서 아이템 제거 (RemoveInstanceById)
+    4) 그 슬롯에 이미 뭔가 장착돼 있었다면, 그걸 그리드 빈 공간에 되돌려놓기
+       시도 (FindEmptySpace 내부적으로 사용하는 AddItem)
+       → 공간이 없으면 전체 롤백(새 아이템을 원래 자리로 복구)하고 실패
+    5) EquippedSlots[Slot]에 새 아이템 기록
+
+  UnequipToInventory(TargetInventory, Slot)
+    그리드에 AddItem 시도 → 실패하면(공간 없음) 아무 것도 안 바꾸고 실패,
+    성공하면 슬롯 비움.
+
+  SwapOrMoveSlots(SourceSlot, TargetSlot)
+    무기1 ↔ 무기2처럼 장착 슬롯끼리 드래그로 자리 바꾸기.
+    Swap(Source, Target) 한 번으로 끝 (Unreal TArray/구조체 Swap 유틸 사용).
+
+--------------------------------------------------------------------
+3.2 UEquipmentSlotWidget - 화면에 실제로 보이는 4칸
+--------------------------------------------------------------------
+  드래그로 들어올 때 (NativeOnDrop):
+    - 다른 장착 슬롯에서 온 드래그면 SwapOrMoveSlots
+    - 인벤토리 그리드에서 온 드래그면 EquipFromInventory
+    - "그리드 밖 버리기"로 잘못 인식되지 않도록, 그리고 실패해도 원본
+      아이콘이 복구되도록 성공/실패와 무관하게 항상 true를 반환하고
+      "항상 관련 그리드/장착 슬롯을 다시 그린다" (아래 6장 참고)
+
+  드래그로 나갈 때 (NativeOnDragDetected):
+    좌클릭 드래그 시작 시 UItemDragDropOperation을 만들고
+    SourceEquipmentComponent / SourceEquipmentSlot을 채워서 "이 드래그는
+    장착 슬롯에서 시작됐다"는 걸 표시한다. (이후 InventorySlotWidget이나
+    다른 EquipmentSlotWidget이 이 필드를 보고 분기한다)
+
+  우클릭: UnequipToInventory 호출 (즉시 해제, 자동 배치)
+
+
+====================================================================
+4. 우클릭 디스패치 (장착/사용 공통 경로)
+====================================================================
+
+  InventoryItemWidget::NativeOnMouseButtonDown
+    좌클릭 → 드래그 시작
+    우클릭 (Ctrl 안 누름) → ParentScreen->OnItemContextAction(...)
+    Ctrl+우클릭 → ParentScreen->OnItemRequestPartialDrop(...)  (8장 참고)
+
+  InventoryScreenWidget::OnItemContextAction(ItemIndex, Component)
+    ItemData->GetContextAction()로 분기:
+      Equip → EquipmentComponent->ResolveTargetSlot + EquipFromInventory
+      Use   → Cast<UConsumableItemData> 성공하면 AProtoCharacter::UseConsumable
+
+  AProtoCharacter::UseConsumable(ConsumableData)
+    EConsumableTargetStat(Health/Hunger/Thirst/Infection)에 따라
+    StatusComponent의 해당 Setter를 호출 (Instant 적용만 구현, OverTime은
+    후속 작업). 우클릭 사용과 퀵슬롯 사용이 이 함수 하나를 공유한다.
+
+
+====================================================================
+5. 인벤토리 밖으로 드래그 → 버리기 / 부분 수량 버리기
+====================================================================
+
+  InventoryScreenWidget::NativeOnDrop (전체 화면 폴백)
+    그리드 칸도, 장착 슬롯도, 퀵슬롯 칸도 이 드롭을 처리하지 못하고
+    여기까지 이벤트가 올라왔다는 건 = 진짜로 화면의 빈 여백에 드롭했다는 뜻.
+    이때만 DropItemToWorld 호출.
+
+  DropItemToWorld(DragOp)
+    소스 인벤토리에서 InstanceId로 원래 스택 수량을 먼저 조회해두고
+    (FindInstanceById) RemoveInstanceById로 제거한 뒤,
+    SpawnDropItemActor(ItemData, 전체수량)로 스택 전체가 담긴 ADropItem 하나를
+    스폰한다.
+
+  SpawnDropItemActor(ItemData, StackCount)
+    SpawnActorDeferred 사용! 이유: ADropItem::OnConstruction이 ItemData를
+    보고 StaticMesh를 세팅하는데, 일반 SpawnActor는 프로퍼티를 세팅하기
+    전에 OnConstruction이 이미 끝나버린다. SpawnActorDeferred로 액터를
+    만들고 → ItemData/StackCount를 채우고 → FinishSpawning을 호출해야
+    OnConstruction이 올바른 데이터로 실행된다.
+
+  ADropItem::StackCount (신규 필드)
+    "겹칠 수 있는 아이템은 보이는 건 하나지만 안에는 여러 개가 들어있다"를
+    구현한 부분. F키로 주울 때(OnInteract_Implementation) StackCount만큼
+    반복해서 AddItem을 호출한다.
+
+  Ctrl+우클릭 → 부분 수량 버리기 (DropQuantityPopupWidget)
+    InventoryScreenWidget::OnItemRequestPartialDrop
+      스택 가능하고 StackCount > 1인 아이템일 때만 팝업을 띄운다.
+    UDropQuantityPopupWidget
+      슬라이더로 1~보유수량 선택 → 확인 누르면
+      ParentScreen->PerformPartialDrop(Component, InstanceId, 선택수량) 호출
+    PerformPartialDrop
+      InventoryGridComponent::SplitStack(InstanceId, Count, OutSplitCount)로
+      스택에서 Count만 떼어내고 (다 떼면 인스턴스 자체 삭제), 그만큼만
+      SpawnDropItemActor로 스폰.
+
+
+====================================================================
+6. "드래그 취소 시 원본이 사라지는 버그"와 그 해결 패턴
+   (전체 시스템에서 가장 중요한 설계 포인트)
+====================================================================
+
+  드래그를 시작하면 원본 위젯(InventoryItemWidget/EquipmentSlotWidget/
+  QuickSlotRegisterWidget)은 자기 자신을 Hidden으로 숨긴다. 이 숨김은
+  두 가지 경로 중 하나로만 다시 풀린다:
+
+    (a) 드롭을 받은 위젯이 "처리 실패"로 false를 반환 → Slate가 드래그를
+        "취소"로 간주 → NativeOnDragCancelled가 원본 위젯에서 호출됨
+        → RefreshVisual()/SetVisibility(Visible)로 복구
+    (b) 드롭을 받은 위젯이 그리드를 다시 그리게 만듦 (RefreshGrid 등)
+        → 위젯이 통째로 새로 생성되며 자연히 Visible 상태로 복구
+
+  문제는: 그리드 안에서의 드롭 실패(false 반환)를 "그리드 밖으로 버리기"와
+  구분하기 위해, 그리드/장착 슬롯/퀵슬롯 칸의 NativeOnDrop들은 모두
+  "처리는 했다(true)"고 답하도록 만들어야 한다는 것. 근데 그렇게 하면
+  (a) 경로가 막혀서 실패했을 때 원본이 영원히 사라진 것처럼 보이는 새
+  버그가 생긴다.
+
+  ▶ 그래서 이번 코드 전체에서 일관되게 쓰는 규칙:
+    "이 드롭을 내가 처리 대상으로 인정했다면(true를 반환하기로 했다면),
+     성공하든 실패하든 상관없이 반드시 관련된 그리드/슬롯을 명시적으로
+     다시 그려서(Refresh) 시각 상태를 복구시켜라."
+
+  이 패턴이 적용된 곳:
+    - InventorySlotWidget::NativeOnDrop (그리드 칸)
+    - InventoryItemWidget::NativeOnDrop (이미 아이템이 있는 칸 위에 드롭될 때.
+      아이템 위젯이 Layer 1이라 커서를 가로채므로 이 위젯도 NativeOnDrop이
+      반드시 있어야 한다 - 없으면 이벤트가 전파돼서 "버리기"로 오인됨)
+    - UEquipmentSlotWidget::NativeOnDrop
+    - UQuickSlotRegisterWidget::NativeOnDrop
+
+
+====================================================================
+7. 병합(Merge) / 분할(Split) 로직
+====================================================================
+
+  InventoryGridComponent::AddItem(NewItem)
+    스택 가능한 아이템이면, 먼저 인벤토리 안에 같은 ItemData를 가진
+    기존 인스턴스를 찾아서 StackCount < MaxStackCount이면 그냥
+    ++StackCount 하고 끝 (새 칸을 쓰지 않음). 못 찾으면 기존처럼
+    FindEmptySpace로 새 칸에 놓는다.
+    (F키 줍기, 퀵슬롯/장착 해제 시 자동 배치가 전부 이 함수를 통해서
+    이뤄지므로 이 병합 로직 하나로 다 커버됨)
+
+  InventoryGridComponent::MergeStackFrom(SourceInventory, SourceId, TargetId)
+    "그리드 안에서 같은 스택 아이템끼리 드래그해서 포개면 합쳐지는" 기능.
+    같은 그리드/다른 그리드(컨테이너 등) 모두 지원.
+    주의점: SplitStack이 (같은 그리드일 경우) 배열 인덱스를 바꿀 수 있으므로,
+    Target을 가리키는 인덱스는 SplitStack 호출 "이후"에 다시 ID로 조회해야
+    한다 (안 그러면 잘못된 원소를 건드리는 버그가 생김).
+
+  InventoryGridComponent::SplitStack(InstanceId, Count, OutSplitCount)
+    스택에서 Count만큼만 떼어낸다. Count가 남은 수량 이상이면 인스턴스
+    자체를 삭제. 부분 버리기(Ctrl+우클릭)에서 사용.
+
+  AddItemAt(NewItem, Position, bRotate, StackCount=1)
+    원래는 StackCount 파라미터가 없어서 "정확한 위치에 스택 전체를
+    한 번에 놓기"가 불가능했다 (드래그로 퀵슬롯→그리드 이동 시 발견된
+    버그). StackCount 파라미터를 추가해서 해결.
+
+
+====================================================================
+8. 퀵슬롯 시스템
+====================================================================
+
+--------------------------------------------------------------------
+8.1 등록 (인벤토리 화면의 8칸 UI) - UQuickSlotRegisterWidget
+--------------------------------------------------------------------
+  장착 슬롯과 완전히 같은 패턴:
+    - 소비 가능한(GetContextAction()==Use) 아이템만 드래그로 등록 가능
+      (CanRegisterToQuickSlot)
+    - 등록 시 그리드에서 물리적으로 제거 (RegisterFromInventory)
+    - 우클릭 → UnregisterToInventory (자동 배치)
+    - 드래그로 그리드에 꺼내기 → UnregisterToInventoryAt (드롭한 정확한
+      위치/회전 상태로 배치, AddItemAt의 StackCount 파라미터 활용)
+    - 퀵슬롯 칸끼리 드래그 → SwapOrMoveSlots (장착의 것과 별개 함수,
+      대상이 EEquipmentSlot이 아니라 그냥 int32 인덱스라 타입 검증 불필요)
+
+  UItemDragDropOperation에 SourceQuickSlotComponent / SourceQuickSlotIndex
+  필드가 있어서 (SourceEquipmentComponent와 동일한 패턴) 드래그가
+  "퀵슬롯에서 시작됐는지"를 그리드/장착 슬롯/다른 퀵슬롯 칸이 모두 알 수
+  있다.
+
+--------------------------------------------------------------------
+8.2 LastUsedSlotIndex - "다음에 쓸 슬롯"
+--------------------------------------------------------------------
+  QuickSlotComponent::LastUsedSlotIndex는 "4번 키를 짧게 탭하면 바로
+  사용될 슬롯"을 가리킨다.
+
+  EnsureValidLastUsedSlot() (private 헬퍼)
+    LastUsedSlotIndex가 비어있거나(INDEX_NONE) 방금 비워진 슬롯을
+    가리키게 됐을 때만, 점유된 슬롯 중 가장 앞의 것으로 자동 대체한다.
+    이미 유효한 슬롯을 가리키고 있으면 절대 건드리지 않는다 - 그래야
+    플레이어가 Radial에서 일부러 고른 슬롯이 다른 칸을 만졌다고 임의로
+    바뀌는 일이 없다.
+    → RegisterFromInventory, UnregisterToInventory(At), SwapOrMoveSlots,
+      UseQuickSlot 성공 경로 끝에서 모두 호출됨.
+
+  이 필드가 바뀔 때마다 OnQuickSlotChanged 델리게이트를 브로드캐스트해서
+  HUD(UQuickSlotHudWidget)가 항상 최신 상태를 반영하게 한다.
+
+--------------------------------------------------------------------
+8.3 사용 - UseQuickSlot(SlotIndex, Character)
+--------------------------------------------------------------------
+  Cast<UConsumableItemData> 확인 → Character->UseConsumable() 호출 →
+  StackCount 1 감소 → 0 되면 슬롯 비움 → EnsureValidLastUsedSlot() →
+  OnQuickSlotChanged 브로드캐스트.
+
+--------------------------------------------------------------------
+8.4 URadialQuickSlotWidget - 4번 꾹 눌렀을 때 뜨는 원형 UI
+--------------------------------------------------------------------
+  OpenRadial(QuickSlotComponent)
+    점유된(= ItemData가 있는) 슬롯들만 골라서 화면 중앙 기준 12시 방향부터
+    시계방향으로 균등 배치. 각 항목은 코드로 동적 생성한 UBorder(하이라이트용)
+    + UImage(아이콘)이며, Entries(순수 C++ struct, SlotIndex+각도만 저장)와
+    EntryBorders(UPROPERTY 배열, GC 안전용 실제 위젯 포인터)를 같은 인덱스로
+    맞춰서 관리한다.
+
+  NativeTick
+    마우스의 화면 절대좌표를 캔버스 로컬좌표로 변환 → 캔버스 중심 기준
+    방향 벡터 계산 → 데드존(중앙 근처) 밖이면 그 각도와 가장 가까운 항목을
+    하이라이트 (FMath::FindDeltaAngleRadians로 각도 차이 계산, wraparound
+    처리됨).
+
+  GetHighlightedSlotIndex()
+    지금 하이라이트된 항목의 "실제 퀵슬롯 인덱스"를 반환 (Entries 배열
+    인덱스가 아니라 QuickSlotComponent 상의 인덱스).
+
+--------------------------------------------------------------------
+8.5 4번 키 입력 (AProtoCharacter)
+--------------------------------------------------------------------
+  레거시 BindKey 방식 사용 (기존 1/2/3번 무기 전환 키와 동일한 스타일).
+
+  OnQuickSlotKeyPressed()
+    인벤토리가 열려있으면 무시. 0.3초(QuickSlotHoldThreshold) 타이머 시작.
+
+  OpenRadialQuickSlotMenu() (타이머 만료 시 호출)
+    bQuickSlotRadialOpen = true, RadialQuickSlotWidgetInstance 생성/재사용
+    후 OpenRadial 호출, 마우스 커서 노출 + FInputModeGameAndUI.
+
+  OnQuickSlotKeyReleased()
+    타이머 취소.
+    - Radial이 열려 있었다면(꾹 눌렀던 경우): 하이라이트된 슬롯을
+      LastUsedSlotIndex로 지정만 하고 (OnQuickSlotChanged 수동 브로드캐스트)
+      *사용하지는 않는다*. Radial 닫고 커서 숨김.
+      ("꾹 눌러 고르기 = 예약, 실제 소모는 탭에서만" - 이건 최초 설계와
+      다르게 사용자 피드백으로 변경된 부분)
+    - Radial이 안 열렸었다면(짧은 탭): LastUsedSlotIndex가 유효하면
+      QuickSlotComponent->UseQuickSlot() 바로 호출 (실제 소모).
+
+--------------------------------------------------------------------
+8.6 UQuickSlotHudWidget - 상시 HUD 표시
+--------------------------------------------------------------------
+  PlayerDefalutUI에 배치되는 위젯. QuickSlotComponent::OnQuickSlotChanged를
+  구독해서, 어떤 슬롯이 바뀌었든 상관없이 항상 "현재 LastUsedSlotIndex가
+  가리키는 아이템"을 다시 그린다 (HandleQuickSlotChanged는 전달받은
+  SlotIndex 파라미터를 아예 사용하지 않고 그냥 RefreshFromLastUsedSlot()만
+  호출 - 델리게이트는 "뭔가 바뀌었다"는 신호로만 쓰임).
+  ItemImage + StackCountText(스택 2개 이상일 때만 표시) 둘 다 갱신.
+
+
+====================================================================
+9. 데이터 흐름 요약 다이어그램 (텍스트)
+====================================================================
+
+  [인벤토리 그리드]
+     |  드래그(좌클릭) / 우클릭 / Ctrl+우클릭
+     v
+  [InventoryItemWidget / InventorySlotWidget]
+     |  UItemDragDropOperation 생성
+     |  (SourceInventoryComponent + InstanceId 채움)
+     v
+  드롭 대상에 따라 분기:
+     -> 같은/다른 그리드 칸        : OnItemDropped / OnItemDroppedFromExternal
+     -> 같은 종류 아이템 위        : MergeStackFrom (병합)
+     -> 장착 슬롯(EquipmentSlot)   : EquipmentComponent::EquipFromInventory
+     -> 퀵슬롯 칸(QuickSlotRegister): QuickSlotComponent::RegisterFromInventory
+     -> 화면 빈 여백                : InventoryScreenWidget::DropItemToWorld
+
+  [장착 슬롯 / 퀵슬롯 칸]
+     |  드래그(좌클릭 - 아이템 있을 때만) / 우클릭
+     v
+  드롭 대상에 따라 분기:
+     -> 그리드 칸                  : UnequipToInventory(At) / UnregisterToInventory(At)
+     -> 같은 종류의 다른 슬롯      : SwapOrMoveSlots
+     -> 우클릭(즉시)                : Unequip/UnregisterToInventory (자동 배치)
+
+  [게임플레이 중 4번 키]
+     짧게 탭   -> QuickSlotComponent::UseQuickSlot(LastUsedSlotIndex)
+     꾹 누르기 -> RadialQuickSlotWidget 오픈 -> 뗄 때 하이라이트된 슬롯을
+                  LastUsedSlotIndex로만 지정 (소모 없음)
+
+
+====================================================================
+10. 파일 목록 (역할별)
+====================================================================
+
+  Source/ProtoProject/PlayerContent/Item/
+    ItemDataBase.h/.cpp        : EItemContextAction, GetContextActionText
+    EquipmentItemData.h        : GetContextAction() → Equip
+    ArmorItemData.h            : EArmorSlot, ArmorSlot 필드
+    ConsumableItemData.h       : GetContextAction() → Use
+    DropItem.h/.cpp            : StackCount 필드 추가, 줍기 시 수량 반영
+
+  Source/ProtoProject/PlayerContent/Inventory/
+    InventoryGridComponent.h/.cpp   : InstanceId, Find/Remove/Split/Merge, AddItemAt(StackCount)
+    InventoryScreenBase.h           : 가상함수 모음 (OnItemContextAction,
+                                       OnItemRequestPartialDrop, RefreshEquipmentSlots,
+                                       RefreshQuickSlots 등)
+    InventoryScreenWidget.h/.cpp    : 위 가상함수들의 실제 구현, NativeOnDrop 폴백,
+                                       DropItemToWorld/SpawnDropItemActor/PerformPartialDrop
+    InventoryItemWidget.h/.cpp      : 그리드 위 아이템 하나. 드래그 시작/드롭/병합/
+                                       우클릭 분기/수량 텍스트
+    InventorySlotWidget.h/.cpp      : 그리드 빈 칸 하나. 드롭 처리 (장착/퀵슬롯/그리드 분기)
+    ItemDragDropOperation.h         : 드래그 중 공유되는 데이터 (모든 Source*필드 포함)
+    EquipmentComponent.h/.cpp       : 장착 로직 전체
+    EquipmentSlotWidget.h/.cpp      : 장착 슬롯 UI 1칸
+    QuickSlotComponent.h/.cpp       : 퀵슬롯 로직 전체
+    QuickSlotRegisterWidget.h/.cpp  : 퀵슬롯 등록 UI 1칸 (인벤토리 화면, 8개)
+    QuickSlotHudWidget.h/.cpp       : 퀵슬롯 HUD 표시 (상시)
+    RadialQuickSlotWidget.h/.cpp    : 4번 꾹 눌렀을 때 원형 선택 UI
+    ItemActionTooltipWidget.h/.cpp  : 마우스 따라다니는 "장착"/"사용"/"해제" 툴팁
+    DropQuantityPopupWidget.h/.cpp  : Ctrl+우클릭 시 뜨는 수량 선택 팝업
+
+  Source/ProtoProject/PlayerContent/
+    ProtoCharacter.h/.cpp           : EquipmentComponent/QuickSlotComponent 부착,
+                                       UseConsumable, 4번 키 입력 처리
+    PlayerDefalutUI.h/.cpp          : QuickSlotHud 위젯 초기화 호출
+
+
+====================================================================
+11. 이번 작업 중 실제로 겪은 버그와 원인 (학습 포인트)
+====================================================================
+
+  1) 아이콘이 이전 아이템 것으로 남아있던 버그
+     원인: 텍스처 로드 실패 시(Icon 미설정 등) SetBrushFromMaterial을
+     아예 호출하지 않아서 이전 상태(디자인 타임 기본값 또는 직전 아이템)가
+     그대로 남음. → 실패 분기에서도 명시적으로 Hidden 처리하도록 수정.
+
+  2) 잘못된 타입(Vest)이 무기 슬롯에 들어가는 것처럼 보였던 문제
+     원인: 실제로는 코드 검증(CanEquipToSlot)이 정상 동작했고, 에디터를
+     켜둔 채로 외부 Build.bat만 돌려서 "핫리로드"가 안 돼 예전 바이너리로
+     테스트하고 있었던 것. → 에디터를 완전히 껐다 켜서 해결.
+
+  3) 장착/퀵슬롯 드래그 실패 시 원본 아이템이 사라지는 버그
+     원인: 6장에서 설명한 "항상 true 반환 + Refresh 누락" 패턴 위반.
+     드롭을 처리했다고(true) 답했는데 실패 시 아무 것도 다시 그리지
+     않아서, 드래그 시작 때 숨겨둔 원본 위젯이 영원히 숨겨진 채로 남음.
+
+  4) 이미 아이템이 있는 칸(빨간 하이라이트)에 드롭하면 그냥 버려지던 버그
+     원인: 그 칸 위에는 실제로 InventoryItemWidget(레이어 1, 그리드 슬롯보다
+     위)이 마우스를 가로채는데, 이 위젯에는 애초에 NativeOnDrop이 없어서
+     처리되지 않은 이벤트가 상위 InventoryScreenWidget까지 전파되어
+     "그리드 밖 버리기"로 오인됨. → InventoryItemWidget에도 NativeOnDrop 구현.
+
+  5) 붕대가 겹쳐지지 않던 버그
+     원인: AddItem이 항상 새 인스턴스(StackCount=1)만 만들고, 이미 있는
+     같은 아이템 스택에 합치는 로직이 아예 없었음. → 병합 로직 추가.
+
+  6) 그냥 드래그해서 버리면 스택 전체가 아니라 1개만 세계에 남던 버그
+     원인: 버리기 로직이 애초에 ItemData만 넘기고 수량 개념이 없었음
+     (ADropItem에 StackCount 필드가 없었음). → 필드 추가 + 인벤토리에서
+     RemoveInstanceById 전에 원래 수량을 조회해서 그대로 스폰.
+
+  7) 퀵슬롯 등록 해제 시 수량이 항상 1개로 줄어들던 버그
+     원인: UnregisterToInventory가 AddItem을 "한 번만" 호출 - AddItem은
+     원래 1개씩만 처리하는 함수인데 수량을 무시하고 1번만 부름.
+     → 등록된 수량만큼 반복 호출하도록 수정.
+
+  8) 퀵슬롯 → 그리드로 드래그하면 내가 놓은 위치가 아니라 자동으로
+     빈 칸에 배치되던 문제
+     원인: UnregisterToInventory(자동 배치용 AddItem 기반)을 그대로
+     드래그 드롭에도 쓰고 있었음. → 정확한 위치에 배치하는
+     UnregisterToInventoryAt(AddItemAt 기반) 별도 추가.
+
+  9) Rider에서 새로 추가한 .cpp/.h 파일이 안 보이던 문제
+     원인: IDE 프로�젝트 파일(.sln 등)은 마지막으로 생성됐을 때의 파일
+     목록을 그대로 들고 있어서, 파일시스템에 직접 추가한 새 소스는
+     자동으로 반영되지 않음. → UnrealBuildTool -projectfiles로 재생성.
+
+
+====================================================================
+12. 스코프 밖 (의도적으로 안 만든 것 / 후속 작업)
+====================================================================
+
+  - item.fbs의 C2S_ItemUseRequest 서버 동기화 (지금은 전부 로컬 전용)
+  - 장착 슬롯 ↔ 실제 AWeaponBase 캐릭터 부착 시스템 연동
+    (지금 장착은 순수 데이터 상태일 뿐, 캐릭터 메시에 무기가 실제로
+    붙는 것과는 별개)
+  - 소비 아이템의 OverTime(시간에 걸친) 효과 적용
+  - AStorageContainer(상자)에도 "밖으로 드래그해서 버리기" 확장
+  - 그리드 → 퀵슬롯 드롭 시 겹치는 아이템과 자동 병합 (현재는 위치만
+    맞으면 배치, 겹치면 실패)
+====================================================================

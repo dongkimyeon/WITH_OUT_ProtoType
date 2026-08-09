@@ -30,8 +30,7 @@ struct FEquippedItem
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEquipmentChanged, EEquipmentSlot, ChangedSlot);
 
-// 인벤토리 그리드 좌표계와 무관하게, 카테고리/서브타입 매칭만으로 헬멧/조끼/무기1/무기2를 장착하는 컴포넌트.
-// 실제 캐릭터 메시에 무기를 부착하는 기존 AWeaponBase 시스템과는 별개의 상태로 동작한다 (연동은 후속 작업).
+// 장착 슬롯(헬멧/조끼/무기1/무기2) 관리 컴포넌트
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent, PrioritizeCategories = "Equipment"))
 class PROTOPROJECT_API UEquipmentComponent : public UActorComponent
 {
@@ -40,25 +39,27 @@ class PROTOPROJECT_API UEquipmentComponent : public UActorComponent
 public:
     UEquipmentComponent();
 
-    // ItemData가 Slot에 장착 가능한 카테고리/서브타입인지 검사 (그리드 크기는 검사하지 않음)
+    // 슬롯 장착 가능 여부 검사
     UFUNCTION(BlueprintPure, Category = "Equipment")
     bool CanEquipToSlot(UItemDataBase* ItemData, EEquipmentSlot Slot) const;
 
-    // 우클릭 자동 장착 시 사용 - 아이템 타입에 맞는 슬롯을 자동으로 결정
+    // 자동 장착 대상 슬롯 결정
     UFUNCTION(BlueprintPure, Category = "Equipment")
     bool ResolveTargetSlot(UItemDataBase* ItemData, EEquipmentSlot& OutSlot) const;
 
+    // 인벤토리 → 장착
     UFUNCTION(BlueprintCallable, Category = "Equipment")
     bool EquipFromInventory(UInventoryGridComponent* SourceInventory, const FGuid& InstanceId, EEquipmentSlot Slot);
 
+    // 장착 → 인벤토리 해제 (자동 배치)
     UFUNCTION(BlueprintCallable, Category = "Equipment")
     bool UnequipToInventory(UInventoryGridComponent* TargetInventory, EEquipmentSlot Slot);
 
-    // 우클릭 해제(자동 배치)와 달리, 드래그로 놓은 정확한 위치/회전 상태로 배치한다.
+    // 장착 → 인벤토리 해제 (드래그 위치 지정)
     UFUNCTION(BlueprintCallable, Category = "Equipment")
     bool UnequipToInventoryAt(UInventoryGridComponent* TargetInventory, EEquipmentSlot Slot, const FIntPoint& Position, bool bRotated);
 
-    // 슬롯 간 드래그(예: 무기1 <-> 무기2)로 장착된 아이템끼리 자리를 바꾸거나 빈 슬롯으로 옮긴다.
+    // 장착 슬롯 스왑/이동
     UFUNCTION(BlueprintCallable, Category = "Equipment")
     bool SwapOrMoveSlots(EEquipmentSlot SourceSlot, EEquipmentSlot TargetSlot);
 

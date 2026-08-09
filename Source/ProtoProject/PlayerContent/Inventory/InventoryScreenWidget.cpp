@@ -178,8 +178,7 @@ void UInventoryScreenWidget::OnItemContextAction(int32 ItemIndex, UInventoryGrid
 				int32 SplitCount = 0;
 				OwningComponent->SplitStack(ConsumedInstanceId, 1, SplitCount);
 
-				// 스택이 남아있으면(수량만 줄어든 것) 그리드 전체를 다시 만들 필요 없이 이 칸만 갱신한다.
-				// 마지막 1개를 소비해 항목 자체가 사라졌으면(인덱스가 밀렸으면) 전체를 다시 만든다.
+				// 부분 갱신 시도, 항목 소멸 시 전체 재생성
 				if (!TryLightRefresh(OwningComponent, ItemIndex, ConsumedInstanceId, ItemWidgets))
 				{
 					RefreshGrid(OwningComponent);
@@ -204,7 +203,7 @@ void UInventoryScreenWidget::RefreshSingleItem(UInventoryGridComponent* Componen
 
 	if (!TryLightRefresh(Component, ItemIndex, ExpectedInstanceId, ItemWidgets))
 	{
-		// 같은 그리드 안에서의 병합 등으로 다른 아이템이 제거되어 인덱스가 밀린 경우 - 안전하게 전체를 다시 만든다.
+		// 인덱스 밀림 시 전체 재생성
 		RefreshGrid(Component);
 	}
 }
@@ -256,7 +255,7 @@ void UInventoryScreenWidget::SpawnDropItemActor(UItemDataBase* ItemData, int32 S
 	const FVector SpawnLocation = OwningCharacter->GetActorLocation() + OwningCharacter->GetActorForwardVector() * 150.f + FVector(0.f, 0.f, 50.f);
 	const FTransform SpawnTransform(OwningCharacter->GetActorRotation(), SpawnLocation);
 
-	// ItemData/StackCount가 OnConstruction(메시 세팅) 이전에 반영되어야 하므로 지연 스폰을 사용한다.
+	// 지연 스폰 (메시 세팅 전 데이터 반영)
 	if (ADropItem* Spawned = World->SpawnActorDeferred<ADropItem>(DropItemActorClass, SpawnTransform))
 	{
 		Spawned->ItemData = ItemData;

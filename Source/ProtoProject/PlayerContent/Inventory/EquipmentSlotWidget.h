@@ -10,8 +10,7 @@
 class UBorder;
 class UInventoryScreenWidget;
 
-// 인벤토리 화면의 헬멧/조끼/무기1/무기2 장착 칸 하나를 표현하는 위젯.
-// 그리드 좌표계와 무관하게 EquipmentComponent의 슬롯 하나에 대응한다.
+// 장착 칸 하나 (헬멧/조끼/무기1/무기2)
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API UEquipmentSlotWidget : public UUserWidget
 {

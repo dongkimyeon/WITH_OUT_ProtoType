@@ -37,7 +37,7 @@ bool UQuickSlotComponent::RegisterFromInventory(int32 SlotIndex, UInventoryGridC
 
 	FQuickSlotEntry& Entry = Slots[SlotIndex];
 
-	// 이미 같은 스택 가능 아이템이 등록돼 있으면 교체하지 않고 수량만 합친다.
+	// 같은 아이템이면 교체 대신 수량 병합
 	if (Entry.ItemData == NewItemData && NewItemData->bIsStackable)
 	{
 		const int32 Room = NewItemData->MaxStackCount - Entry.StackCount;
@@ -56,8 +56,7 @@ bool UQuickSlotComponent::RegisterFromInventory(int32 SlotIndex, UInventoryGridC
 
 	FQuickSlotEntry PrevEntry = Entry;
 
-	// 기존 등록 아이템을 되돌릴 자리가 있는지 먼저 확인 - 아무것도 건드리지 않은 상태에서 실패할 수 있어야
-	// 자리가 모자랄 때 수량이 조용히 사라지는 일이 없다.
+	// 반환 자리 사전 확인 (수량 소실 방지)
 	if (PrevEntry.ItemData && !SourceInventory->HasRoomFor(PrevEntry.ItemData, PrevEntry.StackCount))
 	{
 		return false;
@@ -67,8 +66,7 @@ bool UQuickSlotComponent::RegisterFromInventory(int32 SlotIndex, UInventoryGridC
 
 	if (PrevEntry.ItemData)
 	{
-		// 위에서 자리를 이미 확인했으므로 전량 반환이 보장된다 (단, PrevEntry.StackCount가 MaxStackCount를
-		// 넘지 않는다는 전제 하에 - HasRoomFor가 새 칸 하나만 확인하기 때문). 그 전제가 깨지면 개발 빌드에서 바로 드러나도록 확인한다.
+		// 기존 아이템 반환
 		const int32 CountToReturn = FMath::Max(1, PrevEntry.StackCount);
 		for (int32 i = 0; i < CountToReturn; ++i)
 		{
@@ -91,7 +89,7 @@ bool UQuickSlotComponent::UnregisterToInventory(int32 SlotIndex, UInventoryGridC
 	FQuickSlotEntry& Entry = Slots[SlotIndex];
 	if (!Entry.ItemData) return false;
 
-	// AddItem은 한 번에 1개씩만 추가하므로(스택은 내부적으로 병합), 등록된 수량만큼 반복 호출해야 수량이 보존된다.
+	// 수량만큼 반복 반환
 	const int32 CountToReturn = FMath::Max(1, Entry.StackCount);
 	UItemDataBase* ItemData = Entry.ItemData;
 	int32 Returned = 0;
@@ -111,7 +109,7 @@ bool UQuickSlotComponent::UnregisterToInventory(int32 SlotIndex, UInventoryGridC
 	}
 	else
 	{
-		// 인벤토리 공간이 모자라 일부만 들어간 경우 - 못 옮긴 나머지는 슬롯에 그대로 유지한다.
+		// 일부만 반환된 경우 나머지 유지
 		Entry.StackCount = CountToReturn - Returned;
 	}
 

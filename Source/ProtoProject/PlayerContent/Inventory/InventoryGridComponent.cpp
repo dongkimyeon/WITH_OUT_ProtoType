@@ -1,37 +1,19 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+﻿#include "InventoryGridComponent.h"
 
-
-#include "InventoryGridComponent.h"
-
-
-// Sets default values for this component's properties
 UInventoryGridComponent::UInventoryGridComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
-
-	// ...
 }
 
-
-// Called when the game starts
 void UInventoryGridComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// ...
-	
 }
 
-
-// Called every frame
 void UInventoryGridComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                             FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// ...
 }
 
 bool UInventoryGridComponent::CanPlaceAt(const FIntPoint& Origin, const FIntPoint& Size, int32 IgnoreIndex) const
@@ -274,7 +256,7 @@ bool UInventoryGridComponent::HasRoomFor(UItemDataBase* ItemData, int32 Count) c
         }
     }
 
-    // 기존 스택으로 다 못 받으면, 남은 수량(최대 MaxStackCount)이 들어갈 새 칸이 최소 하나 있어야 한다.
+    // 빈 칸 확인
     FIntPoint FoundPosition;
     const FIntPoint NormalSize(ItemData->GridWidth, ItemData->GridHeight);
     const FIntPoint RotatedSize(ItemData->GridHeight, ItemData->GridWidth);
@@ -285,7 +267,7 @@ bool UInventoryGridComponent::AddItem(UItemDataBase* NewItem)
 {
     if (!NewItem) return false;
 
-    // 스택 가능한 아이템이면 기존 스택에 먼저 합쳐본다 (빈 공간을 새로 찾기 전에).
+    // 기존 스택에 병합 시도
     if (NewItem->bIsStackable)
     {
         for (FInventoryItemInstance& Existing : Items)

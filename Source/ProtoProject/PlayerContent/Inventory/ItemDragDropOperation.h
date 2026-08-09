@@ -25,18 +25,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drag and Drop", meta = (ExposeOnSpawn="true"))
 	FIntPoint OriginalPosition;
 
-	// 취소 시 복원용 — 드래그 시작 시점의 회전 상태
+	// 원래 회전 상태 (취소 시 복원용)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drag and Drop", meta = (ExposeOnSpawn="true"))
 	bool bOriginalRotated;
 
-	// 드래그 중 현재 회전 상태 (R키로 변경 가능)
+	// 현재 회전 상태
 	UPROPERTY()
 	bool bCurrentRotated;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drag and Drop", meta = (ExposeOnSpawn="true"))
 	int32 ItemIndex = INDEX_NONE;
 
-	// 인덱스가 shift되어도 안정적으로 원본 아이템을 가리키기 위한 고유 ID (장착/퀵슬롯 드롭 대상에서 사용)
+	// 인스턴스ID (인덱스 밀림 대비)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drag and Drop", meta = (ExposeOnSpawn="true"))
 	FGuid InstanceId;
 

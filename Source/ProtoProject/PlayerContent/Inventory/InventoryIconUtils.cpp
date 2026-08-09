@@ -16,7 +16,7 @@ UMaterialInstanceDynamic* FInventoryIconUtils::ApplyIcon(UImage* IconImage, UMat
 		return MatInst;
 	}
 
-	// 텍스처/머티리얼이 없으면 이전에 표시되던 다른 아이템의 이미지가 남아있지 않도록 숨긴다.
+	// 텍스처 없으면 숨김
 	IconImage->SetVisibility(ESlateVisibility::Hidden);
 	return nullptr;
 }

@@ -18,19 +18,19 @@ class PROTOPROJECT_API URadialQuickSlotWidget : public UUserWidget
 public:
 	void OpenRadial(UQuickSlotComponent* InQuickSlotComponent);
 
-	// 현재 하이라이트된 항목이 가리키는 실제 퀵슬롯 인덱스 (없거나 빈 슬롯이면 INDEX_NONE)
+	// 하이라이트된 슬롯 인덱스 조회
 	int32 GetHighlightedSlotIndex() const;
 
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-	// WBP 디자이너에서 배치를 미리 볼 수 있도록, 디자인 타임에는 빈 슬롯 미리보기를 채운다.
+	// 디자이너 미리보기
 	virtual void NativePreConstruct() override;
 
 	UPROPERTY(meta = (BindWidget))
 	UCanvasPanel* RadialCanvas;
 
-	// 디자인 타임 미리보기에 표시할 슬롯 개수 (실제 게임 중에는 QuickSlotComponent->NumSlots를 사용)
+	// 미리보기 슬롯 개수
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	int32 PreviewSlotCount = 8;
 
@@ -63,7 +63,7 @@ private:
 	UPROPERTY()
 	TArray<UBorder*> EntryBorders;
 
-	// 슬롯별 스택 수량 표시 (스택 가능 아이템이 2개 이상일 때만 보임)
+	// 슬롯별 수량 텍스트
 	UPROPERTY()
 	TArray<UTextBlock*> EntryStackCountTexts;
 
@@ -72,7 +72,6 @@ private:
 
 	int32 HighlightedEntryIndex = INDEX_NONE;
 
-	// 원형 배치 한 칸(Border+아이콘+수량 텍스트)을 만들어 RadialCanvas에 추가한다.
-	// OpenRadial(실제 데이터)과 NativePreConstruct(디자인 타임 미리보기)가 공용으로 사용.
+	// 원형 슬롯 한 칸 생성
 	void BuildEntry(int32 SlotIndex, int32 IndexInCircle, int32 TotalCount, const FQuickSlotEntry& SlotEntry);
 };
