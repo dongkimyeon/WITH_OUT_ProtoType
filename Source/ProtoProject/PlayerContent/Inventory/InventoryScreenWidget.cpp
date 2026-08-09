@@ -59,7 +59,7 @@ bool UInventoryScreenWidget::OnItemDropped(int32 ItemIndex, const FIntPoint& Tar
 
 	if (CachedInventoryComponent->PlaceItem(ItemIndex, TargetPosition, bDropRotated))
 	{
-		RefreshItemWidget(ItemIndex);
+		RefreshItemWidgetInMap(ItemIndex, CachedInventoryComponent, ItemWidgets);
 		ActiveDragOp = nullptr;
 		return true;
 	}
@@ -174,10 +174,16 @@ void UInventoryScreenWidget::OnItemContextAction(int32 ItemIndex, UInventoryGrid
 		{
 			if (OwningCharacter->UseConsumable(ConsumableData))
 			{
+				const FGuid ConsumedInstanceId = OwningComponent->Items[ItemIndex].InstanceId;
 				int32 SplitCount = 0;
-				OwningComponent->SplitStack(OwningComponent->Items[ItemIndex].InstanceId, 1, SplitCount);
+				OwningComponent->SplitStack(ConsumedInstanceId, 1, SplitCount);
 
-				RefreshGrid(OwningComponent);
+				// 스택이 남아있으면(수량만 줄어든 것) 그리드 전체를 다시 만들 필요 없이 이 칸만 갱신한다.
+				// 마지막 1개를 소비해 항목 자체가 사라졌으면(인덱스가 밀렸으면) 전체를 다시 만든다.
+				if (!TryLightRefresh(OwningComponent, ItemIndex, ConsumedInstanceId, ItemWidgets))
+				{
+					RefreshGrid(OwningComponent);
+				}
 			}
 		}
 		break;
@@ -187,43 +193,28 @@ void UInventoryScreenWidget::OnItemContextAction(int32 ItemIndex, UInventoryGrid
 	}
 }
 
-void UInventoryScreenWidget::SetActiveDragOperation(UItemDragDropOperation* InDragOp)
-{
-	ActiveDragOp = InDragOp;
-}
-
 void UInventoryScreenWidget::RefreshGrid(UInventoryGridComponent* Component)
 {
 	if (Component) InitializeGrid(Component);
+}
+
+void UInventoryScreenWidget::RefreshSingleItem(UInventoryGridComponent* Component, int32 ItemIndex, const FGuid& ExpectedInstanceId)
+{
+	if (Component != CachedInventoryComponent) return;
+
+	if (!TryLightRefresh(Component, ItemIndex, ExpectedInstanceId, ItemWidgets))
+	{
+		// 같은 그리드 안에서의 병합 등으로 다른 아이템이 제거되어 인덱스가 밀린 경우 - 안전하게 전체를 다시 만든다.
+		RefreshGrid(Component);
+	}
 }
 
 FReply UInventoryScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 {
 	if (InKeyEvent.GetKey() == EKeys::R)
 	{
-		if (ActiveDragOp && ActiveDragOp->DraggedItemData)
+		if (HandleRotateDragKey())
 		{
-			bool bNewRotated = !ActiveDragOp->bCurrentRotated;
-			ActiveDragOp->bCurrentRotated = bNewRotated;
-
-			FIntPoint NewSize = bNewRotated
-				? FIntPoint(ActiveDragOp->DraggedItemData->GridHeight, ActiveDragOp->DraggedItemData->GridWidth)
-				: FIntPoint(ActiveDragOp->DraggedItemData->GridWidth,  ActiveDragOp->DraggedItemData->GridHeight);
-
-			if (ActiveDragOp->DragVisualMatInst)
-			{
-				ActiveDragOp->DragVisualMatInst->SetScalarParameterValue(FName("rotation"), bNewRotated ? -0.25f : 0.f);
-			}
-
-			if (ActiveDragOp->DragVisualWrapper)
-			{
-				ActiveDragOp->DragVisualWrapper->SetWidthOverride(NewSize.X * ActiveDragOp->CellPixelSize.X);
-				ActiveDragOp->DragVisualWrapper->SetHeightOverride(NewSize.Y * ActiveDragOp->CellPixelSize.Y);
-			}
-
-			ActiveDragOp->DragOffset.X = FMath::Clamp(ActiveDragOp->DragOffset.X, 0, NewSize.X - 1);
-			ActiveDragOp->DragOffset.Y = FMath::Clamp(ActiveDragOp->DragOffset.Y, 0, NewSize.Y - 1);
-
 			return FReply::Handled();
 		}
 
@@ -231,7 +222,7 @@ FReply UInventoryScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, cons
 		{
 			if (CachedInventoryComponent && CachedInventoryComponent->RotateItem(HoveredItemIndex))
 			{
-				RefreshItemWidget(HoveredItemIndex);
+				RefreshItemWidgetInMap(HoveredItemIndex, CachedInventoryComponent, ItemWidgets);
 			}
 			return FReply::Handled();
 		}
@@ -318,26 +309,6 @@ void UInventoryScreenWidget::OnItemRequestPartialDrop(int32 ItemIndex, UInventor
 	}
 }
 
-void UInventoryScreenWidget::RefreshItemWidget(int32 ItemIndex)
-{
-	if (!CachedInventoryComponent || !ItemWidgets.IsValidIndex(ItemIndex)) return;
-	UInventoryItemWidget* Widget = ItemWidgets[ItemIndex];
-	if (!Widget) return;
-	UGridSlot* GridSlot = Cast<UGridSlot>(Widget->Slot);
-	if (!GridSlot) return;
-
-	const FInventoryItemInstance& Item = CachedInventoryComponent->Items[ItemIndex];
-	FIntPoint Size = Item.GetEffectiveSize();
-
-	GridSlot->SetColumn(Item.GridPosition.X);
-	GridSlot->SetRow(Item.GridPosition.Y);
-	GridSlot->SetColumnSpan(Size.X);
-	GridSlot->SetRowSpan(Size.Y);
-
-	Widget->SetVisibility(ESlateVisibility::Visible);
-	Widget->RefreshVisual();
-}
-
 void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventoryComponent)
 {
 	if (!InInventoryComponent || !InventoryGridPanel || !SlotWidgetClass)
@@ -347,71 +318,8 @@ void UInventoryScreenWidget::InitializeGrid(UInventoryGridComponent* InInventory
 
 	CachedInventoryComponent = InInventoryComponent;
 	HoveredItemIndex = INDEX_NONE;
-	ItemWidgets.Empty();
-	SlotWidgetMap.Empty();
-	InventoryGridPanel->ClearChildren();
 
-	int32 Rows = InInventoryComponent->GridRows;
-	int32 Columns = InInventoryComponent->GridColumns;
-
-	for (int32 y = 0; y < Rows; ++y)
-	{
-		for (int32 x = 0; x < Columns; ++x)
-		{
-			UInventorySlotWidget* NewSlotWidget = CreateWidget<UInventorySlotWidget>(GetOwningPlayer(), SlotWidgetClass);
-			if (NewSlotWidget)
-			{
-				NewSlotWidget->InitSlot(this, FIntPoint(x, y), InInventoryComponent);
-				SlotWidgetMap.Add(FIntPoint(x, y), NewSlotWidget);
-				FVector2D SizeFromSlot = NewSlotWidget->GetSlotSizeBoxSize();
-
-
-				UGridSlot* GridSlot = InventoryGridPanel->AddChildToGrid(NewSlotWidget);
-				if (GridSlot)
-				{
-					GridSlot->SetRow(y);
-					GridSlot->SetColumn(x);
-					GridSlot->SetPadding(FMargin(1.2f));
-					GridSlot->SetHorizontalAlignment(HAlign_Fill);
-					GridSlot->SetVerticalAlignment(VAlign_Fill);
-					
-				}
-			}
-		}
-	}
-	
-	if (!ItemWidgetClass)
-	{
-		return;
-	}
-
-	for (int32 i = 0; i < InInventoryComponent->Items.Num(); ++i)
-	{
-		const FInventoryItemInstance& Item = InInventoryComponent->Items[i];
-
-		UInventoryItemWidget* NewItemWidget = CreateWidget<UInventoryItemWidget>(GetOwningPlayer(), ItemWidgetClass);
-		if (NewItemWidget)
-		{
-			NewItemWidget->InitItem(this, InInventoryComponent, i);
-			ItemWidgets.Add(NewItemWidget);
-
-			UGridSlot* ItemGridSlot = InventoryGridPanel->AddChildToGrid(NewItemWidget);
-			if (ItemGridSlot)
-			{
-				ItemGridSlot->SetColumn(Item.GridPosition.X);
-				ItemGridSlot->SetRow(Item.GridPosition.Y);
-
-				FIntPoint ItemSize = Item.GetEffectiveSize();
-				ItemGridSlot->SetColumnSpan(ItemSize.X);
-				ItemGridSlot->SetRowSpan(ItemSize.Y);
-
-				ItemGridSlot->SetPadding(FMargin(1.0f));
-				ItemGridSlot->SetLayer(1);
-				ItemGridSlot->SetHorizontalAlignment(HAlign_Fill);
-				ItemGridSlot->SetVerticalAlignment(VAlign_Fill);
-			}
-		}
-	}
+	PopulateGridPanel(InventoryGridPanel, InInventoryComponent, SlotWidgetClass, ItemWidgetClass, SlotWidgetMap, ItemWidgets);
 }
 
 void UInventoryScreenWidget::NativePreConstruct()
@@ -460,23 +368,10 @@ void UInventoryScreenWidget::UpdateDragHighlight(const FIntPoint& TargetTopLeft,
 	FIntPoint Size = bRotated ? FIntPoint(ItemData->GridHeight, ItemData->GridWidth) : FIntPoint(ItemData->GridWidth, ItemData->GridHeight);
 	bool bIsValid = CachedInventoryComponent->CanPlaceAt(TargetTopLeft, Size, IgnoreIndex);
 
-	for (int x = 0; x < Size.X; ++x)
-	{
-		for (int y = 0; y < Size.Y; ++y)
-		{
-			FIntPoint CheckPos(TargetTopLeft.X + x, TargetTopLeft.Y + y);
-			if (UInventorySlotWidget** FoundSlot = SlotWidgetMap.Find(CheckPos))
-			{
-				(*FoundSlot)->SetHighlight(true, bIsValid);
-			}
-		}
-	}
+	ApplyDragHighlightToMap(SlotWidgetMap, TargetTopLeft, Size, bIsValid);
 }
 
 void UInventoryScreenWidget::ClearDragHighlight()
 {
-	for (auto& Pair : SlotWidgetMap)
-	{
-		Pair.Value->SetHighlight(false, false);
-	}
+	ClearHighlightMap(SlotWidgetMap);
 }

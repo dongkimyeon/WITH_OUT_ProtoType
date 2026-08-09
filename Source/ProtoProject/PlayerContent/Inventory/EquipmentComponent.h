@@ -54,6 +54,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Equipment")
     bool UnequipToInventory(UInventoryGridComponent* TargetInventory, EEquipmentSlot Slot);
 
+    // 우클릭 해제(자동 배치)와 달리, 드래그로 놓은 정확한 위치/회전 상태로 배치한다.
+    UFUNCTION(BlueprintCallable, Category = "Equipment")
+    bool UnequipToInventoryAt(UInventoryGridComponent* TargetInventory, EEquipmentSlot Slot, const FIntPoint& Position, bool bRotated);
+
     // 슬롯 간 드래그(예: 무기1 <-> 무기2)로 장착된 아이템끼리 자리를 바꾸거나 빈 슬롯으로 옮긴다.
     UFUNCTION(BlueprintCallable, Category = "Equipment")
     bool SwapOrMoveSlots(EEquipmentSlot SourceSlot, EEquipmentSlot TargetSlot);

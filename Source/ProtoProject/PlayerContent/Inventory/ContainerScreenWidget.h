@@ -23,10 +23,10 @@ public:
 	virtual void ClearDragHighlight() override;
 	virtual bool OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition, bool bDropRotated, UInventoryGridComponent* TargetComponent) override;
 	virtual bool OnItemDroppedFromExternal(UItemDragDropOperation* DragOp, const FIntPoint& TargetPosition, bool bDropRotated, UInventoryGridComponent* TargetComponent) override;
-	virtual void SetActiveDragOperation(UItemDragDropOperation* InDragOp) override;
 	virtual void OnItemHoverBegin(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void OnItemHoverEnd(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void RefreshGrid(UInventoryGridComponent* Component) override;
+	virtual void RefreshSingleItem(UInventoryGridComponent* Component, int32 ItemIndex, const FGuid& ExpectedInstanceId) override;
 
 protected:
 	virtual void NativeConstruct() override;
@@ -55,11 +55,6 @@ protected:
 	TSubclassOf<UInventoryGridComponent> PreviewContainerGridClass;
 
 private:
-	void PopulateGrid(UGridPanel* GridPanel, UInventoryGridComponent* Comp,
-		TMap<FIntPoint, UInventorySlotWidget*>& OutSlotMap, TArray<UInventoryItemWidget*>& OutItemWidgets);
-	void RefreshItemWidgetInGrid(int32 ItemIndex, UInventoryGridComponent* Comp,
-		TArray<UInventoryItemWidget*>& ItemWidgets);
-
 	UPROPERTY() UInventoryGridComponent* PlayerInventoryComponent = nullptr;
 	UPROPERTY() UInventoryGridComponent* ContainerInventoryComponent = nullptr;
 
@@ -71,6 +66,4 @@ private:
 
 	int32 PlayerHoveredIndex = INDEX_NONE;
 	int32 ContainerHoveredIndex = INDEX_NONE;
-
-	UPROPERTY() UItemDragDropOperation* ActiveDragOp = nullptr;
 };

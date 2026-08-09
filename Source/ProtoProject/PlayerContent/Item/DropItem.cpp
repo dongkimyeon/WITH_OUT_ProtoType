@@ -77,11 +77,22 @@ void ADropItem::OnInteract_Implementation(AProtoCharacter* InPlayer)
 	}
 
 	const int32 CountToAdd = FMath::Max(1, StackCount);
-	for (int32 i = 0; i < CountToAdd; ++i)
+	int32 AddedCount = 0;
+	for (; AddedCount < CountToAdd; ++AddedCount)
 	{
-		InPlayer->GetInventoryComponent()->AddItem(ItemData);
+		if (!InPlayer->GetInventoryComponent()->AddItem(ItemData)) break;
 	}
-	Destroy();
+
+	if (AddedCount >= CountToAdd)
+	{
+		Destroy();
+	}
+	else if (AddedCount > 0)
+	{
+		// 인벤토리 공간이 모자라 일부만 주웠으면 남은 수량만큼 드롭 아이템을 그대로 남겨둔다.
+		StackCount = CountToAdd - AddedCount;
+	}
+	// AddedCount == 0이면 인벤토리가 꽉 차서 하나도 못 주운 것 - 그대로 둔다.
 }
 
 FText ADropItem::GetInteractPrompt_Implementation() const

@@ -2,6 +2,7 @@
 #include "InventoryGridComponent.h"
 #include "ItemDragDropOperation.h"
 #include "ItemDataBase.h"
+#include "InventoryIconUtils.h"
 #include "Engine/Texture2D.h"
 #include "Components/SizeBox.h"
 #include "Components/SizeBoxSlot.h"
@@ -16,15 +17,7 @@ void UInventoryItemWidget::InitItem(UInventoryScreenBase* InParentScreen, UInven
 
 	if (UItemDataBase* Data = InComponent->Items[InItemIndex].ItemData)
 	{
-		if (UTexture2D* Texture = Data->Icon.LoadSynchronous())
-		{
-			if (IconBaseMaterial)
-			{
-				IconMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, this);
-				IconMatInst->SetTextureParameterValue(FName("image"), Texture);
-				ItemImage->SetBrushFromMaterial(IconMatInst);
-			}
-		}
+		IconMatInst = FInventoryIconUtils::ApplyIcon(ItemImage, IconBaseMaterial, Data->Icon.LoadSynchronous(), this);
 	}
 	RefreshVisual();
 }
@@ -41,18 +34,7 @@ void UInventoryItemWidget::RefreshVisual()
 		IconMatInst->SetScalarParameterValue(FName("rotation"), Item.bIsRotated ? -0.25f : 0.f);
 	}
 
-	if (StackCountText)
-	{
-		if (Item.ItemData->bIsStackable && Item.StackCount > 1)
-		{
-			StackCountText->SetText(FText::AsNumber(Item.StackCount));
-			StackCountText->SetVisibility(ESlateVisibility::HitTestInvisible);
-		}
-		else
-		{
-			StackCountText->SetVisibility(ESlateVisibility::Collapsed);
-		}
-	}
+	FInventoryIconUtils::UpdateStackCountText(StackCountText, Item.ItemData->bIsStackable, Item.StackCount);
 }
 
 FReply UInventoryItemWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
@@ -111,31 +93,14 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 	UInventoryItemWidget* DragVisual = CreateWidget<UInventoryItemWidget>(GetOwningPlayer(), GetClass());
 	if (DragVisual && DragVisual->ItemImage && Item.ItemData)
 	{
-		if (UTexture2D* Texture = Item.ItemData->Icon.LoadSynchronous())
+		if (UMaterialInstanceDynamic* DragMatInst = FInventoryIconUtils::ApplyIcon(DragVisual->ItemImage, IconBaseMaterial, Item.ItemData->Icon.LoadSynchronous(), DragVisual))
 		{
-			if (IconBaseMaterial)
-			{
-				UMaterialInstanceDynamic* DragMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, DragVisual);
-				DragMatInst->SetTextureParameterValue(FName("image"), Texture);
-				DragMatInst->SetScalarParameterValue(FName("rotation"), Item.bIsRotated ? -0.25f : 0.f);
-				DragVisual->ItemImage->SetBrushFromMaterial(DragMatInst);
-				DragOp->DragVisualMatInst = DragMatInst;
-			}
+			DragMatInst->SetScalarParameterValue(FName("rotation"), Item.bIsRotated ? -0.25f : 0.f);
+			DragOp->DragVisualMatInst = DragMatInst;
 		}
 
 		// 드래그 프리뷰는 InitItem()을 거치지 않으므로 수량 텍스트를 직접 반영해야 디자인 타임 기본값이 그대로 노출되지 않는다.
-		if (DragVisual->StackCountText)
-		{
-			if (Item.ItemData->bIsStackable && Item.StackCount > 1)
-			{
-				DragVisual->StackCountText->SetText(FText::AsNumber(Item.StackCount));
-				DragVisual->StackCountText->SetVisibility(ESlateVisibility::HitTestInvisible);
-			}
-			else
-			{
-				DragVisual->StackCountText->SetVisibility(ESlateVisibility::Collapsed);
-			}
-		}
+		FInventoryIconUtils::UpdateStackCountText(DragVisual->StackCountText, Item.ItemData->bIsStackable, Item.StackCount);
 	}
 
 	USizeBox* DragWrapper = NewObject<USizeBox>(this);
@@ -207,16 +172,6 @@ bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 
 	ParentScreen->ClearDragHighlight();
 
-	if (DragOp->SourceEquipmentComponent)
-	{
-		if (DragOp->SourceEquipmentComponent->UnequipToInventory(InventoryComponent, DragOp->SourceEquipmentSlot))
-		{
-			ParentScreen->RefreshGrid(InventoryComponent);
-		}
-		ParentScreen->RefreshEquipmentSlots();
-		return true;
-	}
-
 	const FInventoryItemInstance& Item = InventoryComponent->Items[ItemIndex];
 	FVector2D CellPixelSize = ParentScreen->GetCellPixelSize();
 	FIntPoint ItemGridSize = Item.GetEffectiveSize();
@@ -225,6 +180,18 @@ bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 	int32 OffsetX = FMath::Clamp(FMath::FloorToInt(LocalPos.X / CellPixelSize.X), 0, ItemGridSize.X - 1);
 	int32 OffsetY = FMath::Clamp(FMath::FloorToInt(LocalPos.Y / CellPixelSize.Y), 0, ItemGridSize.Y - 1);
 	FIntPoint HoveredSlot = Item.GridPosition + FIntPoint(OffsetX, OffsetY);
+	FIntPoint TargetTopLeft = HoveredSlot - DragOp->DragOffset;
+
+	if (DragOp->SourceEquipmentComponent)
+	{
+		// 우클릭 해제(자동 배치)와 달리 드롭한 정확한 위치에 배치한다.
+		if (DragOp->SourceEquipmentComponent->UnequipToInventoryAt(InventoryComponent, DragOp->SourceEquipmentSlot, TargetTopLeft, DragOp->bCurrentRotated))
+		{
+			ParentScreen->RefreshGrid(InventoryComponent);
+		}
+		ParentScreen->RefreshEquipmentSlots();
+		return true;
+	}
 
 	if (DragOp->SourceQuickSlotComponent)
 	{
@@ -242,7 +209,9 @@ bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 	{
 		if (InventoryComponent->MergeStackFrom(DragOp->SourceInventoryComponent, DragOp->InstanceId, Item.InstanceId))
 		{
-			ParentScreen->RefreshGrid(InventoryComponent);
+			// 합쳐지는 대상(이 위젯) 자체는 제거되지 않지만, 같은 그리드 안에서 병합될 때 원본 아이템이 완전히
+			// 흡수되면 배열에서 제거되어 인덱스가 밀릴 수 있다 - 인스턴스ID로 확인 후 필요하면 전체를 다시 만든다.
+			ParentScreen->RefreshSingleItem(InventoryComponent, ItemIndex, Item.InstanceId);
 			if (DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != InventoryComponent && DragOp->SourceScreenWidget)
 			{
 				DragOp->SourceScreenWidget->RefreshGrid(DragOp->SourceInventoryComponent);
@@ -251,8 +220,6 @@ bool UInventoryItemWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 		}
 		// 병합이 불가능하면(꽉 참 등) 기존처럼 위치 기반 배치를 시도한다.
 	}
-
-	FIntPoint TargetTopLeft = HoveredSlot - DragOp->DragOffset;
 
 	bool bCrossGrid = DragOp->SourceInventoryComponent && DragOp->SourceInventoryComponent != InventoryComponent;
 

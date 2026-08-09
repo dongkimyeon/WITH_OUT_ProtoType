@@ -56,26 +56,25 @@ bool UQuickSlotComponent::RegisterFromInventory(int32 SlotIndex, UInventoryGridC
 
 	FQuickSlotEntry PrevEntry = Entry;
 
+	// 기존 등록 아이템을 되돌릴 자리가 있는지 먼저 확인 - 아무것도 건드리지 않은 상태에서 실패할 수 있어야
+	// 자리가 모자랄 때 수량이 조용히 사라지는 일이 없다.
+	if (PrevEntry.ItemData && !SourceInventory->HasRoomFor(PrevEntry.ItemData, PrevEntry.StackCount))
+	{
+		return false;
+	}
+
 	SourceInventory->RemoveInstanceById(InstanceId);
 
 	if (PrevEntry.ItemData)
 	{
-		// AddItem은 한 번에 1개씩만 추가하므로(스택은 내부적으로 병합), 등록된 수량만큼 반복 호출해야 수량이 보존된다.
+		// 위에서 자리를 이미 확인했으므로 전량 반환이 보장된다 (단, PrevEntry.StackCount가 MaxStackCount를
+		// 넘지 않는다는 전제 하에 - HasRoomFor가 새 칸 하나만 확인하기 때문). 그 전제가 깨지면 개발 빌드에서 바로 드러나도록 확인한다.
 		const int32 CountToReturn = FMath::Max(1, PrevEntry.StackCount);
-		int32 Returned = 0;
-		for (; Returned < CountToReturn; ++Returned)
+		for (int32 i = 0; i < CountToReturn; ++i)
 		{
-			if (!SourceInventory->AddItem(PrevEntry.ItemData)) break;
+			const bool bReturned = SourceInventory->AddItem(PrevEntry.ItemData);
+			ensureMsgf(bReturned, TEXT("QuickSlotComponent: HasRoomFor said there was room but AddItem failed - PrevEntry.StackCount may exceed MaxStackCount"));
 		}
-
-		if (Returned <= 0)
-		{
-			// 기존 등록 아이템을 되돌릴 공간이 전혀 없으면 등록 실패 - 새 아이템을 원래 위치/수량으로 롤백
-			SourceInventory->AddItemAt(NewItemData, SourceInstance.GridPosition, SourceInstance.bIsRotated, SourceInstance.StackCount);
-			return false;
-		}
-		// Returned < CountToReturn이면 인벤토리 공간이 일부 모자란 경우 - 나머지는 부득이하게 사라지지만,
-		// 최소 하나는 돌아갔으므로 완전 실패로 처리하지 않고 교체를 진행한다.
 	}
 
 	Slots[SlotIndex].ItemData = NewItemData;

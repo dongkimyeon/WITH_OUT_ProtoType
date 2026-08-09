@@ -72,6 +72,11 @@ public:
 
     bool CanPlaceAt(const FIntPoint& Origin, const FIntPoint& Size, int32 IgnoreIndex = INDEX_NONE) const;
 
+    // Count만큼 실제로 추가하지 않고 자리가 있는지만 확인한다 (기존 호환 스택의 여유분 + 빈 칸 하나).
+    // 스택 아이템 하나가 한 번에 필요로 하는 최대량은 MaxStackCount이므로 새 칸은 하나만 확인하면 충분하다.
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool HasRoomFor(UItemDataBase* ItemData, int32 Count) const;
+
 private:
     static bool DoesOverlap(const FIntPoint& OriginA, const FIntPoint& SizeA, const FInventoryItemInstance& B);
     

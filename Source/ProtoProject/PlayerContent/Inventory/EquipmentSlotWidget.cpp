@@ -2,6 +2,7 @@
 #include "InventoryScreenWidget.h"
 #include "ItemDragDropOperation.h"
 #include "ItemDataBase.h"
+#include "InventoryIconUtils.h"
 #include "Components/Border.h"
 #include "Components/SizeBox.h"
 #include "Components/SizeBoxSlot.h"
@@ -32,19 +33,7 @@ void UEquipmentSlotWidget::RefreshVisual()
 		return;
 	}
 
-	UTexture2D* Texture = Equipped->ItemData->Icon.LoadSynchronous();
-	if (Texture && IconBaseMaterial)
-	{
-		IconMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, this);
-		IconMatInst->SetTextureParameterValue(FName("image"), Texture);
-		ItemImage->SetBrushFromMaterial(IconMatInst);
-		ItemImage->SetVisibility(ESlateVisibility::Visible);
-	}
-	else
-	{
-		// 아이콘 텍스처가 없으면 이전에 표시되던 다른 아이템의 이미지가 남아있지 않도록 숨긴다.
-		ItemImage->SetVisibility(ESlateVisibility::Hidden);
-	}
+	IconMatInst = FInventoryIconUtils::ApplyIcon(ItemImage, IconBaseMaterial, Equipped->ItemData->Icon.LoadSynchronous(), this);
 }
 
 bool UEquipmentSlotWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
@@ -148,15 +137,7 @@ void UEquipmentSlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 	DragOp->SourceScreenWidget = ParentScreen;
 
 	UImage* DragVisual = NewObject<UImage>(this);
-	if (UTexture2D* Texture = Equipped.ItemData->Icon.LoadSynchronous())
-	{
-		if (IconBaseMaterial)
-		{
-			UMaterialInstanceDynamic* DragMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, DragVisual);
-			DragMatInst->SetTextureParameterValue(FName("image"), Texture);
-			DragVisual->SetBrushFromMaterial(DragMatInst);
-		}
-	}
+	FInventoryIconUtils::ApplyIcon(DragVisual, IconBaseMaterial, Equipped.ItemData->Icon.LoadSynchronous(), DragVisual);
 
 	const FVector2D SlotSize = InGeometry.GetLocalSize();
 

@@ -1,6 +1,7 @@
 #include "QuickSlotHudWidget.h"
 #include "QuickSlotComponent.h"
 #include "ItemDataBase.h"
+#include "InventoryIconUtils.h"
 #include "../ProtoCharacter.h"
 #include "Engine/Texture2D.h"
 
@@ -41,29 +42,6 @@ void UQuickSlotHudWidget::RefreshFromLastUsedSlot()
 		return;
 	}
 
-	UTexture2D* Texture = Entry.ItemData->Icon.LoadSynchronous();
-	if (Texture && IconBaseMaterial)
-	{
-		IconMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, this);
-		IconMatInst->SetTextureParameterValue(FName("image"), Texture);
-		ItemImage->SetBrushFromMaterial(IconMatInst);
-		ItemImage->SetVisibility(ESlateVisibility::Visible);
-	}
-	else
-	{
-		ItemImage->SetVisibility(ESlateVisibility::Hidden);
-	}
-
-	if (StackCountText)
-	{
-		if (Entry.ItemData->bIsStackable && Entry.StackCount > 1)
-		{
-			StackCountText->SetText(FText::AsNumber(Entry.StackCount));
-			StackCountText->SetVisibility(ESlateVisibility::HitTestInvisible);
-		}
-		else
-		{
-			StackCountText->SetVisibility(ESlateVisibility::Collapsed);
-		}
-	}
+	IconMatInst = FInventoryIconUtils::ApplyIcon(ItemImage, IconBaseMaterial, Entry.ItemData->Icon.LoadSynchronous(), this);
+	FInventoryIconUtils::UpdateStackCountText(StackCountText, Entry.ItemData->bIsStackable, Entry.StackCount);
 }

@@ -255,6 +255,32 @@ bool UInventoryGridComponent::MergeStackFrom(UInventoryGridComponent* SourceInve
     return true;
 }
 
+bool UInventoryGridComponent::HasRoomFor(UItemDataBase* ItemData, int32 Count) const
+{
+    if (!ItemData) return false;
+    if (Count <= 0) return true;
+
+    int32 Remaining = Count;
+
+    if (ItemData->bIsStackable)
+    {
+        for (const FInventoryItemInstance& Existing : Items)
+        {
+            if (Existing.ItemData == ItemData)
+            {
+                Remaining -= FMath::Max(0, ItemData->MaxStackCount - Existing.StackCount);
+                if (Remaining <= 0) return true;
+            }
+        }
+    }
+
+    // 기존 스택으로 다 못 받으면, 남은 수량(최대 MaxStackCount)이 들어갈 새 칸이 최소 하나 있어야 한다.
+    FIntPoint FoundPosition;
+    const FIntPoint NormalSize(ItemData->GridWidth, ItemData->GridHeight);
+    const FIntPoint RotatedSize(ItemData->GridHeight, ItemData->GridWidth);
+    return FindEmptySpace(NormalSize, FoundPosition) || FindEmptySpace(RotatedSize, FoundPosition);
+}
+
 bool UInventoryGridComponent::AddItem(UItemDataBase* NewItem)
 {
     if (!NewItem) return false;

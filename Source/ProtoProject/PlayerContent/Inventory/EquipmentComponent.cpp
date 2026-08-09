@@ -72,8 +72,8 @@ bool UEquipmentComponent::EquipFromInventory(UInventoryGridComponent* SourceInve
     {
         if (!SourceInventory->AddItem(PrevEquipped.ItemData))
         {
-            // 기존 장착 아이템을 되돌릴 공간이 없으면 장착 실패 - 새 아이템을 원래 위치로 롤백
-            SourceInventory->AddItemAt(NewItemData, SourceInstance.GridPosition, SourceInstance.bIsRotated);
+            // 기존 장착 아이템을 되돌릴 공간이 없으면 장착 실패 - 새 아이템을 원래 위치/수량으로 롤백
+            SourceInventory->AddItemAt(NewItemData, SourceInstance.GridPosition, SourceInstance.bIsRotated, SourceInstance.StackCount);
             return false;
         }
     }
@@ -92,6 +92,20 @@ bool UEquipmentComponent::UnequipToInventory(UInventoryGridComponent* TargetInve
     if (!EquippedSlots[SlotIndex].ItemData) return false;
 
     if (!TargetInventory->AddItem(EquippedSlots[SlotIndex].ItemData)) return false;
+
+    EquippedSlots[SlotIndex] = FEquippedItem();
+    OnEquipmentChanged.Broadcast(Slot);
+    return true;
+}
+
+bool UEquipmentComponent::UnequipToInventoryAt(UInventoryGridComponent* TargetInventory, EEquipmentSlot Slot, const FIntPoint& Position, bool bRotated)
+{
+    if (!TargetInventory) return false;
+
+    const int32 SlotIndex = static_cast<int32>(Slot);
+    if (!EquippedSlots[SlotIndex].ItemData) return false;
+
+    if (!TargetInventory->AddItemAt(EquippedSlots[SlotIndex].ItemData, Position, bRotated)) return false;
 
     EquippedSlots[SlotIndex] = FEquippedItem();
     OnEquipmentChanged.Broadcast(Slot);

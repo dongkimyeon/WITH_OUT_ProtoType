@@ -35,7 +35,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "QuickSlot")
 	int32 NumSlots = 8;
 
-	// ItemData가 퀵슬롯에 등록 가능한지 (소비 가능한 아이템인지) 검사
+	// ItemData가 퀵슬롯에 등록 가능한지 검사
 	UFUNCTION(BlueprintPure, Category = "QuickSlot")
 	bool CanRegisterToQuickSlot(UItemDataBase* ItemData) const;
 

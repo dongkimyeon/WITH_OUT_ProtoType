@@ -8,6 +8,7 @@
 #include "Components/TextBlock.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
+#include "InventoryIconUtils.h"
 #include "Engine/Texture2D.h"
 #include "Framework/Application/SlateApplication.h"
 
@@ -63,51 +64,24 @@ void URadialQuickSlotWidget::BuildEntry(int32 SlotIndex, int32 IndexInCircle, in
 	EntryBorder->SetBrushColor(DefaultEntryColor);
 
 	UImage* Icon = NewObject<UImage>(this);
-	if (SlotEntry.ItemData)
-	{
-		if (UTexture2D* Texture = SlotEntry.ItemData->Icon.LoadSynchronous())
-		{
-			if (IconBaseMaterial)
-			{
-				UMaterialInstanceDynamic* MatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, Icon);
-				MatInst->SetTextureParameterValue(FName("image"), Texture);
-				Icon->SetBrushFromMaterial(MatInst);
-				
-			}
-		}
-	}
-	else
-	{
-		// 빈 슬롯은 UMG 기본 흰색 브러시가 그대로 노출되므로 아이콘을 숨긴다.
-		Icon->SetVisibility(ESlateVisibility::Collapsed);
-	}
+	FInventoryIconUtils::ApplyIcon(Icon, IconBaseMaterial, SlotEntry.ItemData ? SlotEntry.ItemData->Icon.LoadSynchronous() : nullptr, Icon);
 
 	UTextBlock* StackCountText = NewObject<UTextBlock>(this);
-	if (SlotEntry.ItemData && SlotEntry.ItemData->bIsStackable && SlotEntry.StackCount > 1)
-	{
-		StackCountText->SetText(FText::AsNumber(SlotEntry.StackCount));
-		StackCountText->SetVisibility(ESlateVisibility::HitTestInvisible);
-	}
-	else
-	{
-		StackCountText->SetVisibility(ESlateVisibility::Collapsed);
-	}
+	FInventoryIconUtils::UpdateStackCountText(StackCountText, SlotEntry.ItemData && SlotEntry.ItemData->bIsStackable, SlotEntry.StackCount);
 	EntryStackCountTexts.Add(StackCountText);
 
+	// UBorder는 자식을 하나만 가질 수 있으므로 Overlay로 아이콘 위에 수량 텍스트를 얹는다.
 	UOverlay* EntryOverlay = NewObject<UOverlay>(this);
-	EntryOverlay->AddChild(Icon);
-	EntryOverlay->AddChild(StackCountText);	
+	if (UOverlaySlot* IconSlot = EntryOverlay->AddChildToOverlay(Icon))
+	{
+		IconSlot->SetHorizontalAlignment(HAlign_Fill);
+		IconSlot->SetVerticalAlignment(VAlign_Fill);
+	}
 	if (UOverlaySlot* StackSlot = EntryOverlay->AddChildToOverlay(StackCountText))
 	{
 		StackSlot->SetHorizontalAlignment(HAlign_Right);
 		StackSlot->SetVerticalAlignment(VAlign_Bottom);
 	}
-	if (UOverlaySlot* StackSlot = EntryOverlay->AddChildToOverlay(Icon))
-	{
-		StackSlot->SetHorizontalAlignment(HAlign_Fill);
-		StackSlot->SetVerticalAlignment(VAlign_Fill);
-	}
-	
 	EntryBorder->AddChild(EntryOverlay);
 	EntryBorders.Add(EntryBorder);
 

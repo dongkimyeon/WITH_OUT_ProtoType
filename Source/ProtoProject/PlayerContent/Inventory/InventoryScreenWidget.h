@@ -41,13 +41,13 @@ public:
 	virtual void ClearDragHighlight() override;
 	virtual bool OnItemDropped(int32 ItemIndex, const FIntPoint& TargetPosition, bool bDropRotated, UInventoryGridComponent* TargetComponent) override;
 	virtual bool OnItemDroppedFromExternal(UItemDragDropOperation* DragOp, const FIntPoint& TargetPosition, bool bDropRotated, UInventoryGridComponent* TargetComponent) override;
-	virtual void SetActiveDragOperation(UItemDragDropOperation* InDragOp) override;
 	virtual void OnItemHoverBegin(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void OnItemHoverEnd(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void OnItemContextAction(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void OnItemRequestPartialDrop(int32 ItemIndex, UInventoryGridComponent* OwningComponent) override;
 	virtual void RefreshEquipmentSlots() override;
 	virtual void RefreshGrid(UInventoryGridComponent* Component) override;
+	virtual void RefreshSingleItem(UInventoryGridComponent* Component, int32 ItemIndex, const FGuid& ExpectedInstanceId) override;
 	virtual void RefreshQuickSlots() override;
 
 	UInventoryGridComponent* GetCachedInventoryComponent() const { return CachedInventoryComponent; }
@@ -120,7 +120,6 @@ protected:
 	TSubclassOf<UInventoryGridComponent> PreviewGridComponentClass;
 
 private:
-	void RefreshItemWidget(int32 ItemIndex);
 	void DropItemToWorld(UItemDragDropOperation* DragOp);
 	void SpawnDropItemActor(UItemDataBase* ItemData, int32 StackCount);
 
@@ -137,7 +136,4 @@ private:
 	TMap<FIntPoint, UInventorySlotWidget*> SlotWidgetMap;
 
 	int32 HoveredItemIndex = INDEX_NONE;
-
-	UPROPERTY()
-	UItemDragDropOperation* ActiveDragOp = nullptr;
 };

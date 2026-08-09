@@ -2,6 +2,7 @@
 #include "InventoryScreenWidget.h"
 #include "ItemDragDropOperation.h"
 #include "ItemDataBase.h"
+#include "InventoryIconUtils.h"
 #include "Components/Border.h"
 #include "Components/SizeBox.h"
 #include "Components/SizeBoxSlot.h"
@@ -33,31 +34,8 @@ void UQuickSlotRegisterWidget::RefreshVisual()
 		return;
 	}
 
-	UTexture2D* Texture = Entry->ItemData->Icon.LoadSynchronous();
-	if (Texture && IconBaseMaterial)
-	{
-		IconMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, this);
-		IconMatInst->SetTextureParameterValue(FName("image"), Texture);
-		ItemImage->SetBrushFromMaterial(IconMatInst);
-		ItemImage->SetVisibility(ESlateVisibility::Visible);
-	}
-	else
-	{
-		ItemImage->SetVisibility(ESlateVisibility::Hidden);
-	}
-
-	if (StackCountText)
-	{
-		if (Entry->ItemData->bIsStackable && Entry->StackCount > 1)
-		{
-			StackCountText->SetText(FText::AsNumber(Entry->StackCount));
-			StackCountText->SetVisibility(ESlateVisibility::HitTestInvisible);
-		}
-		else
-		{
-			StackCountText->SetVisibility(ESlateVisibility::Collapsed);
-		}
-	}
+	IconMatInst = FInventoryIconUtils::ApplyIcon(ItemImage, IconBaseMaterial, Entry->ItemData->Icon.LoadSynchronous(), this);
+	FInventoryIconUtils::UpdateStackCountText(StackCountText, Entry->ItemData->bIsStackable, Entry->StackCount);
 }
 
 bool UQuickSlotRegisterWidget::NativeOnDragOver(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
@@ -163,15 +141,7 @@ void UQuickSlotRegisterWidget::NativeOnDragDetected(const FGeometry& InGeometry,
 	DragOp->SourceScreenWidget = ParentScreen;
 
 	UImage* DragVisual = NewObject<UImage>(this);
-	if (UTexture2D* Texture = Entry.ItemData->Icon.LoadSynchronous())
-	{
-		if (IconBaseMaterial)
-		{
-			UMaterialInstanceDynamic* DragMatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, DragVisual);
-			DragMatInst->SetTextureParameterValue(FName("image"), Texture);
-			DragVisual->SetBrushFromMaterial(DragMatInst);
-		}
-	}
+	FInventoryIconUtils::ApplyIcon(DragVisual, IconBaseMaterial, Entry.ItemData->Icon.LoadSynchronous(), DragVisual);
 
 	// 드래그 중 보이는 아이콘 크기를 실제 슬롯 크기(InGeometry)에 맞춰, 드래그 시작 시 크기가 튀지 않도록 한다.
 	const FVector2D SlotSize = InGeometry.GetLocalSize();

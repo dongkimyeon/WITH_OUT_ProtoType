@@ -65,7 +65,8 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
 		if (DragOp->SourceEquipmentComponent)
 		{
 			// 성공/실패와 무관하게 항상 갱신해야, 드래그 시작 시 숨겨졌던 원본 장착 슬롯 아이콘이 복원된다.
-			if (DragOp->SourceEquipmentComponent->UnequipToInventory(OwningInventoryComponent, DragOp->SourceEquipmentSlot))
+			// 우클릭 해제(자동 배치)와 달리 드롭한 정확한 위치에 배치한다.
+			if (DragOp->SourceEquipmentComponent->UnequipToInventoryAt(OwningInventoryComponent, DragOp->SourceEquipmentSlot, TargetTopLeft, DragOp->bCurrentRotated))
 			{
 				ParentScreen->RefreshGrid(OwningInventoryComponent);
 			}
