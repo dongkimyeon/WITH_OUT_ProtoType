@@ -6,27 +6,33 @@
 
 class UCanvasPanel;
 class UBorder;
+class UTextBlock;
 class UQuickSlotComponent;
+struct FQuickSlotEntry;
 
-// 4번 키를 꾹 눌렀을 때 뜨는 원형 선택 UI. 등록된(점유된) 퀵슬롯 칸들만 원형으로 배치하고,
-// 마우스를 화면 중앙에서 바깥으로 움직인 방향에 따라 실시간으로 가장 가까운 항목을 하이라이트한다.
 UCLASS(meta = (PrioritizeCategories = "Inventory UI"))
 class PROTOPROJECT_API URadialQuickSlotWidget : public UUserWidget
 {
 	GENERATED_BODY()
 
 public:
-	// 점유된 슬롯들을 원형으로 배치해서 연다.
 	void OpenRadial(UQuickSlotComponent* InQuickSlotComponent);
 
-	// 현재 하이라이트된 항목이 가리키는 실제 퀵슬롯 인덱스 (없으면 INDEX_NONE)
+	// 현재 하이라이트된 항목이 가리키는 실제 퀵슬롯 인덱스 (없거나 빈 슬롯이면 INDEX_NONE)
 	int32 GetHighlightedSlotIndex() const;
 
 protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
+	// WBP 디자이너에서 배치를 미리 볼 수 있도록, 디자인 타임에는 빈 슬롯 미리보기를 채운다.
+	virtual void NativePreConstruct() override;
+
 	UPROPERTY(meta = (BindWidget))
 	UCanvasPanel* RadialCanvas;
+
+	// 디자인 타임 미리보기에 표시할 슬롯 개수 (실제 게임 중에는 QuickSlotComponent->NumSlots를 사용)
+	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
+	int32 PreviewSlotCount = 8;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	UMaterialInterface* IconBaseMaterial = nullptr;
@@ -37,7 +43,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	float EntrySize = 72.f;
 
-	// 마우스가 중앙에서 이 반경 안에 있으면 아무 것도 하이라이트하지 않는다 (오조작 방지).
 	UPROPERTY(EditDefaultsOnly, Category = "Inventory UI")
 	float DeadZoneRadiusPixels = 30.f;
 
@@ -48,7 +53,6 @@ protected:
 	FLinearColor HighlightEntryColor = FLinearColor(1.f, 1.f, 1.f, 0.6f);
 
 private:
-	// 반사(리플렉션) 대상이 아닌 순수 데이터 - 실제 위젯 포인터는 EntryBorders에서 GC 안전하게 관리한다.
 	struct FRadialEntryInfo
 	{
 		int32 SlotIndex = INDEX_NONE;
@@ -59,8 +63,16 @@ private:
 	UPROPERTY()
 	TArray<UBorder*> EntryBorders;
 
+	// 슬롯별 스택 수량 표시 (스택 가능 아이템이 2개 이상일 때만 보임)
+	UPROPERTY()
+	TArray<UTextBlock*> EntryStackCountTexts;
+
 	UPROPERTY()
 	UQuickSlotComponent* QuickSlotComponentRef = nullptr;
 
 	int32 HighlightedEntryIndex = INDEX_NONE;
+
+	// 원형 배치 한 칸(Border+아이콘+수량 텍스트)을 만들어 RadialCanvas에 추가한다.
+	// OpenRadial(실제 데이터)과 NativePreConstruct(디자인 타임 미리보기)가 공용으로 사용.
+	void BuildEntry(int32 SlotIndex, int32 IndexInCircle, int32 TotalCount, const FQuickSlotEntry& SlotEntry);
 };

@@ -5,6 +5,9 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Border.h"
 #include "Components/Image.h"
+#include "Components/TextBlock.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Engine/Texture2D.h"
 #include "Framework/Application/SlateApplication.h"
 
@@ -13,69 +16,119 @@ void URadialQuickSlotWidget::OpenRadial(UQuickSlotComponent* InQuickSlotComponen
 	QuickSlotComponentRef = InQuickSlotComponent;
 	Entries.Empty();
 	EntryBorders.Empty();
+	EntryStackCountTexts.Empty();
 	HighlightedEntryIndex = INDEX_NONE;
 
 	if (!RadialCanvas || !QuickSlotComponentRef) return;
 
 	RadialCanvas->ClearChildren();
 
-	TArray<int32> OccupiedIndices;
-	for (int32 i = 0; i < QuickSlotComponentRef->NumSlots; ++i)
-	{
-		if (QuickSlotComponentRef->GetQuickSlotEntry(i).ItemData)
-		{
-			OccupiedIndices.Add(i);
-		}
-	}
-
-	const int32 Count = OccupiedIndices.Num();
+	const int32 Count = QuickSlotComponentRef->NumSlots;
 	for (int32 k = 0; k < Count; ++k)
 	{
-		const int32 SlotIndex = OccupiedIndices[k];
-		const FQuickSlotEntry& SlotEntry = QuickSlotComponentRef->GetQuickSlotEntry(SlotIndex);
+		BuildEntry(k, k, Count, QuickSlotComponentRef->GetQuickSlotEntry(k));
+	}
+}
 
-		// 12시 방향부터 시계방향으로 균등 배치
-		const float Angle = ((2.f * PI * k) / Count) - (PI * 0.5f);
+void URadialQuickSlotWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
 
-		FRadialEntryInfo Info;
-		Info.SlotIndex = SlotIndex;
-		Info.AngleRad = Angle;
-		Entries.Add(Info);
+	// 실제 플레이 중엔 OpenRadial()이 매번 다시 채우므로, 여기서는 에디터 디자이너 미리보기만 처리한다.
+	if (!IsDesignTime() || !RadialCanvas) return;
 
-		UBorder* EntryBorder = NewObject<UBorder>(this);
-		EntryBorder->SetBrushColor(DefaultEntryColor);
+	RadialCanvas->ClearChildren();
+	Entries.Empty();
+	EntryBorders.Empty();
+	EntryStackCountTexts.Empty();
 
-		UImage* Icon = NewObject<UImage>(this);
-		if (SlotEntry.ItemData)
+	const FQuickSlotEntry EmptyPreviewEntry;
+	for (int32 k = 0; k < PreviewSlotCount; ++k)
+	{
+		BuildEntry(k, k, PreviewSlotCount, EmptyPreviewEntry);
+	}
+}
+
+void URadialQuickSlotWidget::BuildEntry(int32 SlotIndex, int32 IndexInCircle, int32 TotalCount, const FQuickSlotEntry& SlotEntry)
+{
+	// 12시 방향부터 시계방향으로 균등 배치
+	const float Angle = ((2.f * PI * IndexInCircle) / TotalCount) - (PI * 0.5f);
+
+	FRadialEntryInfo Info;
+	Info.SlotIndex = SlotIndex;
+	Info.AngleRad = Angle;
+	Entries.Add(Info);
+
+	UBorder* EntryBorder = NewObject<UBorder>(this);
+	EntryBorder->SetBrushColor(DefaultEntryColor);
+
+	UImage* Icon = NewObject<UImage>(this);
+	if (SlotEntry.ItemData)
+	{
+		if (UTexture2D* Texture = SlotEntry.ItemData->Icon.LoadSynchronous())
 		{
-			if (UTexture2D* Texture = SlotEntry.ItemData->Icon.LoadSynchronous())
+			if (IconBaseMaterial)
 			{
-				if (IconBaseMaterial)
-				{
-					UMaterialInstanceDynamic* MatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, Icon);
-					MatInst->SetTextureParameterValue(FName("image"), Texture);
-					Icon->SetBrushFromMaterial(MatInst);
-				}
+				UMaterialInstanceDynamic* MatInst = UMaterialInstanceDynamic::Create(IconBaseMaterial, Icon);
+				MatInst->SetTextureParameterValue(FName("image"), Texture);
+				Icon->SetBrushFromMaterial(MatInst);
+				
 			}
 		}
-		EntryBorder->AddChild(Icon);
-		EntryBorders.Add(EntryBorder);
+	}
+	else
+	{
+		// 빈 슬롯은 UMG 기본 흰색 브러시가 그대로 노출되므로 아이콘을 숨긴다.
+		Icon->SetVisibility(ESlateVisibility::Collapsed);
+	}
 
-		if (UCanvasPanelSlot* CanvasSlot = RadialCanvas->AddChildToCanvas(EntryBorder))
-		{
-			CanvasSlot->SetAutoSize(false);
-			CanvasSlot->SetAnchors(FAnchors(0.5f, 0.5f));
-			CanvasSlot->SetSize(FVector2D(EntrySize, EntrySize));
+	UTextBlock* StackCountText = NewObject<UTextBlock>(this);
+	if (SlotEntry.ItemData && SlotEntry.ItemData->bIsStackable && SlotEntry.StackCount > 1)
+	{
+		StackCountText->SetText(FText::AsNumber(SlotEntry.StackCount));
+		StackCountText->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
+	else
+	{
+		StackCountText->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	EntryStackCountTexts.Add(StackCountText);
 
-			const FVector2D Offset(FMath::Cos(Angle) * RadiusPixels, FMath::Sin(Angle) * RadiusPixels);
-			CanvasSlot->SetPosition(Offset - FVector2D(EntrySize * 0.5f, EntrySize * 0.5f));
-		}
+	UOverlay* EntryOverlay = NewObject<UOverlay>(this);
+	EntryOverlay->AddChild(Icon);
+	EntryOverlay->AddChild(StackCountText);	
+	if (UOverlaySlot* StackSlot = EntryOverlay->AddChildToOverlay(StackCountText))
+	{
+		StackSlot->SetHorizontalAlignment(HAlign_Right);
+		StackSlot->SetVerticalAlignment(VAlign_Bottom);
+	}
+	if (UOverlaySlot* StackSlot = EntryOverlay->AddChildToOverlay(Icon))
+	{
+		StackSlot->SetHorizontalAlignment(HAlign_Fill);
+		StackSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+	
+	EntryBorder->AddChild(EntryOverlay);
+	EntryBorders.Add(EntryBorder);
+
+	if (UCanvasPanelSlot* CanvasSlot = RadialCanvas->AddChildToCanvas(EntryBorder))
+	{
+		CanvasSlot->SetAutoSize(false);
+		CanvasSlot->SetAnchors(FAnchors(0.5f, 0.5f));
+		CanvasSlot->SetSize(FVector2D(EntrySize, EntrySize));
+
+		const FVector2D Offset(FMath::Cos(Angle) * RadiusPixels, FMath::Sin(Angle) * RadiusPixels);
+		CanvasSlot->SetPosition(Offset - FVector2D(EntrySize * 0.5f, EntrySize * 0.5f));
 	}
 }
 
 int32 URadialQuickSlotWidget::GetHighlightedSlotIndex() const
 {
-	return Entries.IsValidIndex(HighlightedEntryIndex) ? Entries[HighlightedEntryIndex].SlotIndex : INDEX_NONE;
+	if (!Entries.IsValidIndex(HighlightedEntryIndex) || !QuickSlotComponentRef) return INDEX_NONE;
+
+	const int32 SlotIndex = Entries[HighlightedEntryIndex].SlotIndex;
+	// 빈 슬롯을 가리키고 있으면 선택 안 한 것으로 취급 (등록되지 않은 칸은 사용/선택 불가)
+	return QuickSlotComponentRef->GetQuickSlotEntry(SlotIndex).ItemData ? SlotIndex : INDEX_NONE;
 }
 
 void URadialQuickSlotWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)

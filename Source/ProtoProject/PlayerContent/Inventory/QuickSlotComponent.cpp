@@ -35,18 +35,47 @@ bool UQuickSlotComponent::RegisterFromInventory(int32 SlotIndex, UInventoryGridC
 	UItemDataBase* NewItemData = SourceInstance.ItemData;
 	if (!CanRegisterToQuickSlot(NewItemData)) return false;
 
-	FQuickSlotEntry PrevEntry = Slots[SlotIndex];
+	FQuickSlotEntry& Entry = Slots[SlotIndex];
+
+	// 이미 같은 스택 가능 아이템이 등록돼 있으면 교체하지 않고 수량만 합친다.
+	if (Entry.ItemData == NewItemData && NewItemData->bIsStackable)
+	{
+		const int32 Room = NewItemData->MaxStackCount - Entry.StackCount;
+		if (Room <= 0) return false;
+
+		const int32 MergeCount = FMath::Min(Room, SourceInstance.StackCount);
+		int32 ActuallySplit = 0;
+		SourceInventory->SplitStack(InstanceId, MergeCount, ActuallySplit);
+		if (ActuallySplit <= 0) return false;
+
+		Entry.StackCount += ActuallySplit;
+		EnsureValidLastUsedSlot();
+		OnQuickSlotChanged.Broadcast(SlotIndex);
+		return true;
+	}
+
+	FQuickSlotEntry PrevEntry = Entry;
 
 	SourceInventory->RemoveInstanceById(InstanceId);
 
 	if (PrevEntry.ItemData)
 	{
-		if (!SourceInventory->AddItem(PrevEntry.ItemData))
+		// AddItem은 한 번에 1개씩만 추가하므로(스택은 내부적으로 병합), 등록된 수량만큼 반복 호출해야 수량이 보존된다.
+		const int32 CountToReturn = FMath::Max(1, PrevEntry.StackCount);
+		int32 Returned = 0;
+		for (; Returned < CountToReturn; ++Returned)
 		{
-			// 기존 등록 아이템을 되돌릴 공간이 없으면 등록 실패 - 새 아이템을 원래 위치로 롤백
-			SourceInventory->AddItemAt(NewItemData, SourceInstance.GridPosition, SourceInstance.bIsRotated);
+			if (!SourceInventory->AddItem(PrevEntry.ItemData)) break;
+		}
+
+		if (Returned <= 0)
+		{
+			// 기존 등록 아이템을 되돌릴 공간이 전혀 없으면 등록 실패 - 새 아이템을 원래 위치/수량으로 롤백
+			SourceInventory->AddItemAt(NewItemData, SourceInstance.GridPosition, SourceInstance.bIsRotated, SourceInstance.StackCount);
 			return false;
 		}
+		// Returned < CountToReturn이면 인벤토리 공간이 일부 모자란 경우 - 나머지는 부득이하게 사라지지만,
+		// 최소 하나는 돌아갔으므로 완전 실패로 처리하지 않고 교체를 진행한다.
 	}
 
 	Slots[SlotIndex].ItemData = NewItemData;

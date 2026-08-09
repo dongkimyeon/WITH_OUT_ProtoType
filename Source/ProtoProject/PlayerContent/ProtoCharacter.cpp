@@ -636,6 +636,9 @@ void AProtoCharacter::CloseLevelChangeScreen()
 
 void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
 {
+    // 상자가 열려있는 동안엔 인벤토리를 별도로 열 수 없다 (상자 화면 안에서 인벤토리 그리드를 같이 보여주고 있음).
+    if (bIsContainerOpened) return;
+
     if (InventoryWidgetInstance == nullptr && InventoryWidgetClass != nullptr)
     {
         InventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), InventoryWidgetClass);
