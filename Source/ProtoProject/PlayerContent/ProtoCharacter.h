@@ -19,6 +19,7 @@ class AStorageContainer;
 class UPlayerDefalutUI;
 class UContainerScreenWidget;
 class UAnimMontage;
+class UAnimSequenceBase;
 class UPlayerStatusComponent;
 class ULevelChangeSelectWidget;
 class ALevelChanger;
@@ -228,6 +229,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     UAnimMontage* RifleReloadMontage = nullptr;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction|Animation")
+    UAnimSequenceBase* PickupAnimation = nullptr;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName RifleToHandSectionName = TEXT("rifletohand");
 
@@ -259,6 +263,9 @@ public:
     // swap timer/montage (local-input-driven state).
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void ApplyRemoteWeaponEquip(EWeaponType ForWeaponType);
+
+    UFUNCTION(BlueprintCallable, Category = "Interaction|Animation")
+    void PlayPickupAnimationIfUnarmed();
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
     float AimPitch = 0.0f;

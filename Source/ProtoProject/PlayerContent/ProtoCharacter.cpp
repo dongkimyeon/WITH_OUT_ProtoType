@@ -20,6 +20,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Animation/AnimMontage.h"
+#include "Animation/AnimSequenceBase.h"
 #include "Animation/AnimInstance.h"
 #include "TimerManager.h"
 #include "weapon/WeaponBase.h"
@@ -47,8 +48,14 @@ AProtoCharacter::AProtoCharacter()
     {
         RifleReloadMontage = RifleReloadMontageFinder.Object;
     }
-}
 
+    static ConstructorHelpers::FObjectFinder<UAnimSequenceBase> PickupAnimationFinder(TEXT("/Game/testasset/Picking_Up.Picking_Up"));
+    if (PickupAnimationFinder.Succeeded())
+    {
+        PickupAnimation = PickupAnimationFinder.Object;
+    }
+
+}
 void AProtoCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
@@ -81,6 +88,7 @@ void AProtoCharacter::Tick(float DeltaTime)
             FinishWeaponSwap();
         }
     }
+
     if (bHasWeapon && Swapping <= 0.0f && CurrentWeapon && GetMesh())
     {
         static const FName RightHandBoneName(TEXT("hand_r"));
@@ -225,6 +233,11 @@ void AProtoCharacter::Tick(float DeltaTime)
                 }
             }
         }
+    }
+
+    if (bIsReloading)
+    {
+        SwappingAlpha = false;
     }
 }
 
@@ -531,6 +544,19 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
     if (HitActor->Implements<UInteractable>() && IInteractable::Execute_CanInteract(HitActor, this))
     {
         IInteractable::Execute_OnInteract(HitActor, this);
+    }
+}
+
+void AProtoCharacter::PlayPickupAnimationIfUnarmed()
+{
+    if (CurrentWeaponType != EWeaponType::None || !PickupAnimation || !GetMesh())
+    {
+        return;
+    }
+
+    if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+    {
+        AnimInstance->PlaySlotAnimationAsDynamicMontage(PickupAnimation, TEXT("DefaultSlot"));
     }
 }
 

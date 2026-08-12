@@ -83,6 +83,11 @@ void ADropItem::OnInteract_Implementation(AProtoCharacter* InPlayer)
 		if (!InPlayer->GetInventoryComponent()->AddItem(ItemData)) break;
 	}
 
+	if (AddedCount > 0)
+	{
+		InPlayer->PlayPickupAnimationIfUnarmed();
+	}
+
 	if (AddedCount >= CountToAdd)
 	{
 		Destroy();
@@ -101,9 +106,9 @@ FText ADropItem::GetInteractPrompt_Implementation() const
 	{
 		if (StackCount > 1)
 		{
-			return FText::Format(FText::FromString(TEXT("F  줍기  [{0} x{1}]")), ItemData->DisplayName, FText::AsNumber(StackCount));
+            return FText::Format(FText::FromString(TEXT("F  줍기  [{0} x{1}]")), ItemData->DisplayName, FText::AsNumber(StackCount));
 		}
-		return FText::Format(FText::FromString(TEXT("F  줍기  [{0}]")), ItemData->DisplayName);
+        return FText::Format(FText::FromString(TEXT("F  줍기  [{0}]")), ItemData->DisplayName);
 	}
 	return FText::FromString(TEXT("F  줍기"));
 }
