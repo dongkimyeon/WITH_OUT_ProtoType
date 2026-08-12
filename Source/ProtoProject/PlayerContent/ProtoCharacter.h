@@ -250,6 +250,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Animation")
     FName PistolReloadSectionName = TEXT("pistolreload");
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Consumable|Animation")
+    FName BandageSectionName = TEXT("Bandage");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Consumable|Animation")
+    FName EatingSectionName = TEXT("eating");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Consumable|Animation")
+    FName DrinkingSectionName = TEXT("Drinking");
+
     /*-------------------
      네트워킹: 원격 플레이어 시각 동기화
      (UProtoNetClientSubsystem이 S2C_ItemUseBroadcast 수신 시 호출)

@@ -1188,6 +1188,30 @@ bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
         return false;
     }
 
+    if (RifleReloadMontage)
+    {
+        FName ConsumableSectionName = NAME_None;
+        switch (ConsumableData->TargetStat)
+        {
+        case EConsumableTargetStat::Health:
+            ConsumableSectionName = BandageSectionName;
+            break;
+        case EConsumableTargetStat::Hunger:
+            ConsumableSectionName = EatingSectionName;
+            break;
+        case EConsumableTargetStat::Thirst:
+            ConsumableSectionName = DrinkingSectionName;
+            break;
+        default:
+            break;
+        }
+
+        if (ConsumableSectionName != NAME_None)
+        {
+            PlayAnimMontage(RifleReloadMontage, 1.0f, ConsumableSectionName);
+        }
+    }
+
     if (ConsumableData->Application == EEffectApplication::Instant ||
         ConsumableData->Application == EEffectApplication::InstantThenOverTime)
     {
