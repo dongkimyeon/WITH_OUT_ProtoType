@@ -27,9 +27,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
     EWeaponType WeaponType = EWeaponType::None;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
-    bool bCanBePickedUp = true;
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Swap", meta = (ClampMin = "0.0"))
     float EquipSwapTime = 0.3f;
 
@@ -74,17 +71,6 @@ public:
 
 protected:
     virtual void BeginPlay() override;
-
-    UFUNCTION()
-    virtual void OnWeaponBeginOverlap(
-        UPrimitiveComponent* OverlappedComponent,
-        AActor* OtherActor,
-        UPrimitiveComponent* OtherComp,
-        int32 OtherBodyIndex,
-        bool bFromSweep,
-        const FHitResult& SweepResult);
-
-    virtual void EquipToCharacter(AProtoCharacter* Character);
 
 public:
     virtual void Tick(float DeltaTime) override;

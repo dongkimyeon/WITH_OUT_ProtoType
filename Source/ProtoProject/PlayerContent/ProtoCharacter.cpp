@@ -13,6 +13,7 @@
 #include "Item/ConsumableItemData.h"
 #include "ContainerScreenWidget.h"
 #include "Item/ItemDataBase.h"
+#include "Item/WeaponItemData.h"
 #include "Item/StorageContainer.h"
 #include "PlayerDefalutUI.h"
 #include "PlayerStatusComponent.h"
@@ -24,9 +25,12 @@
 #include "Animation/AnimInstance.h"
 #include "TimerManager.h"
 #include "weapon/WeaponBase.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/BoxComponent.h"
 #include "../LevelChange/LevelChanger.h"
 #include "../LevelChange/LevelChangeSelectWidget.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
 #include "../Network/ProtoNetClientSubsystem.h"
 
@@ -248,6 +252,11 @@ void AProtoCharacter::BeginPlay()
     StopAim();
     StopSprint();
 
+    if (EquipmentComponent)
+    {
+        EquipmentComponent->OnEquipmentChanged.AddDynamic(this, &AProtoCharacter::HandleEquipmentChanged);
+    }
+
     /*-------------------
      네트워킹: 서버 접속 프롬프트 표시 (로컬 플레이어만)
     -------------------*/
@@ -331,9 +340,9 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
         }
     }
 
-    PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
-    PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeRifle);
-    PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AProtoCharacter::SetWeaponTypePistol);
+    PlayerInputComponent->BindKey(EKeys::One, IE_Pressed, this, &AProtoCharacter::SetWeaponSlot1);
+    PlayerInputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AProtoCharacter::SetWeaponSlot2);
+    PlayerInputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AProtoCharacter::SetWeaponTypeNone);
     PlayerInputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AProtoCharacter::OnQuickSlotKeyPressed);
     PlayerInputComponent->BindKey(EKeys::Four, IE_Released, this, &AProtoCharacter::OnQuickSlotKeyReleased);
     PlayerInputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AProtoCharacter::StartFireWeapon);
@@ -719,36 +728,17 @@ void AProtoCharacter::SetWeaponTypeNone()
     BeginWeaponSwap(EWeaponType::None);
 }
 
-void AProtoCharacter::SetWeaponTypeRifle()
+void AProtoCharacter::SetWeaponSlot1()
 {
-    if (Swapping > 0.0f)
-    {
-        return;
-    }
-
-    if (CurrentWeaponType != EWeaponType::None)
-    {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Store current weapon first"));
-        }
-        return;
-    }
-
-    CurrentWeapon = CurrentRifle;
-    if (!CurrentWeapon)
-    {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No Rifle"));
-        }
-        return;
-    }
-
-    BeginWeaponSwap(EWeaponType::Rifle);
+    SetWeaponFromSlot(EEquipmentSlot::Weapon1);
 }
 
-void AProtoCharacter::SetWeaponTypePistol()
+void AProtoCharacter::SetWeaponSlot2()
+{
+    SetWeaponFromSlot(EEquipmentSlot::Weapon2);
+}
+
+void AProtoCharacter::SetWeaponFromSlot(EEquipmentSlot Slot)
 {
     if (Swapping > 0.0f)
     {
@@ -764,17 +754,19 @@ void AProtoCharacter::SetWeaponTypePistol()
         return;
     }
 
-    CurrentWeapon = CurrentPistol;
-    if (!CurrentWeapon)
+    AWeaponBase* const* Found = EquippedWeaponActors.Find(Slot);
+    AWeaponBase* SlotWeapon = Found ? *Found : nullptr;
+    if (!SlotWeapon)
     {
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No Pistol"));
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
         }
         return;
     }
 
-    BeginWeaponSwap(EWeaponType::Pistol);
+    CurrentWeapon = SlotWeapon;
+    BeginWeaponSwap(SlotWeapon->WeaponType, SlotWeapon);
 }
 
 AWeaponBase* AProtoCharacter::GetWeaponByType(EWeaponType WeaponType) const
@@ -789,7 +781,7 @@ AWeaponBase* AProtoCharacter::GetWeaponByType(EWeaponType WeaponType) const
         return nullptr;
     }
 }
-void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType)
+void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor)
 {
     StopFireWeapon();
 
@@ -804,8 +796,8 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType)
     }
 
     AWeaponBase* SwapWeapon = TargetWeaponType == EWeaponType::None
-        ? GetWeaponByType(CurrentWeaponType)
-        : GetWeaponByType(TargetWeaponType);
+        ? CurrentWeapon
+        : (TargetWeaponActor ? TargetWeaponActor : GetWeaponByType(TargetWeaponType));
 
     if (!SwapWeapon)
     {
@@ -1142,6 +1134,103 @@ void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
 
     CurrentWeapon->AttachToComponent(GetMesh(), AttachRules, SocketName);
     CurrentWeapon->SetActorEnableCollision(false);
+}
+
+void AProtoCharacter::HandleEquipmentChanged(EEquipmentSlot ChangedSlot)
+{
+    if (ChangedSlot != EEquipmentSlot::Weapon1 && ChangedSlot != EEquipmentSlot::Weapon2)
+    {
+        return;
+    }
+
+    if (AWeaponBase** ExistingPtr = EquippedWeaponActors.Find(ChangedSlot))
+    {
+        AWeaponBase* ExistingActor = *ExistingPtr;
+        if (ExistingActor)
+        {
+            if (CurrentWeapon == ExistingActor)
+            {
+                GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
+                bHasWeapon = false;
+                CurrentWeapon = nullptr;
+                CurrentWeaponType = EWeaponType::None;
+                PendingWeaponType = EWeaponType::None;
+                Swapping = 0.0f;
+                SwappingAlpha = true;
+            }
+
+            if (CurrentRifle == ExistingActor)
+            {
+                CurrentRifle = nullptr;
+            }
+            if (CurrentPistol == ExistingActor)
+            {
+                CurrentPistol = nullptr;
+            }
+
+            ExistingActor->Destroy();
+        }
+        EquippedWeaponActors.Remove(ChangedSlot);
+    }
+
+    if (!EquipmentComponent)
+    {
+        return;
+    }
+
+    const FEquippedItem& Equipped = EquipmentComponent->GetEquippedItem(ChangedSlot);
+    const UWeaponItemData* WeaponItem = Equipped.ItemData ? Cast<UWeaponItemData>(Equipped.ItemData) : nullptr;
+    if (!WeaponItem || !WeaponItem->WeaponActorClass || !GetMesh())
+    {
+        return;
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = this;
+    SpawnParams.Instigator = this;
+
+    AWeaponBase* WeaponActor = GetWorld()->SpawnActor<AWeaponBase>(WeaponItem->WeaponActorClass, GetActorTransform(), SpawnParams);
+    if (!WeaponActor)
+    {
+        return;
+    }
+
+    WeaponActor->SetOwner(this);
+    WeaponActor->SetInstigator(this);
+    WeaponActor->SetActorEnableCollision(false);
+
+    if (UStaticMeshComponent* WeaponMesh = WeaponActor->WeaponMesh)
+    {
+        WeaponMesh->SetSimulatePhysics(false);
+        WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+        WeaponMesh->SetGenerateOverlapEvents(false);
+    }
+    if (UBoxComponent* CollisionBox = WeaponActor->CollisionBox)
+    {
+        CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        CollisionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+        CollisionBox->SetGenerateOverlapEvents(false);
+    }
+
+    const FName StorageSocketName = WeaponActor->WeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage");
+    const FAttachmentTransformRules AttachRules(
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::KeepRelative,
+        true);
+    WeaponActor->AttachToComponent(GetMesh(), AttachRules, StorageSocketName);
+
+    if (WeaponActor->WeaponType == EWeaponType::Rifle)
+    {
+        CurrentRifle = WeaponActor;
+    }
+    else if (WeaponActor->WeaponType == EWeaponType::Pistol)
+    {
+        CurrentPistol = WeaponActor;
+    }
+
+    EquippedWeaponActors.Add(ChangedSlot, WeaponActor);
 }
 
 

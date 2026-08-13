@@ -254,7 +254,6 @@ AActor* AAK47::SpawnAmmoInHand(USkeletalMeshComponent* CharacterMesh)
 
     if (AWeaponBase* AmmoAsWeapon = Cast<AWeaponBase>(AmmoActor))
     {
-        AmmoAsWeapon->bCanBePickedUp = false;
         if (AmmoAsWeapon->CollisionBox)
         {
             AmmoAsWeapon->CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);

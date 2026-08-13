@@ -249,7 +249,6 @@ AActor* APistol::SpawnAmmoAtMagazine()
 
     if (AWeaponBase* AmmoWeapon = Cast<AWeaponBase>(AmmoActor))
     {
-        AmmoWeapon->bCanBePickedUp = false;
         if (AmmoWeapon->CollisionBox)
         {
             AmmoWeapon->CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -283,7 +282,6 @@ AActor* APistol::SpawnAmmoInHand(USkeletalMeshComponent* CharacterMesh)
 
     if (AWeaponBase* AmmoWeapon = Cast<AWeaponBase>(AmmoActor))
     {
-        AmmoWeapon->bCanBePickedUp = false;
         if (AmmoWeapon->CollisionBox)
         {
             AmmoWeapon->CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);

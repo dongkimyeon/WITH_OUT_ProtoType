@@ -4,13 +4,13 @@
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
 #include "Interactable.h"
+#include "Inventory/EquipmentComponent.h"
 #include "ProtoCharacter.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
 class UInventoryGridComponent;
-class UEquipmentComponent;
 class UQuickSlotComponent;
 class URadialQuickSlotWidget;
 class UConsumableItemData;
@@ -152,9 +152,10 @@ private:
     void ToggleInventory(const FInputActionValue& Value);
     void Interact(const FInputActionValue& Value);
     void SetWeaponTypeNone();
-    void SetWeaponTypeRifle();
-    void SetWeaponTypePistol();
-    void BeginWeaponSwap(EWeaponType TargetWeaponType);
+    void SetWeaponSlot1();
+    void SetWeaponSlot2();
+    void SetWeaponFromSlot(EEquipmentSlot Slot);
+    void BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor = nullptr);
     void FinishWeaponSwap();
     void StartFireWeapon();
     void StopFireWeapon();
@@ -209,6 +210,14 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
     AWeaponBase* CurrentPistol = nullptr;
+
+    // 인벤토리 장비 슬롯(Weapon1/Weapon2)에 대응해 스폰된 무기 액터
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    TMap<EEquipmentSlot, AWeaponBase*> EquippedWeaponActors;
+
+    // UEquipmentComponent::OnEquipmentChanged 구독 콜백: 인벤토리 장착/해제를 무기 액터 스폰/파괴로 반영
+    UFUNCTION()
+    void HandleEquipmentChanged(EEquipmentSlot ChangedSlot);
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
     EWeaponType CurrentWeaponType = EWeaponType::None;
