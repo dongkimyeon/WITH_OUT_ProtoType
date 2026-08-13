@@ -492,7 +492,20 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 	{
 		// No controller assigned, so IsLocallyControlled() guards in
 		// AProtoCharacter treat this as a remote spawn.
-		NewRemote = World->SpawnActor<AProtoCharacter>(RemoteCharacterClass, Location, Rotation, SpawnParams);
+		AProtoCharacter* RemoteCharacter = World->SpawnActor<AProtoCharacter>(RemoteCharacterClass, Location, Rotation, SpawnParams);
+		if (RemoteCharacter)
+		{
+			// CharacterMovementComponent aborts all movement and zeroes
+			// velocity/acceleration for a Controller-less character unless
+			// this is set (see bRunPhysicsWithNoController's doc comment) --
+			// without it, TickRemotePlayers()'s AddMovementInput calls would
+			// still be silently discarded even with bForce=true.
+			if (UCharacterMovementComponent* MovementComponent = RemoteCharacter->GetCharacterMovement())
+			{
+				MovementComponent->bRunPhysicsWithNoController = true;
+			}
+		}
+		NewRemote = RemoteCharacter;
 	}
 	if (!NewRemote)
 	{
@@ -534,7 +547,13 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 
 			if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
 			{
-				RemoteCharacter->AddMovementInput(ToTarget.GetSafeNormal(), 1.0f);
+				// bForce=true: AddMovementInput() normally routes through
+				// Controller->Internal_AddMovementInput() and is a no-op
+				// without one (see APawn::AddMovementInput). Remote-spawned
+				// characters have no Controller (see the spawn comment
+				// above), so without bForce this silently dropped every
+				// frame and the character never left its spawn point.
+				RemoteCharacter->AddMovementInput(ToTarget.GetSafeNormal(), 1.0f, /*bForce=*/true);
 			}
 		}
 		else
