@@ -20,6 +20,7 @@ class UPlayerDefalutUI;
 class UContainerScreenWidget;
 class UAnimMontage;
 class UAnimSequenceBase;
+class UCameraShakeBase;
 class UPlayerStatusComponent;
 class ULevelChangeSelectWidget;
 class ALevelChanger;
@@ -160,6 +161,7 @@ private:
     void StartFireWeapon();
     void StopFireWeapon();
     void FireWeapon();
+    void ApplyWeaponRecoil();
     void ReloadWeapon();
 
     UFUNCTION()
@@ -296,6 +298,24 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
     bool bDebugLeftHandIK = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
+    float RifleRecoilPitch = 0.55f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
+    float RifleRecoilYaw = 0.18f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
+    float PistolRecoilPitch = 1.2f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
+    float PistolRecoilYaw = 0.4f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+    TSubclassOf<UCameraShakeBase> RifleFireCameraShakeClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+    TSubclassOf<UCameraShakeBase> PistolFireCameraShakeClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
     float LeftHandIKDebugDrawSize = 8.0f;

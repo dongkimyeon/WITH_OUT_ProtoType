@@ -3,6 +3,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Camera/CameraShakeBase.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenWidget.h"
@@ -942,6 +944,37 @@ void AProtoCharacter::FireWeapon()
         return;
     }
     CurrentWeapon->Fire();
+    ApplyWeaponRecoil();
+}
+
+void AProtoCharacter::ApplyWeaponRecoil()
+{
+    if (!IsLocallyControlled() || !Controller)
+    {
+        return;
+    }
+
+    float PitchKick = RifleRecoilPitch;
+    float YawKick = FMath::RandRange(-RifleRecoilYaw, RifleRecoilYaw);
+    TSubclassOf<UCameraShakeBase> ShakeClass = RifleFireCameraShakeClass;
+
+    if (CurrentWeaponType == EWeaponType::Pistol)
+    {
+        PitchKick = PistolRecoilPitch;
+        YawKick = FMath::RandRange(-PistolRecoilYaw, PistolRecoilYaw);
+        ShakeClass = PistolFireCameraShakeClass;
+    }
+
+    AddControllerPitchInput(-PitchKick);
+    AddControllerYawInput(YawKick);
+
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        if (PC->PlayerCameraManager && ShakeClass)
+        {
+            PC->PlayerCameraManager->StartCameraShake(ShakeClass);
+        }
+    }
 }
 
 void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
