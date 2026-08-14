@@ -6,15 +6,19 @@
 class SEditableTextBox;
 class STextBlock;
 
-DECLARE_DELEGATE_OneParam(FProtoOnConnectRequested, const FString& /*ServerIp*/);
+DECLARE_DELEGATE_ThreeParams(FProtoOnConnectRequested, const FString& /*ServerIp*/, const FString& /*Username*/, const FString& /*Password*/);
 
-// Tiny on-screen prompt: an IP text box + Connect button. Purely
-// presentational; UProtoNetClientSubsystem owns the actual Connect() call.
+// Tiny on-screen prompt: server IP + account username/password + Connect
+// button. Purely presentational; UProtoNetClientSubsystem owns the actual
+// Connect()/login call. A blank/"0" username means "skip logging into an
+// account" (see UProtoNetClientSubsystem::HandleConnectPromptSubmitted) --
+// existing test/offline flows that don't care about accounts still work.
 class SProtoConnectPrompt : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SProtoConnectPrompt) {}
 		SLATE_ARGUMENT(FString, InitialServerIp)
+		SLATE_ARGUMENT(FString, InitialUsername)
 		SLATE_EVENT(FProtoOnConnectRequested, OnConnectRequested)
 	SLATE_END_ARGS()
 
@@ -27,6 +31,8 @@ private:
 	void HandleTextCommitted(const FText& NewText, ETextCommit::Type CommitType);
 
 	TSharedPtr<SEditableTextBox> IpTextBox;
+	TSharedPtr<SEditableTextBox> UsernameTextBox;
+	TSharedPtr<SEditableTextBox> PasswordTextBox;
 	TSharedPtr<STextBlock> StatusTextBlock;
 	FProtoOnConnectRequested OnConnectRequested;
 };

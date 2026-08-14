@@ -18,6 +18,10 @@ class SProtoConnectPrompt;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnPacketReceived, const TArray<uint8>&, PacketBytes);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProtoOnConnected);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnDisconnected, const FString&, Reason);
+// Fired once, right after S2C_LoginSuccess, only when the account had a
+// saved PlayerProgress row. AProtoCharacter's locally-controlled instance
+// binds this in BeginPlay() to move/re-equip itself to where it left off.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FProtoOnProgressRestored, FVector, Position, FRotator, Look, uint8, WeaponType);
 
 // Client-side counterpart to the WOP_SERVER RIO echo server: a plain TCP
 // connection speaking the same Protocol (FlatBuffers, size-prefixed "PTPK").
@@ -71,9 +75,16 @@ public:
 	bool SendPacketBytes(const TArray<uint8>& PacketBytes);
 
 	// Convenience call for testing the connection: builds and sends a
-	// C2S_Login packet with the given fields.
+	// C2S_Login packet with the given fields, no account credentials.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendLoginTest(const FString& AuthToken, const FString& ClientVersion);
+
+	// Logs into (or auto-registers, on first use) a DB-backed account. The
+	// server replies with S2C_LoginSuccess (has_saved_progress tells you
+	// whether OnProgressRestored will also fire) or S2C_LoginFail (wrong
+	// password).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendAccountLogin(const FString& Username, const FString& Password);
 
 	// Called from AAK47::Fire() when a shot is fired.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
@@ -117,6 +128,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnDisconnected OnDisconnected;
 
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnProgressRestored OnProgressRestored;
+
 	//~ FTickableGameObject
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
@@ -154,7 +168,7 @@ private:
 	/*-------------------
 	 접속 프롬프트
 	-------------------*/
-	void HandleConnectPromptSubmitted(const FString& ServerIp);
+	void HandleConnectPromptSubmitted(const FString& ServerIp, const FString& Username, const FString& Password);
 	void HideConnectPrompt();
 
 	TSharedPtr<SProtoConnectPrompt> ConnectPromptWidget;
@@ -169,9 +183,16 @@ private:
 	uint32 NextSeq = 1;
 	uint32 LocalPlayerId = 0;
 
-	// Set on a successful Connect(); ShowConnectPrompt() prefills this so an
-	// unexpected disconnect's reconnect prompt just needs Enter, not retyping.
+	// Set on a successful Connect()/account login; ShowConnectPrompt()
+	// prefills these so an unexpected disconnect's reconnect prompt just
+	// needs Enter (+ retyping the password, which is never remembered).
 	FString LastServerIp;
+	FString LastUsername;
+
+	// True while we're waiting on S2C_LoginSuccess/S2C_LoginFail for an
+	// account login submitted via the connect prompt, so HandleIncomingPacket
+	// knows whether to update/hide the prompt on those replies.
+	bool bAwaitingAccountLoginReply = false;
 
 	UPROPERTY()
 	TMap<int32, AActor*> RemotePlayers;

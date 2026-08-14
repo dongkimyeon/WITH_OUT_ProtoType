@@ -284,6 +284,17 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void ApplyRemoteWeaponEquip(EWeaponType ForWeaponType);
 
+    // Bound (locally-controlled instance only, in BeginPlay) to
+    // UProtoNetClientSubsystem::OnProgressRestored: moves this player to
+    // their saved MSSQL position and silently shows their saved weapon (no
+    // swap animation -- this is initial spawn state, not a live transition).
+    // The weapon restore only actually shows something if CurrentRifle/
+    // CurrentPistol are already populated (see GetWeaponByType) -- it
+    // doesn't reach into the inventory/equipment system to re-equip from
+    // scratch.
+    UFUNCTION()
+    void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType);
+
     UFUNCTION(BlueprintCallable, Category = "Interaction|Animation")
     void PlayPickupAnimationIfUnarmed();
 

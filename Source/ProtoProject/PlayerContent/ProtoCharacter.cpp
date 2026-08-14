@@ -260,7 +260,7 @@ void AProtoCharacter::BeginPlay()
     }
 
     /*-------------------
-     네트워킹: 서버 접속 프롬프트 표시 (로컬 플레이어만)
+     네트워킹: 서버 접속 프롬프트 표시 + 저장된 진행 상황 복원 구독 (로컬 플레이어만)
     -------------------*/
     if (IsLocallyControlled())
     {
@@ -268,6 +268,7 @@ void AProtoCharacter::BeginPlay()
         {
             if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
             {
+                NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
                 NetClient->ShowConnectPrompt();
             }
         }
@@ -1170,6 +1171,38 @@ void AProtoCharacter::ApplyRemoteWeaponEquip(EWeaponType ForWeaponType)
     {
         FinishWeaponSwap();
     }
+}
+
+void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType)
+{
+    SetActorLocation(Position);
+    if (Controller)
+    {
+        Controller->SetControlRotation(Look);
+    }
+
+    const EWeaponType RestoredType = static_cast<EWeaponType>(WeaponType);
+    if (RestoredType == EWeaponType::None)
+    {
+        return;
+    }
+
+    AWeaponBase* RestoredWeapon = GetWeaponByType(RestoredType);
+    if (!RestoredWeapon)
+    {
+        // Nothing to attach yet (e.g. CurrentRifle/CurrentPistol aren't
+        // populated at this point) -- the weapon_type is still tracked
+        // server-side, so a subsequent equip/store still broadcasts
+        // correctly even though the visual didn't restore here.
+        return;
+    }
+
+    CurrentWeapon = RestoredWeapon;
+    CurrentWeaponType = RestoredType;
+    PendingWeaponType = RestoredType;
+    bHasWeapon = true;
+
+    AttachCurrentWeaponToSocket(RestoredType == EWeaponType::Pistol ? TEXT("PistolSocket") : TEXT("WeaponSocket"));
 }
 
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
