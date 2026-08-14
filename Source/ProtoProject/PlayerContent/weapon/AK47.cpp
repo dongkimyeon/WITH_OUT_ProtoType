@@ -9,6 +9,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 #include "../../Network/ProtoNetClientSubsystem.h"
 
@@ -36,6 +37,24 @@ AAK47::AAK47()
 
     MuzzlePoint = CreateDefaultSubobject<UArrowComponent>(TEXT("MuzzlePoint"));
     MuzzlePoint->SetupAttachment(RifleSkeletalMesh);
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> FireSound01(TEXT("/Game/FreeWeaponSounds/Wav/AssaultRifle/Gunshots/assault_rifle_gunshot_01_Wav.assault_rifle_gunshot_01_Wav"));
+    if (FireSound01.Succeeded())
+    {
+        RifleFireSounds.Add(FireSound01.Object);
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> FireSound02(TEXT("/Game/FreeWeaponSounds/Wav/AssaultRifle/Gunshots/assault_rifle_gunshot_02_Wav.assault_rifle_gunshot_02_Wav"));
+    if (FireSound02.Succeeded())
+    {
+        RifleFireSounds.Add(FireSound02.Object);
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> FireSound03(TEXT("/Game/FreeWeaponSounds/Wav/AssaultRifle/Gunshots/assault_rifle_gunshot_03_Wav.assault_rifle_gunshot_03_Wav"));
+    if (FireSound03.Succeeded())
+    {
+        RifleFireSounds.Add(FireSound03.Object);
+    }
 }
 
 
@@ -78,6 +97,15 @@ void AAK47::Fire()
     }
 
     const FVector MuzzleStart = MuzzlePoint->GetComponentLocation();
+
+    if (RifleFireSounds.Num() > 0)
+    {
+        const int32 RandomFireSoundIndex = FMath::RandRange(0, RifleFireSounds.Num() - 1);
+        if (USoundBase* FireSound = RifleFireSounds[RandomFireSoundIndex])
+        {
+            UGameplayStatics::PlaySoundAtLocation(this, FireSound, MuzzleStart, FireSoundVolume, FireSoundPitch);
+        }
+    }
 
     FVector CameraStart = MuzzleStart;
     FVector CameraForward = MuzzlePoint->GetForwardVector();

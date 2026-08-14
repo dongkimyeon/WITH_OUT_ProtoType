@@ -300,16 +300,16 @@ public:
     bool bDebugLeftHandIK = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
-    float RifleRecoilPitch = 0.55f;
+    float RifleRecoilPitch = 0.22f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
-    float RifleRecoilYaw = 0.18f;
+    float RifleRecoilYaw = 0.07f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
-    float PistolRecoilPitch = 1.2f;
+    float PistolRecoilPitch = 0.45f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
-    float PistolRecoilYaw = 0.4f;
+    float PistolRecoilYaw = 0.15f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
     TSubclassOf<UCameraShakeBase> RifleFireCameraShakeClass;
