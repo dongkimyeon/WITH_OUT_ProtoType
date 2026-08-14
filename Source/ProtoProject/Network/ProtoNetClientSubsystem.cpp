@@ -54,10 +54,16 @@ void UProtoNetClientSubsystem::ShowConnectPrompt()
 	if (ConnectPromptWidget.IsValid() || IsConnected())
 		return;
 
-	// Pre-fill from -ServerIP= if given, else leave blank (Connect submits
-	// blank/"0" as "skip connecting, play offline" -- see HandleConnectPromptSubmitted).
-	FString DefaultIp = TEXT("");
-	FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
+	// Prefer the last server we were connected to (set on a successful
+	// Connect()) so a reconnect after an unexpected disconnect just needs
+	// Enter; otherwise fall back to -ServerIP= if given, else leave blank
+	// (Connect submits blank/"0" as "skip connecting, play offline" -- see
+	// HandleConnectPromptSubmitted).
+	FString DefaultIp = LastServerIp;
+	if (DefaultIp.IsEmpty())
+	{
+		FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
+	}
 
 	SAssignNew(ConnectPromptWidget, SProtoConnectPrompt)
 		.InitialServerIp(DefaultIp)
@@ -175,6 +181,7 @@ bool UProtoNetClientSubsystem::Connect(const FString& ServerIp, int32 ServerPort
 	WorkerThread = FRunnableThread::Create(Worker.Get(), TEXT("ProtoNetReceiveWorker"));
 
 	UE_LOG(LogProtoNet, Log, TEXT("Connect: connected to %s:%d"), *ServerIp, ServerPort);
+	LastServerIp = ServerIp;
 	OnConnected.Broadcast();
 	return true;
 }
@@ -201,6 +208,20 @@ void UProtoNetClientSubsystem::Disconnect()
 		ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Socket);
 		Socket = nullptr;
 	}
+
+	// Nothing will tell us about these players again until we reconnect and
+	// get a fresh roster -- despawn them now instead of leaving frozen ghosts.
+	for (const auto& Pair : RemotePlayers)
+	{
+		if (IsValid(Pair.Value))
+		{
+			Pair.Value->Destroy();
+		}
+	}
+	RemotePlayers.Empty();
+	RemoteTargetLocation.Empty();
+	RemoteTargetRotation.Empty();
+	LocalPlayerId = 0;
 }
 
 bool UProtoNetClientSubsystem::IsConnected() const
@@ -449,6 +470,32 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			}
 			break;
 
+		case ProtoType::Net::Payload::S2C_PlayerLeft:
+			if (const auto* Left = Packet->payload_as_S2C_PlayerLeft())
+			{
+				RemoveRemotePlayer(Left->player_id());
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_AttackResult:
+			if (const auto* Result = Packet->payload_as_S2C_AttackResult())
+			{
+				// Approximate server-side hit confirmation (see the schema
+				// comment on S2C_AttackBroadcast); just a placeholder marker
+				// until there's real hit-reaction FX/damage numbers.
+				if (Result->hit())
+				{
+					if (const auto* HitPos = Result->hit_position())
+					{
+						if (UWorld* World = GetWorld())
+						{
+							DrawDebugSphere(World, FVector(HitPos->x(), HitPos->y(), HitPos->z()), 20.0f, 8, FColor::Red, false, 1.0f, 0, 2.0f);
+						}
+					}
+				}
+			}
+			break;
+
 		default:
 			break;
 	}
@@ -520,6 +567,24 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 	}
 }
 
+void UProtoNetClientSubsystem::RemoveRemotePlayer(uint32 PlayerId)
+{
+	const int32 Key = static_cast<int32>(PlayerId);
+
+	if (AActor** Existing = RemotePlayers.Find(Key))
+	{
+		if (IsValid(*Existing))
+		{
+			(*Existing)->Destroy();
+		}
+		RemotePlayers.Remove(Key);
+	}
+	RemoteTargetLocation.Remove(Key);
+	RemoteTargetRotation.Remove(Key);
+
+	UE_LOG(LogProtoNet, Log, TEXT("Removed remote player %u"), PlayerId);
+}
+
 void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 {
 	constexpr float ArrivalToleranceCm = 5.0f;
@@ -589,6 +654,10 @@ void UProtoNetClientSubsystem::Tick(float DeltaTime)
 		UE_LOG(LogProtoNet, Warning, TEXT("Disconnected: %s"), *Reason);
 		Disconnect();
 		OnDisconnected.Broadcast(Reason);
+
+		// Unexpected disconnect (peer closed, framing error, ...) -- offer a
+		// reconnect right away instead of leaving the player stuck with no UI.
+		ShowConnectPrompt();
 	}
 
 	TickRemotePlayers(DeltaTime);

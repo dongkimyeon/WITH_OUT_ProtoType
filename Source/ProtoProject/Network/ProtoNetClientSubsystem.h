@@ -142,6 +142,11 @@ private:
 	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting = false);
 	void TickRemotePlayers(float DeltaTime);
 
+	// Despawns a remote player's actor and clears its tracking entries, on
+	// receiving S2C_PlayerLeft (the server broadcasts this when a session
+	// disconnects). No-op if PlayerId isn't currently tracked.
+	void RemoveRemotePlayer(uint32 PlayerId);
+
 	// Same Blueprint the local player uses, so remote players look real.
 	// Falls back to the AProtoRemotePlayer placeholder if it fails to load.
 	TSubclassOf<AProtoCharacter> RemoteCharacterClass;
@@ -163,6 +168,10 @@ private:
 	FCriticalSection SendLock;
 	uint32 NextSeq = 1;
 	uint32 LocalPlayerId = 0;
+
+	// Set on a successful Connect(); ShowConnectPrompt() prefills this so an
+	// unexpected disconnect's reconnect prompt just needs Enter, not retyping.
+	FString LastServerIp;
 
 	UPROPERTY()
 	TMap<int32, AActor*> RemotePlayers;

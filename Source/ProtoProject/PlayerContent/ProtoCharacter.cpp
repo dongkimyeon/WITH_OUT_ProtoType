@@ -1109,36 +1109,66 @@ void AProtoCharacter::PlayRemoteReloadMontage(EWeaponType ForWeaponType)
 
 void AProtoCharacter::ApplyRemoteWeaponEquip(EWeaponType ForWeaponType)
 {
-    if (ForWeaponType == CurrentWeaponType)
+    if (Swapping > 0.0f || ForWeaponType == CurrentWeaponType)
     {
         return;
     }
 
     const EWeaponType PreviousWeaponType = CurrentWeaponType;
-    // Storing (ForWeaponType == None) re-attaches the weapon that was just
-    // holstered, so it's still the one from PreviousWeaponType.
-    CurrentWeapon = ForWeaponType == EWeaponType::None ? GetWeaponByType(PreviousWeaponType) : GetWeaponByType(ForWeaponType);
-    CurrentWeaponType = ForWeaponType;
-    bHasWeapon = CurrentWeaponType != EWeaponType::None;
-
-    if (!CurrentWeapon)
+    // Storing (ForWeaponType == None) needs the weapon that's about to be
+    // holstered, not a lookup by the (already-None) target type.
+    AWeaponBase* SwapWeapon = ForWeaponType == EWeaponType::None ? GetWeaponByType(PreviousWeaponType) : GetWeaponByType(ForWeaponType);
+    if (!SwapWeapon)
     {
-        // The remote character doesn't have this weapon slot filled: nothing
-        // to attach.
+        // This remote character doesn't have the weapon slot filled; just
+        // snap the logical state so later broadcasts stay consistent.
+        CurrentWeaponType = ForWeaponType;
+        bHasWeapon = ForWeaponType != EWeaponType::None;
         return;
     }
 
-    switch (CurrentWeaponType)
+    CurrentWeapon = SwapWeapon;
+    SwapFromWeaponType = PreviousWeaponType;
+    PendingWeaponType = ForWeaponType;
+    CurrentWeaponType = ForWeaponType;
+    bHasWeapon = CurrentWeaponType != EWeaponType::None;
+
+    // Same swap-timer/montage flow as BeginWeaponSwap(), minus the
+    // SendWeaponEquip() broadcast (this transition came FROM the network;
+    // echoing it back would loop). Tick()'s Swapping countdown isn't gated
+    // to the local player, so it drives FinishWeaponSwap() for us -- that's
+    // also what does the actual socket attach, timed to match the montage.
+    const bool bIsEquippingWeapon = ForWeaponType != EWeaponType::None;
+    Swapping = bIsEquippingWeapon ? SwapWeapon->EquipSwapTime : SwapWeapon->UnequipSwapTime;
+    Swapping = FMath::Max(0.0f, Swapping);
+    SwappingAlpha = false;
+
+    if (WeaponSwapMontage)
     {
-    case EWeaponType::Rifle:
-        AttachCurrentWeaponToSocket(TEXT("WeaponSocket"));
-        break;
-    case EWeaponType::Pistol:
-        AttachCurrentWeaponToSocket(TEXT("PistolSocket"));
-        break;
-    default:
-        AttachCurrentWeaponToSocket(PreviousWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage"));
-        break;
+        if (ForWeaponType == EWeaponType::None)
+        {
+            if (PreviousWeaponType == EWeaponType::Rifle)
+            {
+                PlayAnimMontage(WeaponSwapMontage, 1.0f, RifleToHandSectionName);
+            }
+            else if (PreviousWeaponType == EWeaponType::Pistol)
+            {
+                PlayAnimMontage(WeaponSwapMontage, 1.0f, PistolToHandSectionName);
+            }
+        }
+        else if (PreviousWeaponType == EWeaponType::None && ForWeaponType == EWeaponType::Rifle)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToRifleSectionName);
+        }
+        else if (PreviousWeaponType == EWeaponType::None && ForWeaponType == EWeaponType::Pistol)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToPistolSectionName);
+        }
+    }
+
+    if (Swapping <= 0.0f)
+    {
+        FinishWeaponSwap();
     }
 }
 
