@@ -4,15 +4,23 @@
 #include "TitleLevelWidget.h"
 #include "Components/Button.h"
 #include "Components/EditableText.h"
+#include "Engine/GameInstance.h"
 #include "Kismet/GameplayStatics.h"
+#include "ProtoProject/Network/ProtoNetClientSubsystem.h"
 
 void UTitleLevelWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
 	if (LoginButton) LoginButton->OnClicked.AddDynamic(this, &UTitleLevelWidget::OnClickLogIn);
-	
+
 	if (SignInButton) SignInButton->OnClicked.AddDynamic(this, &UTitleLevelWidget::OnClickSignIn);
+
+	if (UProtoNetClientSubsystem* NetClient = GetNetClient())
+	{
+		NetClient->OnLoginSucceeded.AddDynamic(this, &UTitleLevelWidget::HandleLoginSucceeded);
+		NetClient->OnLoginFailed.AddDynamic(this, &UTitleLevelWidget::HandleLoginFailed);
+	}
 }
 
 void UTitleLevelWidget::OnClickLogIn()
@@ -20,22 +28,39 @@ void UTitleLevelWidget::OnClickLogIn()
 	if (Id_Input_field) FID = Id_Input_field->GetText().ToString();
 	if (Passwd_Input_field) FPassword = Passwd_Input_field->GetText().ToString();
 	if (IP_Input_field) FIP = IP_Input_field->GetText().ToString();
-	const FString Msg = FString::Printf(TEXT("로그인 : ID: %s / PW: %s IP : %s"),
-			*FID, *FPassword, *FIP);
-	GEngine->AddOnScreenDebugMessage(-1,1.0f,FColor::Green, Msg);
-	
-	//if(아이디 비번 IP 맞으면) 조건 추가 
-	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), TestLevel);
+
+	if (UProtoNetClientSubsystem* NetClient = GetNetClient())
+	{
+		NetClient->ConnectAndLogin(FIP, FID, FPassword);
+	}
 }
 
 void UTitleLevelWidget::OnClickSignIn()
 {
 	if (Id_Input_field) FID = Id_Input_field->GetText().ToString();
 	if (Passwd_Input_field) FPassword = Passwd_Input_field->GetText().ToString();
-	const FString Msg = FString::Printf(TEXT("회원가입 : ID: %s / PW: %s "),
-			*FID, *FPassword);
-	
-	GEngine->AddOnScreenDebugMessage(-1,1.0f,FColor::Red, Msg);
+	if (IP_Input_field) FIP = IP_Input_field->GetText().ToString();
+
+	if (UProtoNetClientSubsystem* NetClient = GetNetClient())
+	{
+		NetClient->ConnectAndRegister(FIP, FID, FPassword);
+	}
+}
+
+void UTitleLevelWidget::HandleLoginSucceeded(int32 PlayerId, bool bHasSavedProgress)
+{
+	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), TestLevel);
+}
+
+void UTitleLevelWidget::HandleLoginFailed(EProtoLoginFailReason Reason, const FString& Message)
+{
+	const FString Msg = FString::Printf(TEXT("로그인/회원가입 실패: %s"), *Message);
+	GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, Msg);
+}
+
+UProtoNetClientSubsystem* UTitleLevelWidget::GetNetClient() const
+{
+	return GetGameInstance() ? GetGameInstance()->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
 }
 
 

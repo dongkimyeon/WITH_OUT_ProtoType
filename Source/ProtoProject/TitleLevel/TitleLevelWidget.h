@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "ProtoProject/Network/ProtoNetClientSubsystem.h"
 #include "TitleLevelWidget.generated.h"
 
 class UButton;
 class UEditableText;
+class UProtoNetClientSubsystem;
 UCLASS()
 class PROTOPROJECT_API UTitleLevelWidget : public UUserWidget
 {
@@ -46,8 +48,15 @@ protected:
 	
 	UFUNCTION()
 	void OnClickLogIn();
-	
+
 	UFUNCTION()
 	void OnClickSignIn();
-	
+
+	UFUNCTION()
+	void HandleLoginSucceeded(int32 PlayerId, bool bHasSavedProgress);
+
+	UFUNCTION()
+	void HandleLoginFailed(EProtoLoginFailReason Reason, const FString& Message);
+
+	UProtoNetClientSubsystem* GetNetClient() const;
 };
