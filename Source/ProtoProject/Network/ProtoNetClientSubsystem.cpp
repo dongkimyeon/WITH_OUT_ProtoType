@@ -536,12 +536,18 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
 						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
 						Success->weapon_type());
+				}
 
-					// Gated the same as OnProgressRestored above (has_saved_progress)
-					// rather than firing on every login with an empty array --
-					// a fresh account has no saved inventory yet, and the
-					// listener applying an empty restore would wipe out
-					// whatever default starting items it spawned with.
+				// Unlike OnProgressRestored above, this fires on EVERY login,
+				// not just has_saved_progress ones -- there's no default
+				// starting inventory to protect (see ProtoCharacter.cpp's
+				// commented-out TestRifle/TestBandage/TestArmor seeding), and
+				// this same running client may have just logged out of a
+				// DIFFERENT account that left items sitting in the grid. The
+				// listener (HandleInventoryRestored) always clears first, so
+				// an empty array here correctly means "this account has
+				// nothing saved" instead of "leave whatever's already there".
+				{
 					TArray<FProtoInventoryItemEntry> InventoryItems;
 					if (const auto* Inventory = Success->inventory())
 					{

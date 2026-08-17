@@ -69,8 +69,12 @@ struct FProtoInventoryItemEntry
 	int32 StackCount = 1;
 };
 
-// Fired once, right after S2C_LoginSuccess, only when the account had a
-// saved inventory (same has_saved_progress lifecycle as OnProgressRestored).
+// Fired once after EVERY S2C_LoginSuccess (unlike OnProgressRestored, not
+// gated on has_saved_progress) -- Items is empty if the account has no
+// saved inventory. Listeners should treat this as "here is the complete,
+// authoritative state," always replacing whatever's currently shown rather
+// than only adding, so a different account logged into by the same running
+// client can't leave stale items behind.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnInventoryRestored, const TArray<FProtoInventoryItemEntry>&, Items);
 
 // Client-side counterpart to the WOP_SERVER RIO echo server: a plain TCP
