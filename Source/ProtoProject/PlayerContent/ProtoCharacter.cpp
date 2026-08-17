@@ -1610,15 +1610,26 @@ bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
         return false;
     }
     
-    // 해당 스탯이 만땅이면 사용 불가
-    if (StatusComponent->GetHealth() == StatusComponent->GetMaxHealth())
-        return false;
-    if (StatusComponent->GetHunger() == StatusComponent->GetMaxHunger())
-        return false;
-    if (StatusComponent->GetThirst() == StatusComponent->GetMaxThirst())
-        return false;
-    if (StatusComponent->GetInfection() == 0)
-        return false;
+    // 해당 스탯이 만땅(감염도는 0)이면 사용 불가
+    switch (ConsumableData->TargetStat)
+    {
+    case EConsumableTargetStat::Health:
+        if (StatusComponent->GetHealth() == StatusComponent->GetMaxHealth())
+            return false;
+        break;
+    case EConsumableTargetStat::Hunger:
+        if (StatusComponent->GetHunger() == StatusComponent->GetMaxHunger())
+            return false;
+        break;
+    case EConsumableTargetStat::Thirst:
+        if (StatusComponent->GetThirst() == StatusComponent->GetMaxThirst())
+            return false;
+        break;
+    case EConsumableTargetStat::Infection:
+        if (StatusComponent->GetInfection() == 0)
+            return false;
+        break;
+    }
     if (RifleReloadMontage)
     {
         FName ConsumableSectionName = NAME_None;

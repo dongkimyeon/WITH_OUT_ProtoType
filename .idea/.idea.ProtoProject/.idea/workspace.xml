@@ -20,6 +20,15 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/BP_StorageContainer.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/BP_StorageContainer.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_InventoryScreen.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_InventoryScreen.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Medkit.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Medkit.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Nikku.uasset" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Water.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Water.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemAK47.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemAK47.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemBase_Bandage.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemBase_Bandage.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemM1911.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemM1911.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_StorageContainer.uasset" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -324,7 +333,7 @@
       <workItem from="1786966552892" duration="331000" />
       <workItem from="1786972839905" duration="442000" />
       <workItem from="1786973462241" duration="650000" />
-      <workItem from="1786976181535" duration="2773000" />
+      <workItem from="1786976181535" duration="3949000" />
     </task>
     <servers />
   </component>
