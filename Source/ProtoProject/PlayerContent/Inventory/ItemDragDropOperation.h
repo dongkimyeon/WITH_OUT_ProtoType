@@ -42,7 +42,7 @@ public:
 
 	UPROPERTY()
 	FIntPoint DragOffset = FIntPoint(0, 0);
-\
+
 	UPROPERTY()
 	UImage* DragVisualImage = nullptr;
 
@@ -53,7 +53,7 @@ public:
 	USizeBox* DragVisualWrapper = nullptr;
 
 	FVector2D CellPixelSize = FVector2D(75.f, 75.f);
-\
+
 	UPROPERTY()
 	UInventoryGridComponent* SourceInventoryComponent = nullptr;
 

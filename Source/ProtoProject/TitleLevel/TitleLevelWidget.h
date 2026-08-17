@@ -28,11 +28,20 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	UEditableText* Passwd_Input_field;
 	
+	UPROPERTY(meta = (BindWidgetOptional))
+	UEditableText* IP_Input_field;
+	
+	
+	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, category = Test)
 	FString FID;
 		
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, category = Test)
 	FString FPassword;
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, category = Test)
+	FString FIP;
+	
 	
 	UFUNCTION()
 	void OnClickLogIn();

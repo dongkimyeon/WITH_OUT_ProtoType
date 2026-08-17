@@ -18,8 +18,9 @@ void UTitleLevelWidget::OnClickLogIn()
 {
 	if (Id_Input_field) FID = Id_Input_field->GetText().ToString();
 	if (Passwd_Input_field) FPassword = Passwd_Input_field->GetText().ToString();
-	const FString Msg = FString::Printf(TEXT("로그인 : ID: %s / PW: %s "),
-			*FID, *FPassword);
+	if (IP_Input_field) FIP = IP_Input_field->GetText().ToString();
+	const FString Msg = FString::Printf(TEXT("로그인 : ID: %s / PW: %s IP : %s"),
+			*FID, *FPassword, *FIP);
 	GEngine->AddOnScreenDebugMessage(-1,1.0f,FColor::Green, Msg);
 }
 
