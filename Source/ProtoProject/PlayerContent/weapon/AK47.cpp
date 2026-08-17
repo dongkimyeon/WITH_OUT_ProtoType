@@ -162,7 +162,6 @@ void AAK47::Fire()
         FireEnd,
         ECC_Visibility,
         Params);
-
     DrawDebugLine(
         GetWorld(),
         CameraStart,
@@ -201,8 +200,6 @@ void AAK47::Fire()
 
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red,
-                FString::Printf(TEXT("Hit: %s"), *FireHit.GetActor()->GetName()));
         }
     }
 }
@@ -316,3 +313,8 @@ void AAK47::SetWeaponMagazineHidden(bool bShouldHide)
         RifleSkeletalMesh->UnHideBoneByName(MagazineBoneName);
     }
 }
+
+
+
+
+

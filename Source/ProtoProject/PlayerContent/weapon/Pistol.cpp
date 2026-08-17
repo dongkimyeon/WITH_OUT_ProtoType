@@ -160,7 +160,6 @@ void APistol::Fire()
         FireEnd,
         ECC_Visibility,
         Params);
-
     DrawDebugLine(
         GetWorld(),
         CameraStart,
@@ -199,8 +198,6 @@ void APistol::Fire()
 
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red,
-                FString::Printf(TEXT("Pistol Hit: %s"), *FireHit.GetActor()->GetName()));
         }
     }
 }
@@ -233,7 +230,6 @@ void APistol::SetWeaponMagazineHidden(bool bShouldHide)
     {
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Pistol skeletal mesh not found"));
         }
         return;
     }
@@ -359,3 +355,8 @@ void APistol::ReloadNewAmmoAttach()
 
     SetWeaponMagazineHidden(false);
 }
+
+
+
+
+
