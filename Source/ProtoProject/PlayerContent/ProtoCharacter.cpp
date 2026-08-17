@@ -671,6 +671,12 @@ void AProtoCharacter::SetWeaponFromSlot(EEquipmentSlot Slot)
         return;
     }
 
+    if (CurrentWeaponType != EWeaponType::None && SlotWeapon->WeaponType != EWeaponType::None && CurrentWeaponType != SlotWeapon->WeaponType)
+    {
+        BeginWeaponToWeaponSwap(SlotWeapon->WeaponType, SlotWeapon);
+        return;
+    }
+
     CurrentWeapon = SlotWeapon;
     BeginWeaponSwap(SlotWeapon->WeaponType, SlotWeapon);
 }
@@ -781,6 +787,8 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
         return;
     }
 
+    StopAim();
+
     CurrentWeapon = SwapWeapon;
 
     if (TargetWeaponType != EWeaponType::None)
@@ -848,6 +856,82 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
     }
 }
 
+void AProtoCharacter::BeginWeaponToWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor)
+{
+    StopFireWeapon();
+
+    if (Swapping > 0.0f || CurrentWeaponType == EWeaponType::None || TargetWeaponType == EWeaponType::None)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType == TargetWeaponType)
+    {
+        return;
+    }
+
+    AWeaponBase* NextWeapon = TargetWeaponActor ? TargetWeaponActor : GetWeaponByType(TargetWeaponType);
+    if (!NextWeapon || !GetMesh())
+    {
+        return;
+    }
+
+    const EWeaponType PreviousWeaponType = CurrentWeaponType;
+    AWeaponBase* PreviousWeapon = GetWeaponByType(PreviousWeaponType);
+    if (!PreviousWeapon)
+    {
+        PreviousWeapon = CurrentWeapon;
+    }
+
+    StopAim();
+
+    if (PreviousWeapon)
+    {
+        const FName PreviousStorageSocketName = PreviousWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage");
+        const FAttachmentTransformRules StorageAttachRules(
+            EAttachmentRule::SnapToTarget,
+            EAttachmentRule::SnapToTarget,
+            EAttachmentRule::KeepRelative,
+            true);
+        PreviousWeapon->AttachToComponent(GetMesh(), StorageAttachRules, PreviousStorageSocketName);
+        PreviousWeapon->SetActorEnableCollision(false);
+    }
+
+    CurrentWeapon = NextWeapon;
+    Joint = CurrentWeapon->LeftHandJointTarget;
+    SwapFromWeaponType = PreviousWeaponType;
+    PendingWeaponType = TargetWeaponType;
+    CurrentWeaponType = TargetWeaponType;
+    bHasWeapon = true;
+
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendWeaponEquip(static_cast<uint8>(TargetWeaponType));
+        }
+    }
+
+    Swapping = FMath::Max(0.0f, CurrentWeapon->EquipSwapTime);
+    SwappingAlpha = false;
+
+    if (WeaponSwapMontage)
+    {
+        if (TargetWeaponType == EWeaponType::Rifle)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToRifleSectionName);
+        }
+        else if (TargetWeaponType == EWeaponType::Pistol)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToPistolSectionName);
+        }
+    }
+
+    if (Swapping <= 0.0f)
+    {
+        FinishWeaponSwap();
+    }
+}
 void AProtoCharacter::FinishWeaponSwap()
 {
     Swapping = 0.0f;
@@ -1663,17 +1747,5 @@ void AProtoCharacter::OnQuickSlotKeyReleased()
         QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
