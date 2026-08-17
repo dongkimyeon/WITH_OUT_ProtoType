@@ -189,6 +189,28 @@ void AProtoCharacter::BeginPlay()
                 NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
                 NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
                 NetClient->ShowConnectPrompt();
+
+                // Login via TitleLevel completes (S2C_LoginSuccess arrives,
+                // OnProgressRestored/OnInventoryRestored fire) before this
+                // character even exists -- it only spawns once
+                // HandleLoginSucceeded's OpenLevelBySoftObjectPtr() finishes
+                // loading this level, which is after the broadcasts above
+                // already fired to nobody. Pull whatever was cached instead
+                // of only relying on the (still correct for the old in-game
+                // Slate popup flow) broadcast.
+                FVector PendingRestorePosition;
+                FRotator PendingRestoreLook;
+                uint8 PendingRestoreWeaponType = 0;
+                if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType))
+                {
+                    HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType);
+                }
+
+                TArray<FProtoInventoryItemEntry> PendingInventory;
+                if (NetClient->ConsumePendingInventoryRestore(PendingInventory))
+                {
+                    HandleInventoryRestored(PendingInventory);
+                }
             }
         }
 
