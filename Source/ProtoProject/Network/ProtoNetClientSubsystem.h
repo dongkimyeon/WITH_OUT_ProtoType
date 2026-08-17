@@ -122,6 +122,27 @@ public:
 	bool IsConnected() const;
 
 	/*-------------------
+	 복원 데이터 (늦게 구독하는 리스너용)
+	-------------------*/
+	// S2C_LoginSuccess can arrive (and OnProgressRestored/OnInventoryRestored
+	// can fire) while still on TitleLevel, before any AProtoCharacter exists
+	// to bind those delegates -- the character only spawns (and binds, in its
+	// own BeginPlay) after HandleLoginSucceeded's OpenLevelBySoftObjectPtr()
+	// finishes the level transition. A dynamic multicast delegate doesn't
+	// replay past broadcasts to a listener that binds afterward, so that
+	// character would silently never see its restore. These Consume*
+	// functions let BeginPlay pull whatever was cached by the login that
+	// already happened, once, in addition to the (still useful, for the old
+	// in-game Slate popup where the character already exists) broadcasts.
+	// Returns false (and leaves the outputs untouched) if there's nothing
+	// pending or it was already consumed.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType);
+
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool ConsumePendingInventoryRestore(TArray<FProtoInventoryItemEntry>& OutItems);
+
+	/*-------------------
 	 싱글/멀티 모드
 	-------------------*/
 	// Solo maps stay connected (so login/progress-save keeps working) but
@@ -311,6 +332,18 @@ private:
 	// account login submitted via the connect prompt, so HandleIncomingPacket
 	// knows whether to update/hide the prompt on those replies.
 	bool bAwaitingAccountLoginReply = false;
+
+	// See ConsumePendingProgressRestore/ConsumePendingInventoryRestore above.
+	// Set on every S2C_LoginSuccess (alongside the broadcasts), cleared by
+	// the corresponding Consume* call or by Disconnect() so a failed/aborted
+	// connection can't leak stale data into the next login attempt.
+	bool bHasPendingProgressRestore = false;
+	FVector PendingRestorePosition = FVector::ZeroVector;
+	FRotator PendingRestoreLook = FRotator::ZeroRotator;
+	uint8 PendingRestoreWeaponType = 0;
+
+	bool bHasPendingInventoryRestore = false;
+	TArray<FProtoInventoryItemEntry> PendingRestoreInventory;
 
 	UPROPERTY()
 	TMap<int32, AActor*> RemotePlayers;
