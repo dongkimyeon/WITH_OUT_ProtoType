@@ -99,6 +99,30 @@ void AProtoCharacter::Tick(float DeltaTime)
                 static_cast<int32>(CurrentWeaponType)));
     }
 
+    if (GEngine)
+    {
+        const AWeaponBase* WeaponCDO = CurrentWeapon ? Cast<AWeaponBase>(CurrentWeapon->GetClass()->GetDefaultObject()) : nullptr;
+        const FVector InstanceJoint = CurrentWeapon ? CurrentWeapon->LeftHandJointTarget : FVector::ZeroVector;
+        const FVector ClassDefaultJoint = WeaponCDO ? WeaponCDO->LeftHandJointTarget : FVector::ZeroVector;
+        GEngine->AddOnScreenDebugMessage(
+            12006,
+            0.0f,
+            FColor::Magenta,
+            FString::Printf(TEXT("Joint %.1f %.1f %.1f | Inst %.1f %.1f %.1f | CDO %.1f %.1f %.1f | %s | Class %s | Type %d"),
+                Joint.X,
+                Joint.Y,
+                Joint.Z,
+                InstanceJoint.X,
+                InstanceJoint.Y,
+                InstanceJoint.Z,
+                ClassDefaultJoint.X,
+                ClassDefaultJoint.Y,
+                ClassDefaultJoint.Z,
+                CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
+                CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
+                static_cast<int32>(CurrentWeaponType)));
+    }
+
     if (Swapping > 0.0f)
     {
         Swapping = FMath::Max(0.0f, Swapping - DeltaTime);
@@ -955,6 +979,230 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
 
     if (GEngine)
     {
+        const AWeaponBase* WeaponCDO = CurrentWeapon ? Cast<AWeaponBase>(CurrentWeapon->GetClass()->GetDefaultObject()) : nullptr;
+        const FVector InstanceJoint = CurrentWeapon ? CurrentWeapon->LeftHandJointTarget : FVector::ZeroVector;
+        const FVector ClassDefaultJoint = WeaponCDO ? WeaponCDO->LeftHandJointTarget : FVector::ZeroVector;
+        GEngine->AddOnScreenDebugMessage(
+            12006,
+            0.0f,
+            FColor::Magenta,
+            FString::Printf(TEXT("Joint %.1f %.1f %.1f | Inst %.1f %.1f %.1f | CDO %.1f %.1f %.1f | %s | Class %s | Type %d"),
+                Joint.X,
+                Joint.Y,
+                Joint.Z,
+                InstanceJoint.X,
+                InstanceJoint.Y,
+                InstanceJoint.Z,
+                ClassDefaultJoint.X,
+                ClassDefaultJoint.Y,
+                ClassDefaultJoint.Z,
+                CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
+                CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
+                static_cast<int32>(CurrentWeaponType)));
+    }
+
+    if (Swapping > 0.0f)
+    {
+        return;
+    }
+
+    AWeaponBase* const* Found = EquippedWeaponActors.Find(Slot);
+    AWeaponBase* SlotWeapon = Found ? *Found : nullptr;
+    if (!SlotWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
+        }
+        return;
+    }
+
+    CurrentWeapon = SlotWeapon;
+    BeginWeaponSwap(SlotWeapon->WeaponType, SlotWeapon);
+}
+
+AWeaponBase* AProtoCharacter::GetWeaponByType(EWeaponType WeaponType) const
+{
+    switch (WeaponType)
+    {
+    case EWeaponType::Rifle:
+        return CurrentRifle;
+    case EWeaponType::Pistol:
+        return CurrentPistol;
+    default:
+        return nullptr;
+    }
+}
+
+AWeaponBase* AProtoCharacter::SpawnFallbackRemoteWeapon(EWeaponType WeaponType)
+{
+    if (WeaponType != EWeaponType::Rifle && WeaponType != EWeaponType::Pistol)
+    {
+        return nullptr;
+    }
+    if (!GetMesh())
+    {
+        return nullptr;
+    }
+
+    const TSubclassOf<AWeaponBase> WeaponClass = WeaponType == EWeaponType::Rifle ? RemoteRifleClass : RemotePistolClass;
+    if (!WeaponClass)
+    {
+        return nullptr;
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = this;
+    SpawnParams.Instigator = this;
+
+    AWeaponBase* WeaponActor = GetWorld()->SpawnActor<AWeaponBase>(WeaponClass, GetActorTransform(), SpawnParams);
+    if (!WeaponActor)
+    {
+        return nullptr;
+    }
+
+    WeaponActor->SetOwner(this);
+    WeaponActor->SetInstigator(this);
+    WeaponActor->SetActorEnableCollision(false);
+
+    if (UStaticMeshComponent* WeaponMesh = WeaponActor->WeaponMesh)
+    {
+        WeaponMesh->SetSimulatePhysics(false);
+        WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+        WeaponMesh->SetGenerateOverlapEvents(false);
+    }
+    if (UBoxComponent* CollisionBox = WeaponActor->CollisionBox)
+    {
+        CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        CollisionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+        CollisionBox->SetGenerateOverlapEvents(false);
+    }
+
+    // Start holstered; the caller (ApplyRemoteWeaponEquip / HandleProgressRestored)
+    // is the one deciding whether it should actually be drawn.
+    const FName StorageSocketName = WeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage");
+    const FAttachmentTransformRules AttachRules(
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::KeepRelative,
+        true);
+    WeaponActor->AttachToComponent(GetMesh(), AttachRules, StorageSocketName);
+
+    if (WeaponType == EWeaponType::Rifle)
+    {
+        CurrentRifle = WeaponActor;
+    }
+    else
+    {
+        CurrentPistol = WeaponActor;
+    }
+
+    return WeaponActor;
+}
+
+void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor)
+{
+    StopFireWeapon();
+
+    if (Swapping > 0.0f)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType == TargetWeaponType)
+    {
+        return;
+    }
+
+    AWeaponBase* SwapWeapon = TargetWeaponType == EWeaponType::None
+        ? CurrentWeapon
+        : (TargetWeaponActor ? TargetWeaponActor : GetWeaponByType(TargetWeaponType));
+
+    if (!SwapWeapon)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
+        }
+        return;
+    }
+
+    CurrentWeapon = SwapWeapon;
+
+    if (TargetWeaponType != EWeaponType::None)
+    {
+        Joint = CurrentWeapon->LeftHandJointTarget;
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1,
+                3.0f,
+                FColor::Magenta,
+                FString::Printf(TEXT("Swap Joint Updated | Weapon %s | Class %s | Type %d | X %.1f Y %.1f Z %.1f"),
+                    CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
+                    CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
+                    static_cast<int32>(TargetWeaponType),
+                    Joint.X,
+                    Joint.Y,
+                    Joint.Z));
+        }
+    }
+
+    const EWeaponType PreviousWeaponType = CurrentWeaponType;
+    SwapFromWeaponType = PreviousWeaponType;
+
+    PendingWeaponType = TargetWeaponType;
+    CurrentWeaponType = TargetWeaponType;
+    bHasWeapon = CurrentWeaponType != EWeaponType::None;
+
+    /*-------------------
+     네트워킹: 무기 장착 브로드캐스트
+    -------------------*/
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendWeaponEquip(static_cast<uint8>(TargetWeaponType));
+        }
+    }
+
+    const bool bIsEquippingWeapon = TargetWeaponType != EWeaponType::None;
+    Swapping = bIsEquippingWeapon ? SwapWeapon->EquipSwapTime : SwapWeapon->UnequipSwapTime;
+    Swapping = FMath::Max(0.0f, Swapping);
+    SwappingAlpha = false;
+
+    if (WeaponSwapMontage)
+    {
+        if (TargetWeaponType == EWeaponType::None)
+        {
+            if (PreviousWeaponType == EWeaponType::Rifle)
+            {
+                PlayAnimMontage(WeaponSwapMontage, 1.0f, RifleToHandSectionName);
+            }
+            else if (PreviousWeaponType == EWeaponType::Pistol)
+            {
+                PlayAnimMontage(WeaponSwapMontage, 1.0f, PistolToHandSectionName);
+            }
+        }
+        else if (PreviousWeaponType == EWeaponType::None && TargetWeaponType == EWeaponType::Rifle)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToRifleSectionName);
+        }
+        else if (PreviousWeaponType == EWeaponType::None && TargetWeaponType == EWeaponType::Pistol)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToPistolSectionName);
+        }
+    }
+    if (Swapping <= 0.0f)
+    {
+        FinishWeaponSwap();
+        return;
+    }
+
+    if (GEngine)
+    {
         GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan, TEXT("Weapon Swapping"));
     }
 }
@@ -964,6 +1212,21 @@ void AProtoCharacter::FinishWeaponSwap()
     Swapping = 0.0f;
     SwappingAlpha = true;
     CurrentWeaponType = PendingWeaponType;
+
+    if (SwapFromWeaponType != EWeaponType::None && SwapFromWeaponType != CurrentWeaponType)
+    {
+        if (AWeaponBase* PreviousWeapon = GetWeaponByType(SwapFromWeaponType))
+        {
+            const FName PreviousStorageSocketName = SwapFromWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage");
+            const FAttachmentTransformRules StorageAttachRules(
+                EAttachmentRule::SnapToTarget,
+                EAttachmentRule::SnapToTarget,
+                EAttachmentRule::KeepRelative,
+                true);
+            PreviousWeapon->AttachToComponent(GetMesh(), StorageAttachRules, PreviousStorageSocketName);
+            PreviousWeapon->SetActorEnableCollision(false);
+        }
+    }
 
     if (CurrentWeapon)
     {
@@ -1007,9 +1270,14 @@ void AProtoCharacter::FinishWeaponSwap()
 }
 void AProtoCharacter::StartFireWeapon()
 {
+    if (!CurrentWeapon || CurrentWeaponType == EWeaponType::None || !bIsAiming || Swapping > 0.0f || bIsReloading)
+    {
+        return;
+    }
+
     FireWeapon();
 
-    if (!CurrentWeapon || !CurrentWeapon->bAutomatic || CurrentWeapon->FireRate <= 0.0f)
+    if (!CurrentWeapon->bAutomatic || CurrentWeapon->FireRate <= 0.0f)
     {
         return;
     }
@@ -1025,14 +1293,11 @@ void AProtoCharacter::StopFireWeapon()
 
 void AProtoCharacter::FireWeapon()
 {
-    if (!CurrentWeapon)
+    if (!CurrentWeapon || CurrentWeaponType == EWeaponType::None || !bIsAiming || Swapping > 0.0f || bIsReloading)
     {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, TEXT("No CurrentWeapon"));
-        }
         return;
     }
+
     CurrentWeapon->Fire();
     ApplyWeaponRecoil();
 }
@@ -1148,6 +1413,8 @@ void AProtoCharacter::ReloadWeapon()
     {
         return;
     }
+
+    StopAim();
 
     StopFireWeapon();
 
@@ -1307,6 +1574,7 @@ void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, ui
     }
 
     CurrentWeapon = RestoredWeapon;
+    Joint = CurrentWeapon->LeftHandJointTarget;
     CurrentWeaponType = RestoredType;
     PendingWeaponType = RestoredType;
     bHasWeapon = true;
@@ -1672,3 +1940,4 @@ void AProtoCharacter::OnQuickSlotKeyReleased()
         QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
     }
 }
+
