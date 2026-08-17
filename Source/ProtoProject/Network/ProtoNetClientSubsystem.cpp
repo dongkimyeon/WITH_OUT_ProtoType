@@ -640,9 +640,23 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 			if (UCharacterMovementComponent* MovementComponent = RemoteCharacter->GetCharacterMovement())
 			{
 				MovementComponent->bRunPhysicsWithNoController = true;
+				UE_LOG(LogProtoNet, Log, TEXT("[MoveDiag] spawned AProtoCharacter for player %u, bRunPhysicsWithNoController=%d, MovementMode=%d"),
+					PlayerId, MovementComponent->bRunPhysicsWithNoController, static_cast<int32>(MovementComponent->MovementMode));
+			}
+			else
+			{
+				UE_LOG(LogProtoNet, Warning, TEXT("[MoveDiag] spawned AProtoCharacter for player %u but GetCharacterMovement() is NULL"), PlayerId);
 			}
 		}
+		else
+		{
+			UE_LOG(LogProtoNet, Warning, TEXT("[MoveDiag] SpawnActor<AProtoCharacter> FAILED for player %u (class was valid)"), PlayerId);
+		}
 		NewRemote = RemoteCharacter;
+	}
+	else
+	{
+		UE_LOG(LogProtoNet, Warning, TEXT("[MoveDiag] RemoteCharacterClass is NULL -- BP_ProtoCharacter FClassFinder failed to resolve, falling back to placeholder actor for player %u"), PlayerId);
 	}
 	if (!NewRemote)
 	{
@@ -679,6 +693,17 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 {
 	constexpr float ArrivalToleranceCm = 5.0f;
 
+	// [MoveDiag] throttled diagnostic logging -- prints actor/target/velocity
+	// once every ~0.5s per remote player instead of every tick, so a live
+	// 2-player test can be diagnosed from the log file afterward.
+	static float MoveDiagLogTimer = 0.0f;
+	MoveDiagLogTimer -= DeltaTime;
+	const bool bMoveDiagShouldLog = MoveDiagLogTimer <= 0.0f;
+	if (bMoveDiagShouldLog)
+	{
+		MoveDiagLogTimer = 0.5f;
+	}
+
 	for (const auto& Pair : RemotePlayers)
 	{
 		AActor* RemoteActor = Pair.Value;
@@ -694,11 +719,28 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 		{
 			// Walk toward the target so CharacterMovementComponent produces
 			// real velocity for the walk/run animation blend.
+			// TargetRotation is the sender's full camera/control rotation
+			// (Pitch/Yaw/Roll) -- the local player only ever turns their own
+			// body with Yaw (bUseControllerRotationPitch/Roll are false in
+			// the constructor), so applying Pitch/Roll here too would pitch
+			// or roll the remote body to match the sender's look-up/down,
+			// which reads as the whole mesh tipping toward the camera. Only
+			// Yaw drives the actor's (and therefore the mesh's) rotation.
 			if (TargetRotation)
-				RemoteCharacter->SetActorRotation(*TargetRotation);
+				RemoteCharacter->SetActorRotation(FRotator(0.0f, TargetRotation->Yaw, 0.0f));
 
 			FVector ToTarget = *TargetLocation - RemoteCharacter->GetActorLocation();
 			ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
+
+			if (bMoveDiagShouldLog)
+			{
+				const UCharacterMovementComponent* MoveComp = RemoteCharacter->GetCharacterMovement();
+				UE_LOG(LogProtoNet, Log, TEXT("[MoveDiag] id=%d actorLoc=%s target=%s dist=%.1f speed=%.1f mode=%d hasController=%d"),
+					Pair.Key, *RemoteCharacter->GetActorLocation().ToString(), *TargetLocation->ToString(),
+					ToTarget.Size(), RemoteCharacter->GetVelocity().Size(),
+					MoveComp ? static_cast<int32>(MoveComp->MovementMode) : -1,
+					RemoteCharacter->GetController() != nullptr);
+			}
 
 			if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
 			{
