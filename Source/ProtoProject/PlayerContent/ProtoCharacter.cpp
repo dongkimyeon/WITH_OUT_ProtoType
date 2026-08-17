@@ -88,43 +88,6 @@ void AProtoCharacter::Tick(float DeltaTime)
         const float NormalizedPitch = FRotator::NormalizeAxis(Controller->GetControlRotation().Pitch);
         AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
     }
-
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(
-            12003,
-            0.0f,
-            SwappingAlpha ? FColor::Green : FColor::Red,
-            FString::Printf(TEXT("SwappingAlpha: %s | Swapping: %.2f | WeaponType: %d"),
-                SwappingAlpha ? TEXT("TRUE") : TEXT("FALSE"),
-                Swapping,
-                static_cast<int32>(CurrentWeaponType)));
-    }
-
-    if (GEngine)
-    {
-        const AWeaponBase* WeaponCDO = CurrentWeapon ? Cast<AWeaponBase>(CurrentWeapon->GetClass()->GetDefaultObject()) : nullptr;
-        const FVector InstanceJoint = CurrentWeapon ? CurrentWeapon->LeftHandJointTarget : FVector::ZeroVector;
-        const FVector ClassDefaultJoint = WeaponCDO ? WeaponCDO->LeftHandJointTarget : FVector::ZeroVector;
-        GEngine->AddOnScreenDebugMessage(
-            12006,
-            0.0f,
-            FColor::Magenta,
-            FString::Printf(TEXT("Joint %.1f %.1f %.1f | Inst %.1f %.1f %.1f | CDO %.1f %.1f %.1f | %s | Class %s | Type %d"),
-                Joint.X,
-                Joint.Y,
-                Joint.Z,
-                InstanceJoint.X,
-                InstanceJoint.Y,
-                InstanceJoint.Z,
-                ClassDefaultJoint.X,
-                ClassDefaultJoint.Y,
-                ClassDefaultJoint.Z,
-                CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
-                CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
-                static_cast<int32>(CurrentWeaponType)));
-    }
-
     if (Swapping > 0.0f)
     {
         Swapping = FMath::Max(0.0f, Swapping - DeltaTime);
@@ -156,111 +119,8 @@ void AProtoCharacter::Tick(float DeltaTime)
 
             LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
 
-            if (GEngine)
-            {
-                const FVector DebugLeftHandLocation = LeftHandTransform.GetLocation();
-                const FRotator DebugLeftHandRotation = LeftHandTransform.Rotator();
-                GEngine->AddOnScreenDebugMessage(
-                    12004,
-                    0.0f,
-                    FColor::Orange,
-                    FString::Printf(TEXT("LeftHandTransform Loc X %.1f Y %.1f Z %.1f | Rot P %.1f Y %.1f R %.1f"),
-                        DebugLeftHandLocation.X,
-                        DebugLeftHandLocation.Y,
-                        DebugLeftHandLocation.Z,
-                        DebugLeftHandRotation.Pitch,
-                        DebugLeftHandRotation.Yaw,
-                        DebugLeftHandRotation.Roll));
-            }
-
-            if (bDebugLeftHandIK)
-            {
-                const float DebugSize = FMath::Max(LeftHandIKDebugDrawSize, 24.0f);
-                const FVector DebugTopLocation = LeftHandWorldLocation + FVector(0.0f, 0.0f, DebugSize * 4.0f);
-
-                DrawDebugSphere(
-                    GetWorld(),
-                    LeftHandWorldLocation,
-                    DebugSize,
-                    24,
-                    FColor::Magenta,
-                    false,
-                    0.0f,
-                    0,
-                    4.0f);
-
-                DrawDebugBox(
-                    GetWorld(),
-                    LeftHandWorldLocation,
-                    FVector(DebugSize * 0.75f),
-                    FColor::Cyan,
-                    false,
-                    0.0f,
-                    0,
-                    3.0f);
-
-                DrawDebugLine(
-                    GetWorld(),
-                    LeftHandWorldLocation,
-                    DebugTopLocation,
-                    FColor::Magenta,
-                    false,
-                    0.0f,
-                    0,
-                    5.0f);
-
-                DrawDebugString(
-                    GetWorld(),
-                    DebugTopLocation,
-                    TEXT("LEFT SOCKET"),
-                    nullptr,
-                    FColor::Magenta,
-                    0.0f,
-                    true);
-
-                DrawDebugCoordinateSystem(
-                    GetWorld(),
-                    LeftHandWorldLocation,
-                    LeftHandSocketTransform.Rotator(),
-                    DebugSize * 3.0f,
-                    false,
-                    0.0f,
-                    0,
-                    3.0f);
-
-                const FVector HandSpaceTargetWorldLocation = GetMesh()->GetSocketTransform(RightHandBoneName, RTS_World).TransformPosition(OutPosition);
-                DrawDebugSphere(
-                    GetWorld(),
-                    HandSpaceTargetWorldLocation,
-                    LeftHandIKDebugDrawSize * 0.75f,
-                    12,
-                    FColor::Yellow,
-                    false,
-                    0.0f,
-                    0,
-                    1.5f);
-
-                if (GEngine)
-                {
-                    GEngine->AddOnScreenDebugMessage(
-                        12001,
-                        0.2f,
-                        FColor::Cyan,
-                        FString::Printf(TEXT("LeftHandSocket World: X %.1f / Y %.1f / Z %.1f | BoneSpace: X %.1f / Y %.1f / Z %.1f"),
-                            LeftHandWorldLocation.X,
-                            LeftHandWorldLocation.Y,
-                            LeftHandWorldLocation.Z,
-                            OutPosition.X,
-                            OutPosition.Y,
-                            OutPosition.Z));
-                }
             }
         }
-        else if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(12001, 0.2f, FColor::Red, TEXT("LeftHandSocket Missing"));
-        }
-    }
     UpdateStamina(DeltaTime);
 
     /*-------------------
@@ -297,6 +157,16 @@ void AProtoCharacter::Tick(float DeltaTime)
 void AProtoCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    bDebugLeftHandIK = false;
+
+    if (IsLocallyControlled())
+    {
+        if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+        {
+            PlayerController->ConsoleCommand(TEXT("DisableAllScreenMessages"));
+        }
+    }
 
     StopAim();
     StopSprint();
@@ -365,10 +235,6 @@ void AProtoCharacter::BeginPlay()
                 DefaultUI->AddToViewport();
             }
         }
-        else if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("DefaultUIClass is NULL"));
-        }
     }
 }
 
@@ -389,10 +255,6 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
         if (InteractAction)
         {
             EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AProtoCharacter::Interact);
-        }
-        else if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("InteractAction is NULL"));
         }
     }
 
@@ -601,7 +463,7 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
     const FVector TraceStart = CamLoc + CamRot.Vector() * 400.f;
     const FVector TraceEnd   = CamLoc + CamRot.Vector() * 700.f;
     GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
-    DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Green, false, 2.f);
+    // Demo build: interaction trace debug line disabled.
 
     AActor* HitActor = Hit.GetActor();
     if (!IsValid(HitActor) || !NearbyInteractables.Contains(HitActor)) return;
@@ -652,7 +514,6 @@ void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
     if (ContainerWidgetInstance == nullptr)
     {
         ContainerWidgetInstance = CreateWidget<UContainerScreenWidget>(GetWorld(), ContainerWidgetClass);
-        GEngine->AddOnScreenDebugMessage(-1,5.f,FColor::Cyan,"OpenContainerScreen");
     }
 
     if (!ContainerWidgetInstance) return;
@@ -670,7 +531,6 @@ void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
         InputMode.SetWidgetToFocus(ContainerWidgetInstance->TakeWidget());
         InputMode.SetHideCursorDuringCapture(false);
         PC->SetInputMode(InputMode);
-        GEngine->AddOnScreenDebugMessage(-1,5.f,FColor::Cyan,"MouseSetting");
     }
 }
 
@@ -796,30 +656,6 @@ void AProtoCharacter::SetWeaponSlot2()
 
 void AProtoCharacter::SetWeaponFromSlot(EEquipmentSlot Slot)
 {
-    if (GEngine)
-    {
-        const AWeaponBase* WeaponCDO = CurrentWeapon ? Cast<AWeaponBase>(CurrentWeapon->GetClass()->GetDefaultObject()) : nullptr;
-        const FVector InstanceJoint = CurrentWeapon ? CurrentWeapon->LeftHandJointTarget : FVector::ZeroVector;
-        const FVector ClassDefaultJoint = WeaponCDO ? WeaponCDO->LeftHandJointTarget : FVector::ZeroVector;
-        GEngine->AddOnScreenDebugMessage(
-            12006,
-            0.0f,
-            FColor::Magenta,
-            FString::Printf(TEXT("Joint %.1f %.1f %.1f | Inst %.1f %.1f %.1f | CDO %.1f %.1f %.1f | %s | Class %s | Type %d"),
-                Joint.X,
-                Joint.Y,
-                Joint.Z,
-                InstanceJoint.X,
-                InstanceJoint.Y,
-                InstanceJoint.Z,
-                ClassDefaultJoint.X,
-                ClassDefaultJoint.Y,
-                ClassDefaultJoint.Z,
-                CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
-                CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
-                static_cast<int32>(CurrentWeaponType)));
-    }
-
     if (Swapping > 0.0f)
     {
         return;
@@ -831,7 +667,6 @@ void AProtoCharacter::SetWeaponFromSlot(EEquipmentSlot Slot)
     {
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
         }
         return;
     }
@@ -942,7 +777,6 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
     {
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
         }
         return;
     }
@@ -955,17 +789,6 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
 
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(
-                -1,
-                3.0f,
-                FColor::Magenta,
-                FString::Printf(TEXT("Swap Joint Updated | Weapon %s | Class %s | Type %d | X %.1f Y %.1f Z %.1f"),
-                    CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
-                    CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
-                    static_cast<int32>(TargetWeaponType),
-                    Joint.X,
-                    Joint.Y,
-                    Joint.Z));
         }
     }
 
@@ -1022,7 +845,6 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
 
     if (GEngine)
     {
-        GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Cyan, TEXT("Weapon Swapping"));
     }
 }
 
@@ -1059,7 +881,6 @@ void AProtoCharacter::FinishWeaponSwap()
 
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Yellow, TEXT("Weapon Stored"));
         }
         return;
     }
@@ -1071,7 +892,6 @@ void AProtoCharacter::FinishWeaponSwap()
 
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Rifle Equipped"));
         }
         return;
     }
@@ -1083,7 +903,6 @@ void AProtoCharacter::FinishWeaponSwap()
 
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Green, TEXT("Pistol Equipped"));
         }
     }
 }
@@ -1190,15 +1009,6 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
     {
         return;
     }
-
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(
-            12002,
-            1.0f,
-            FColor::Yellow,
-            FString::Printf(TEXT("Reload Notify: %s"), *NotifyName.ToString()));
-    }
 }
 void AProtoCharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
@@ -1209,15 +1019,6 @@ void AProtoCharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupte
 
     bIsReloading = false;
     SwappingAlpha = true;
-
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(
-            12005,
-            1.0f,
-            bInterrupted ? FColor::Red : FColor::Green,
-            bInterrupted ? TEXT("Reload Montage Interrupted") : TEXT("Reload Montage Ended"));
-    }
 }
 
 void AProtoCharacter::ReloadWeapon()
@@ -1241,7 +1042,6 @@ void AProtoCharacter::ReloadWeapon()
     {
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No AM_Player_Upper Montage"));
         }
         return;
     }
@@ -1508,7 +1308,6 @@ void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
         if (GEngine)
         {
             const FString Message = FString::Printf(TEXT("No socket: %s"), *SocketName.ToString());
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, Message);
         }
         return;
     }
@@ -1854,6 +1653,13 @@ void AProtoCharacter::OnQuickSlotKeyReleased()
         QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
     }
 }
+
+
+
+
+
+
+
 
 
 

@@ -162,26 +162,7 @@ void AAK47::Fire()
         FireEnd,
         ECC_Visibility,
         Params);
-
-    DrawDebugLine(
-        GetWorld(),
-        CameraStart,
-        CameraHit.bBlockingHit ? CameraHit.ImpactPoint : CameraEnd,
-        FColor::Blue,
-        false,
-        1.0f,
-        0,
-        0.75f);
-
-    DrawDebugLine(
-        GetWorld(),
-        MuzzleStart,
-        bHit ? FireHit.ImpactPoint : FireEnd,
-        bHit ? FColor::Red : FColor::Green,
-        false,
-        1.0f,
-        0,
-        1.5f);
+    // Demo build: fire trace debug lines disabled.
 
     if (bHit && BulletHoleDecalMaterial)
     {
@@ -201,8 +182,6 @@ void AAK47::Fire()
 
         if (GEngine)
         {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red,
-                FString::Printf(TEXT("Hit: %s"), *FireHit.GetActor()->GetName()));
         }
     }
 }
@@ -316,3 +295,7 @@ void AAK47::SetWeaponMagazineHidden(bool bShouldHide)
         RifleSkeletalMesh->UnHideBoneByName(MagazineBoneName);
     }
 }
+
+
+
+
