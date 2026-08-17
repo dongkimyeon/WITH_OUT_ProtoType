@@ -99,7 +99,6 @@ void UInventoryItemWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 			DragOp->DragVisualMatInst = DragMatInst;
 		}
 
-		// 드래그 프리뷰 수량 텍스트 반영
 		FInventoryIconUtils::UpdateStackCountText(DragVisual->StackCountText, Item.ItemData->bIsStackable, Item.StackCount);
 	}
 
