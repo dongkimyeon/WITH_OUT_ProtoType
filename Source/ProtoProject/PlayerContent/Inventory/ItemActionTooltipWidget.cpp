@@ -20,6 +20,7 @@ void UItemActionTooltipWidget::SetActionText(const FText& Text)
 	SetVisibility(ESlateVisibility::HitTestInvisible);
 }
 
+
 void UItemActionTooltipWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
