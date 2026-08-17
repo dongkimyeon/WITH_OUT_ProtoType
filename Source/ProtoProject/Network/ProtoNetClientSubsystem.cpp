@@ -53,12 +53,8 @@ void UProtoNetClientSubsystem::ShowConnectPrompt()
 {
 	if (ConnectPromptWidget.IsValid() || IsConnected())
 		return;
-
-	// Prefer the last server we were connected to (set on a successful
-	// Connect()) so a reconnect after an unexpected disconnect just needs
-	// Enter; otherwise fall back to -ServerIP= if given, else leave blank
-	// (Connect submits blank/"0" as "skip connecting, play offline" -- see
-	// HandleConnectPromptSubmitted).
+		
+		
 	FString DefaultIp = LastServerIp;
 	if (DefaultIp.IsEmpty())
 	{
@@ -294,7 +290,7 @@ bool UProtoNetClientSubsystem::SendLoginTest(const FString& AuthToken, const FSt
 	return SendPacketBytes(Bytes);
 }
 
-bool UProtoNetClientSubsystem::SendAccountLogin(const FString& Username, const FString& Password)
+bool UProtoNetClientSubsystem::SendAccountLogin(const FString& Username, const FString& Password, bool bIsRegister)
 {
 	flatbuffers::FlatBufferBuilder Fbb;
 	auto Token = Fbb.CreateString("");
@@ -302,13 +298,33 @@ bool UProtoNetClientSubsystem::SendAccountLogin(const FString& Username, const F
 	auto UsernameOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Username));
 	auto PasswordOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Password));
 
-	auto Login = ProtoType::Net::CreateC2S_Login(Fbb, Token, Version, UsernameOffset, PasswordOffset);
+	auto Login = ProtoType::Net::CreateC2S_Login(Fbb, Token, Version, UsernameOffset, PasswordOffset, bIsRegister);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_Login, Login.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
 	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::ConnectAndLogin(const FString& ServerIp, const FString& Username, const FString& Password)
+{
+	if (!IsConnected() && !Connect(ServerIp))
+		return false;
+
+	LastServerIp = ServerIp;
+	LastUsername = Username;
+	return SendAccountLogin(Username, Password, /*bIsRegister=*/false);
+}
+
+bool UProtoNetClientSubsystem::ConnectAndRegister(const FString& ServerIp, const FString& Username, const FString& Password)
+{
+	if (!IsConnected() && !Connect(ServerIp))
+		return false;
+
+	LastServerIp = ServerIp;
+	LastUsername = Username;
+	return SendAccountLogin(Username, Password, /*bIsRegister=*/true);
 }
 
 bool UProtoNetClientSubsystem::SendAttackFire(FVector Origin, FVector Direction, uint8 WeaponSlot)
@@ -441,6 +457,8 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					bAwaitingAccountLoginReply = false;
 					HideConnectPrompt();
 				}
+
+				OnLoginSucceeded.Broadcast(static_cast<int32>(LocalPlayerId), Success->has_saved_progress());
 			}
 			break;
 
@@ -453,10 +471,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 				if (bAwaitingAccountLoginReply)
 				{
 					bAwaitingAccountLoginReply = false;
-					// The server leaves the connection open but never spawns
-					// this session into the game (see Session.cpp's
-					// C2S_Login case) -- disconnect our end so a retry
-					// starts from a clean Connect().
+
 					Disconnect();
 					ShowConnectPrompt();
 					if (ConnectPromptWidget.IsValid())
@@ -466,6 +481,8 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 							: FText::FromString(Message));
 					}
 				}
+
+				OnLoginFailed.Broadcast(static_cast<EProtoLoginFailReason>(Fail->reason()), Message);
 			}
 			break;
 
@@ -498,7 +515,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						const FVector End = Start + Dir.GetSafeNormal() * 10000.0f;
 						if (UWorld* World = GetWorld())
 						{
-							// Placeholder tracer; swap for a real muzzle flash/impact FX later.
+							
 							DrawDebugLine(World, Start, End, FColor::Yellow, false, 1.0f, 0, 1.5f);
 						}
 					}
@@ -556,9 +573,6 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 		case ProtoType::Net::Payload::S2C_AttackResult:
 			if (const auto* Result = Packet->payload_as_S2C_AttackResult())
 			{
-				// Approximate server-side hit confirmation (see the schema
-				// comment on S2C_AttackBroadcast); just a placeholder marker
-				// until there's real hit-reaction FX/damage numbers.
 				if (Result->hit())
 				{
 					if (const auto* HitPos = Result->hit_position())

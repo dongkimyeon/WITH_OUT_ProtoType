@@ -23,6 +23,27 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnDisconnected, const FString&
 // binds this in BeginPlay() to move/re-equip itself to where it left off.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FProtoOnProgressRestored, FVector, Position, FRotator, Look, uint8, WeaponType);
 
+// Mirrors ProtoType::Net::LoginFailReason 1:1 (raw flatbuffers enums aren't
+// Blueprint-visible), for TitleLevel UI to switch on.
+UENUM(BlueprintType)
+enum class EProtoLoginFailReason : uint8
+{
+	InvalidToken,
+	VersionMismatch,
+	ServerFull,
+	Banned,
+	AlreadyLoggedIn,
+	Unknown,
+	AccountNotFound,	// Login: no account with that username.
+	UsernameTaken,		// Register: an account with that username already exists.
+};
+
+// Fired on S2C_LoginSuccess, regardless of whether the login came from the
+// Slate connect prompt or a TitleLevel UMG widget (ConnectAndLogin/ConnectAndRegister).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnLoginSucceeded, int32, PlayerId, bool, bHasSavedProgress);
+// Fired on S2C_LoginFail, same as above.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnLoginFailed, EProtoLoginFailReason, Reason, const FString&, Message);
+
 // Client-side counterpart to the WOP_SERVER RIO echo server: a plain TCP
 // connection speaking the same Protocol (FlatBuffers, size-prefixed "PTPK").
 // A GameInstanceSubsystem so it's reachable from Blueprint anywhere.
@@ -79,12 +100,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendLoginTest(const FString& AuthToken, const FString& ClientVersion);
 
-	// Logs into (or auto-registers, on first use) a DB-backed account. The
-	// server replies with S2C_LoginSuccess (has_saved_progress tells you
-	// whether OnProgressRestored will also fire) or S2C_LoginFail (wrong
-	// password).
+	// Logs into a DB-backed account (bIsRegister=false, the default) or
+	// creates a brand new one (bIsRegister=true). The server replies with
+	// S2C_LoginSuccess (has_saved_progress tells you whether
+	// OnProgressRestored will also fire) or S2C_LoginFail (AccountNotFound,
+	// UsernameTaken, wrong password, ...).
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool SendAccountLogin(const FString& Username, const FString& Password);
+	bool SendAccountLogin(const FString& Username, const FString& Password, bool bIsRegister = false);
+
+	// Convenience for TitleLevel's LoginButton: connects if not already
+	// connected, then logs in with an existing account. Fires OnLoginSucceeded
+	// / OnLoginFailed (in addition to, not instead of, the Slate connect
+	// prompt's own handling, which stays inert if that prompt isn't shown).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool ConnectAndLogin(const FString& ServerIp, const FString& Username, const FString& Password);
+
+	// Convenience for TitleLevel's SignInButton: connects if not already
+	// connected, then registers a brand new account. Fails with
+	// UsernameTaken if the username already exists.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool ConnectAndRegister(const FString& ServerIp, const FString& Username, const FString& Password);
 
 	// Called from AAK47::Fire() when a shot is fired.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
@@ -130,6 +165,12 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnProgressRestored OnProgressRestored;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnLoginSucceeded OnLoginSucceeded;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnLoginFailed OnLoginFailed;
 
 	//~ FTickableGameObject
 	virtual void Tick(float DeltaTime) override;
