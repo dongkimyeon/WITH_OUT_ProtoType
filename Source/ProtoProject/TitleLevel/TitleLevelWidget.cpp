@@ -31,7 +31,10 @@ void UTitleLevelWidget::OnClickLogIn()
 
 	if (UProtoNetClientSubsystem* NetClient = GetNetClient())
 	{
-		NetClient->ConnectAndLogin(FIP, FID, FPassword);
+		if (!NetClient->ConnectAndLogin(FIP, FID, FPassword))
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("서버에 연결할 수 없습니다. 서버가 꺼져있는지 확인하세요."));
+		}
 	}
 }
 
@@ -43,7 +46,10 @@ void UTitleLevelWidget::OnClickSignIn()
 
 	if (UProtoNetClientSubsystem* NetClient = GetNetClient())
 	{
-		NetClient->ConnectAndRegister(FIP, FID, FPassword);
+		if (!NetClient->ConnectAndRegister(FIP, FID, FPassword))
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("서버에 연결할 수 없습니다. 서버가 꺼져있는지 확인하세요."));
+		}
 	}
 }
 
@@ -54,7 +60,22 @@ void UTitleLevelWidget::HandleLoginSucceeded(int32 PlayerId, bool bHasSavedProgr
 
 void UTitleLevelWidget::HandleLoginFailed(EProtoLoginFailReason Reason, const FString& Message)
 {
-	const FString Msg = FString::Printf(TEXT("로그인/회원가입 실패: %s"), *Message);
+	FString Msg;
+	switch (Reason)
+	{
+	case EProtoLoginFailReason::AccountNotFound:
+		Msg = TEXT("아이디가 존재하지 않습니다.");
+		break;
+	case EProtoLoginFailReason::UsernameTaken:
+		Msg = TEXT("이미 존재하는 계정입니다.");
+		break;
+	case EProtoLoginFailReason::InvalidToken:
+		Msg = TEXT("비밀번호가 일치하지 않습니다.");
+		break;
+	default:
+		Msg = FString::Printf(TEXT("로그인/회원가입 실패: %s"), *Message);
+		break;
+	}
 	GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, Msg);
 }
 
