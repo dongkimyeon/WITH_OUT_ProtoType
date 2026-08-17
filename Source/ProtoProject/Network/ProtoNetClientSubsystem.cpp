@@ -225,6 +225,35 @@ void UProtoNetClientSubsystem::Disconnect()
 
 	// Nothing will tell us about these players again until we reconnect and
 	// get a fresh roster -- despawn them now instead of leaving frozen ghosts.
+	RemoveAllRemotePlayers();
+	LocalPlayerId = 0;
+}
+
+bool UProtoNetClientSubsystem::IsConnected() const
+{
+	return Socket != nullptr && Socket->GetConnectionState() == SCS_Connected;
+}
+
+void UProtoNetClientSubsystem::SetMultiplayerVisualsEnabled(bool bEnabled)
+{
+	if (bMultiplayerVisualsEnabled == bEnabled)
+		return;
+
+	bMultiplayerVisualsEnabled = bEnabled;
+
+	if (!bMultiplayerVisualsEnabled)
+	{
+		// Solo map: nothing should still be visible from a stale roster, and
+		// we're about to stop processing the packets that would update it.
+		RemoveAllRemotePlayers();
+	}
+	// Turning it back on doesn't need to do anything eagerly -- the next
+	// S2C_SendPlayerInfo/S2C_MoveState for each other connected player will
+	// (re-)spawn them, same as a fresh login into a multi map.
+}
+
+void UProtoNetClientSubsystem::RemoveAllRemotePlayers()
+{
 	for (const auto& Pair : RemotePlayers)
 	{
 		if (IsValid(Pair.Value))
@@ -235,12 +264,6 @@ void UProtoNetClientSubsystem::Disconnect()
 	RemotePlayers.Empty();
 	RemoteTargetLocation.Empty();
 	RemoteTargetRotation.Empty();
-	LocalPlayerId = 0;
-}
-
-bool UProtoNetClientSubsystem::IsConnected() const
-{
-	return Socket != nullptr && Socket->GetConnectionState() == SCS_Connected;
 }
 
 /*-------------------
@@ -329,6 +352,9 @@ bool UProtoNetClientSubsystem::ConnectAndRegister(const FString& ServerIp, const
 
 bool UProtoNetClientSubsystem::SendAttackFire(FVector Origin, FVector Direction, uint8 WeaponSlot)
 {
+	if (!bMultiplayerVisualsEnabled)
+		return false;
+
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Header Header(
 		NextSeq++,
@@ -349,6 +375,9 @@ bool UProtoNetClientSubsystem::SendAttackFire(FVector Origin, FVector Direction,
 
 bool UProtoNetClientSubsystem::SendInteractLoot(int32 TargetId)
 {
+	if (!bMultiplayerVisualsEnabled)
+		return false;
+
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Header Header(
 		NextSeq++,
@@ -367,6 +396,9 @@ bool UProtoNetClientSubsystem::SendInteractLoot(int32 TargetId)
 
 bool UProtoNetClientSubsystem::SendMoveInput(FVector Position, FRotator Look, int32 Flags)
 {
+	if (!bMultiplayerVisualsEnabled)
+		return false;
+
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Header Header(
 		NextSeq++,
@@ -389,6 +421,9 @@ bool UProtoNetClientSubsystem::SendMoveInput(FVector Position, FRotator Look, in
 
 bool UProtoNetClientSubsystem::SendWeaponReload(uint8 WeaponType)
 {
+	if (!bMultiplayerVisualsEnabled)
+		return false;
+
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Header Header(
 		NextSeq++,
@@ -407,6 +442,9 @@ bool UProtoNetClientSubsystem::SendWeaponReload(uint8 WeaponType)
 
 bool UProtoNetClientSubsystem::SendWeaponEquip(uint8 WeaponType)
 {
+	if (!bMultiplayerVisualsEnabled)
+		return false;
+
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Header Header(
 		NextSeq++,
@@ -433,6 +471,26 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 		return;
 
 	const auto* Packet = ProtoType::Net::GetSizePrefixedPacket(PacketBytes.GetData());
+
+	// Solo map (see SetMultiplayerVisualsEnabled): ignore every packet type
+	// that would spawn/update/remove another player's actor, or draw their
+	// attack tracer/hit marker. Login/connection packets fall through to the
+	// switch below as normal -- this isn't a "go offline" toggle.
+	if (!bMultiplayerVisualsEnabled)
+	{
+		switch (Packet->payload_type())
+		{
+			case ProtoType::Net::Payload::S2C_SendPlayerInfo:
+			case ProtoType::Net::Payload::S2C_AttackBroadcast:
+			case ProtoType::Net::Payload::S2C_MoveState:
+			case ProtoType::Net::Payload::S2C_ItemUseBroadcast:
+			case ProtoType::Net::Payload::S2C_PlayerLeft:
+			case ProtoType::Net::Payload::S2C_AttackResult:
+				return;
+			default:
+				break;
+		}
+	}
 
 	switch (Packet->payload_type())
 	{
@@ -531,11 +589,13 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					const auto* Pos = State->position();
 					const auto* Look = State->look();
 					const bool bSprinting = (static_cast<uint16>(State->flags()) & static_cast<uint16>(ProtoType::Net::MoveFlags::Sprint)) != 0;
+					const bool bAiming = (static_cast<uint16>(State->flags()) & static_cast<uint16>(ProtoType::Net::MoveFlags::ADS)) != 0;
 					UpdateRemotePlayer(
 						State->player_id(),
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
 						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
-						bSprinting);
+						bSprinting,
+						bAiming);
 				}
 			}
 			break;
@@ -594,7 +654,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 /*-------------------
  원격 플레이어 관리
 -------------------*/
-void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting)
+void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting, bool bAiming)
 {
 	const int32 Key = static_cast<int32>(PlayerId);
 
@@ -611,6 +671,7 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 			{
 				RemoteCharacter->GetCharacterMovement()->MaxWalkSpeed =
 					bSprinting ? RemoteCharacter->SprintWalkSpeed : RemoteCharacter->BaseWalkSpeed;
+				RemoteCharacter->SetRemoteAiming(bAiming, Rotation.Pitch);
 			}
 			return;
 		}

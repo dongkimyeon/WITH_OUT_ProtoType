@@ -89,6 +89,20 @@ public:
 	bool IsConnected() const;
 
 	/*-------------------
+	 싱글/멀티 모드
+	-------------------*/
+	// Solo maps stay connected (so login/progress-save keeps working) but
+	// stop broadcasting our moves/actions to other players and stop showing
+	// theirs -- called from LevelChangeSelectWidget when picking Single vs
+	// Multi. Defaults to true (this is the "test" level's always-on behavior).
+	// Turning it off immediately despawns any remote players already visible.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	void SetMultiplayerVisualsEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool IsMultiplayerVisualsEnabled() const { return bMultiplayerVisualsEnabled; }
+
+	/*-------------------
 	 패킷 송신
 	-------------------*/
 	// Sends an already-framed (4-byte size-prefixed) Protocol Packet buffer.
@@ -132,8 +146,15 @@ public:
 
 	// Reports the local player's position/facing so others can see them move.
 	// Called periodically (throttled), not meant to be spammed every frame.
+	// Flags is a ProtoType::Net::MoveFlags bitmask -- see kMoveFlagSprint/
+	// kMoveFlagADS below for the bits AProtoCharacter actually sets, so
+	// PlayerContent code doesn't need to include the flatbuffers headers
+	// just to build a Flags value.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendMoveInput(FVector Position, FRotator Look, int32 Flags = 0);
+
+	static constexpr int32 kMoveFlagSprint = 1;
+	static constexpr int32 kMoveFlagADS = 16;
 
 	// Lets other clients mirror the reload motion. WeaponType (EWeaponType)
 	// is reused as the "slot" field so the receiver knows which section to play.
@@ -194,13 +215,26 @@ private:
 	// Spawns the remote player on first sight and records its target
 	// transform; TickRemotePlayers() walks it there every frame so
 	// CharacterMovementComponent produces real walk/run animation.
-	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting = false);
+	// Rotation.Pitch also doubles as the aim-offset pitch when bAiming is
+	// true (see AProtoCharacter::SetRemoteAiming) -- it's the same Look the
+	// sender's own camera used, no separate field needed.
+	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting = false, bool bAiming = false);
 	void TickRemotePlayers(float DeltaTime);
 
 	// Despawns a remote player's actor and clears its tracking entries, on
 	// receiving S2C_PlayerLeft (the server broadcasts this when a session
 	// disconnects). No-op if PlayerId isn't currently tracked.
 	void RemoveRemotePlayer(uint32 PlayerId);
+
+	// Despawns every currently-tracked remote player at once. Used by
+	// SetMultiplayerVisualsEnabled(false) and reuses the same cleanup
+	// Disconnect() does.
+	void RemoveAllRemotePlayers();
+
+	// See SetMultiplayerVisualsEnabled(). Gates both the Send*() helpers
+	// below and the remote-player-affecting cases in HandleIncomingPacket();
+	// login/connection packets are unaffected.
+	bool bMultiplayerVisualsEnabled = true;
 
 	// Same Blueprint the local player uses, so remote players look real.
 	// Falls back to the AProtoRemotePlayer placeholder if it fails to load.

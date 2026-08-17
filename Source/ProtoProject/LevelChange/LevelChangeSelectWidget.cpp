@@ -4,6 +4,8 @@
 #include "LevelChangeSelectWidget.h"
 #include "Components/Button.h"
 #include  "Kismet/GameplayStatics.h"
+#include "Engine/GameInstance.h"
+#include "../Network/ProtoNetClientSubsystem.h"
 
 void ULevelChangeSelectWidget::NativeConstruct()
 {
@@ -40,6 +42,21 @@ void ULevelChangeSelectWidget::RequestLevelChange(ELevelChangeMode Mode, const T
 	const FString ModeText = (Mode == ELevelChangeMode::Single) ? TEXT("Single") : TEXT("Multi");
 	const FString Msg = FString::Printf(TEXT("레벨 변경 요청: %s / %s "),
 		*ModeText, *Level.ToSoftObjectPath().GetAssetName());
+
+	// Single: stop broadcasting our moves/actions and stop showing other
+	// players (see SetMultiplayerVisualsEnabled). Multi: same behavior as
+	// the "test" level, which is the default -- explicit here in case the
+	// player is coming back from a Single map. UProtoNetClientSubsystem is a
+	// GameInstanceSubsystem so this setting (and the connection itself)
+	// survives the OpenLevelBySoftObjectPtr() below.
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->SetMultiplayerVisualsEnabled(Mode == ELevelChangeMode::Multi);
+		}
+	}
+
 	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), Level);
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, Msg);
 	UE_LOG(LogTemp, Log, TEXT("%s"), *Msg);

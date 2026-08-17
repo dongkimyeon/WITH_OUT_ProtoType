@@ -304,6 +304,16 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void ApplyRemoteWeaponEquip(EWeaponType ForWeaponType);
 
+    // Mirrors StartAim()/StopAim() for a remote character -- bIsAiming and
+    // AimPitch drive ABP_Unarmed_Test's aim offset, but for a remote proxy
+    // (no Controller) nothing was ever setting them, so every remote
+    // character's aim state just sat at its default instead of tracking the
+    // sender. Called from UProtoNetClientSubsystem::UpdateRemotePlayer with
+    // the ADS bit + look pitch out of S2C_MoveState -- see
+    // UProtoNetClientSubsystem::kMoveFlagADS.
+    UFUNCTION(BlueprintCallable, Category = "Aim")
+    void SetRemoteAiming(bool bAiming, float Pitch);
+
     // Bound (locally-controlled instance only, in BeginPlay) to
     // UProtoNetClientSubsystem::OnProgressRestored: moves this player to
     // their saved MSSQL position and silently shows their saved weapon (no

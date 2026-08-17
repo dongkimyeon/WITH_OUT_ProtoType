@@ -250,7 +250,13 @@ void AProtoCharacter::Tick(float DeltaTime)
             {
                 if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
                 {
-                    NetClient->SendMoveInput(GetActorLocation(), GetControlRotation());
+                    // Sprint/ADS were never actually included here before --
+                    // SendMoveInput() defaulted Flags to 0, so remote copies
+                    // never got real sprint speed or aim state, only position.
+                    int32 MoveFlags = 0;
+                    if (bIsSprint) MoveFlags |= UProtoNetClientSubsystem::kMoveFlagSprint;
+                    if (bIsAiming) MoveFlags |= UProtoNetClientSubsystem::kMoveFlagADS;
+                    NetClient->SendMoveInput(GetActorLocation(), GetControlRotation(), MoveFlags);
                 }
             }
         }
@@ -1262,6 +1268,14 @@ void AProtoCharacter::ApplyRemoteWeaponEquip(EWeaponType ForWeaponType)
     {
         FinishWeaponSwap();
     }
+}
+
+void AProtoCharacter::SetRemoteAiming(bool bAiming, float Pitch)
+{
+    bIsAiming = bAiming;
+    // Same clamp Tick() uses for the locally-controlled player's own
+    // AimPitch (see the Controller-gated block near the top of Tick()).
+    AimPitch = FMath::Clamp(FRotator::NormalizeAxis(Pitch), -30.0f, 30.0f);
 }
 
 void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType)
