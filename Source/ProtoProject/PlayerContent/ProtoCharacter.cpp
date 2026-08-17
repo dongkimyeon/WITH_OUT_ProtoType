@@ -1472,7 +1472,16 @@ bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
     {
         return false;
     }
-
+    
+    // 해당 스탯이 만땅이면 사용 불가
+    if (StatusComponent->GetHealth() == StatusComponent->GetMaxHealth())
+        return false;
+    if (StatusComponent->GetHunger() == StatusComponent->GetMaxHunger())
+        return false;
+    if (StatusComponent->GetThirst() == StatusComponent->GetMaxThirst())
+        return false;
+    if (StatusComponent->GetInfection() == 0)
+        return false;
     if (RifleReloadMontage)
     {
         FName ConsumableSectionName = NAME_None;
