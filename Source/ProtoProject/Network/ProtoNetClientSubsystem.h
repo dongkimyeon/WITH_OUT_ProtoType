@@ -142,6 +142,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool ConsumePendingInventoryRestore(TArray<FProtoInventoryItemEntry>& OutItems);
 
+	// Same pending-restore cache as above, but seeded directly from local
+	// state instead of a server round-trip -- called by
+	// AProtoCharacter::EndPlay(LevelTransition) so weapon/inventory survive
+	// moving between levels within the same login session (Test ->
+	// Single/Multi via LevelChanger and back). Those transitions don't
+	// involve a fresh login, so there's no S2C_LoginSuccess to populate the
+	// cache the normal way -- without this, every level change silently
+	// dropped whatever the player was holding.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	void CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType, const TArray<FProtoInventoryItemEntry>& InventoryItems);
+
 	/*-------------------
 	 싱글/멀티 모드
 	-------------------*/
@@ -225,6 +236,13 @@ public:
 	// something other players see, so it works the same in Single and Multi.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendSaveInventory(const TArray<FProtoInventoryItemEntry>& Items);
+
+	// See C2S_SetVisible's schema comment -- called by
+	// SetMultiplayerVisualsEnabled(false) so other clients despawn this
+	// player instead of freezing it in place as a "ghost" (this session
+	// stays connected the whole time, it just stops sending move updates).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendSetVisible(bool bVisible);
 
 	/*-------------------
 	 상태 조회 / 델리게이트

@@ -279,6 +279,13 @@ void UProtoNetClientSubsystem::SetMultiplayerVisualsEnabled(bool bEnabled)
 	// Turning it back on doesn't need to do anything eagerly -- the next
 	// S2C_SendPlayerInfo/S2C_MoveState for each other connected player will
 	// (re-)spawn them, same as a fresh login into a multi map.
+
+	// Tell the server too -- we're still connected either way (that's the
+	// whole point, so login/progress-save keeps working), but other players
+	// need to know we've effectively left/returned, or they'd see our last
+	// known position freeze into a ghost instead of despawning it (see
+	// C2S_SetVisible's schema comment).
+	SendSetVisible(bMultiplayerVisualsEnabled);
 }
 
 void UProtoNetClientSubsystem::RemoveAllRemotePlayers()
@@ -516,6 +523,34 @@ bool UProtoNetClientSubsystem::SendSaveInventory(const TArray<FProtoInventoryIte
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
 	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
+{
+	// Not gated by bMultiplayerVisualsEnabled -- this call is what changes
+	// that flag in the first place (see SetMultiplayerVisualsEnabled).
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto Req = ProtoType::Net::CreateC2S_SetVisible(Fbb, bVisible);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_SetVisible, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+void UProtoNetClientSubsystem::CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType, const TArray<FProtoInventoryItemEntry>& InventoryItems)
+{
+	bHasPendingProgressRestore = true;
+	PendingRestorePosition = Position;
+	PendingRestoreLook = Look;
+	PendingRestoreWeaponType = WeaponType;
+
+	bHasPendingInventoryRestore = true;
+	PendingRestoreInventory = InventoryItems;
 }
 
 /*-------------------

@@ -50,6 +50,12 @@ protected:
     virtual void BeginPlay() override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+    // Caches this player's weapon/inventory state into the net subsystem
+    // right before a level travel destroys this actor, so the character
+    // that spawns in the new level can restore it -- see
+    // UProtoNetClientSubsystem::CacheStateForLevelTransition.
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 private:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
     UInputMappingContext* DefaultMappingContext;
@@ -347,6 +353,11 @@ public:
     // Scans the whole content tree the first time it's called and caches
     // the result, so repeated restores don't re-scan.
     UItemDataBase* ResolveItemDataByName(const FString& AssetName) const;
+
+    // Shared by HandleInventoryChanged (network save) and EndPlay
+    // (level-transition local cache) -- both need the same "current grid,
+    // as wire-format entries" snapshot.
+    TArray<FProtoInventoryItemEntry> BuildInventorySnapshot() const;
 
     bool bIsRestoringInventory = false;
 
