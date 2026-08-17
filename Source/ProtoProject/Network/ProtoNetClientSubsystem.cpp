@@ -227,11 +227,40 @@ void UProtoNetClientSubsystem::Disconnect()
 	// get a fresh roster -- despawn them now instead of leaving frozen ghosts.
 	RemoveAllRemotePlayers();
 	LocalPlayerId = 0;
+
+	// A failed/aborted connection shouldn't leak this login's restore data
+	// into whatever the next successful login turns out to be.
+	bHasPendingProgressRestore = false;
+	bHasPendingInventoryRestore = false;
+	PendingRestoreInventory.Empty();
 }
 
 bool UProtoNetClientSubsystem::IsConnected() const
 {
 	return Socket != nullptr && Socket->GetConnectionState() == SCS_Connected;
+}
+
+bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType)
+{
+	if (!bHasPendingProgressRestore)
+		return false;
+
+	OutPosition = PendingRestorePosition;
+	OutLook = PendingRestoreLook;
+	OutWeaponType = PendingRestoreWeaponType;
+	bHasPendingProgressRestore = false;
+	return true;
+}
+
+bool UProtoNetClientSubsystem::ConsumePendingInventoryRestore(TArray<FProtoInventoryItemEntry>& OutItems)
+{
+	if (!bHasPendingInventoryRestore)
+		return false;
+
+	OutItems = PendingRestoreInventory;
+	bHasPendingInventoryRestore = false;
+	PendingRestoreInventory.Empty();
+	return true;
 }
 
 void UProtoNetClientSubsystem::SetMultiplayerVisualsEnabled(bool bEnabled)
@@ -532,10 +561,20 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 				{
 					const auto* Pos = Success->position();
 					const auto* Look = Success->look();
-					OnProgressRestored.Broadcast(
-						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
-						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
-						Success->weapon_type());
+					const FVector RestoredPosition = Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector;
+					const FRotator RestoredLook = Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator;
+
+					// Cached in addition to broadcasting: if this login came
+					// from TitleLevel, no AProtoCharacter exists to catch the
+					// broadcast yet (it only spawns after the level travel
+					// HandleLoginSucceeded triggers) -- see
+					// ConsumePendingProgressRestore's header comment.
+					bHasPendingProgressRestore = true;
+					PendingRestorePosition = RestoredPosition;
+					PendingRestoreLook = RestoredLook;
+					PendingRestoreWeaponType = Success->weapon_type();
+
+					OnProgressRestored.Broadcast(RestoredPosition, RestoredLook, Success->weapon_type());
 				}
 
 				// Unlike OnProgressRestored above, this fires on EVERY login,
@@ -565,6 +604,11 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 							InventoryItems.Add(ItemEntry);
 						}
 					}
+					// Cached in addition to broadcasting -- same reason as
+					// PendingRestorePosition/Look/WeaponType above.
+					bHasPendingInventoryRestore = true;
+					PendingRestoreInventory = InventoryItems;
+
 					OnInventoryRestored.Broadcast(InventoryItems);
 				}
 
