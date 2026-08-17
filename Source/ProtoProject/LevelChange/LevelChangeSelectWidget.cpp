@@ -17,31 +17,30 @@ void ULevelChangeSelectWidget::NativeConstruct()
 
 void ULevelChangeSelectWidget::OnClickSingleMap1()
 {
-	RequestLevelChange(ELevelChangeMode::Single, TEXT("L_Stage1"));
-
+	RequestLevelChange(ELevelChangeMode::Single, Stage1Level);
 }
 
 void ULevelChangeSelectWidget::OnClickSingleMap2()
 {
-	RequestLevelChange(ELevelChangeMode::Single, TEXT("L_Stage2"));
+	RequestLevelChange(ELevelChangeMode::Single, Stage2Level);
 }
 
 void ULevelChangeSelectWidget::OnClickMultiMap1()
 {
-	RequestLevelChange(ELevelChangeMode::Multi, TEXT("L_Stage1"));
+	RequestLevelChange(ELevelChangeMode::Multi, Stage1Level);
 }
 
 void ULevelChangeSelectWidget::OnClickMultiMap2()
 {
-	RequestLevelChange(ELevelChangeMode::Multi, TEXT("L_Stage2"));
+	RequestLevelChange(ELevelChangeMode::Multi, Stage2Level);
 }
 
-void ULevelChangeSelectWidget::RequestLevelChange(ELevelChangeMode Mode, FName MapName)
+void ULevelChangeSelectWidget::RequestLevelChange(ELevelChangeMode Mode, const TSoftObjectPtr<UWorld>& Level)
 {
 	const FString ModeText = (Mode == ELevelChangeMode::Single) ? TEXT("Single") : TEXT("Multi");
 	const FString Msg = FString::Printf(TEXT("레벨 변경 요청: %s / %s "),
-		*ModeText, *MapName.ToString());
-	UGameplayStatics::OpenLevel(GetWorld(), *MapName.ToString());
+		*ModeText, *Level.ToSoftObjectPath().GetAssetName());
+	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), Level);
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, Msg);
 	UE_LOG(LogTemp, Log, TEXT("%s"), *Msg);
 }

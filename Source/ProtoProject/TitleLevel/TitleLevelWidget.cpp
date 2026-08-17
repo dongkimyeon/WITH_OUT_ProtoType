@@ -25,7 +25,7 @@ void UTitleLevelWidget::OnClickLogIn()
 	GEngine->AddOnScreenDebugMessage(-1,1.0f,FColor::Green, Msg);
 	
 	//if(아이디 비번 IP 맞으면) 조건 추가 
-	UGameplayStatics::OpenLevel(GetWorld(), FName(TEXT("TestMap")));
+	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), TestLevel);
 }
 
 void UTitleLevelWidget::OnClickSignIn()

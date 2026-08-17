@@ -30,9 +30,10 @@ protected:
 	
 	UPROPERTY(meta = (BindWidgetOptional))
 	UEditableText* IP_Input_field;
-	
-	
-	
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LevelChange")
+	TSoftObjectPtr<UWorld> TestLevel;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, category = Test)
 	FString FID;
 		
