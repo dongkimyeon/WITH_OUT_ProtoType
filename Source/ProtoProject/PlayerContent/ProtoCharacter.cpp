@@ -1446,6 +1446,16 @@ void AProtoCharacter::HandleInventoryRestored(const TArray<FProtoInventoryItemEn
 
     bIsRestoringInventory = true;
 
+    // The restored list is this account's FULL saved grid, not an addition
+    // to whatever's already here -- without this, whatever the character
+    // spawned with (another account's leftover items, if this same running
+    // client logged out and into a different account; or default starting
+    // items) would still be sitting in the grid, and the very next
+    // OnInventoryChanged save would write that mixed-together state back
+    // out under THIS account. This is what "인벤토리가 계정별로 안 됨" was:
+    // restore only ever added, never replaced.
+    InventoryComponent->Items.Empty();
+
     for (const FProtoInventoryItemEntry& Entry : Items)
     {
         UItemDataBase* ItemData = ResolveItemDataByName(Entry.ItemId.ToString());
