@@ -38,6 +38,12 @@ protected:
 	UPROPERTY(meta = (BindWidgetOptional))
 	UButton* MultiMap2Button;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LevelChange")
+	TSoftObjectPtr<UWorld> Stage1Level;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LevelChange")
+	TSoftObjectPtr<UWorld> Stage2Level;
+
 	UFUNCTION()
 	void OnClickSingleMap1();
 
@@ -50,5 +56,5 @@ protected:
 	UFUNCTION()
 	void OnClickMultiMap2();
 
-	void RequestLevelChange(ELevelChangeMode Mode, FName MapName);
+	void RequestLevelChange(ELevelChangeMode Mode, const TSoftObjectPtr<UWorld>& Level);
 };
