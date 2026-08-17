@@ -79,6 +79,7 @@ AProtoCharacter::AProtoCharacter()
     }
 
 }
+
 void AProtoCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
@@ -588,7 +589,6 @@ void AProtoCharacter::CloseLevelChangeScreen()
 
 void AProtoCharacter::ToggleInventory(const FInputActionValue& Value)
 {
-    // 상자가 열려있는 동안엔 인벤토리를 별도로 열 수 없다 (상자 화면 안에서 인벤토리 그리드를 같이 보여주고 있음).
     if (bIsContainerOpened) return;
 
     if (InventoryWidgetInstance == nullptr && InventoryWidgetClass != nullptr)
@@ -876,7 +876,7 @@ void AProtoCharacter::FinishWeaponSwap()
 
     if (CurrentWeaponType == EWeaponType::None)
     {
-        bHasWeapon = false;
+        bHasWeapon = false; 
         AttachCurrentWeaponToSocket(SwapFromWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage"));
 
         if (GEngine)
@@ -1457,7 +1457,7 @@ bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
 {
     if (!ConsumableData || !StatusComponent) return false;
 
-    // OverTime 효과가 이미 진행 중이면 사용 불가 (같은 아이템 연타로 중첩 섭취하는 것도 막는다).
+    // OverTime 효과가 이미 진행 중이면 사용 불가
     if (bOverTimeEffectActive)
     {
         return false;
