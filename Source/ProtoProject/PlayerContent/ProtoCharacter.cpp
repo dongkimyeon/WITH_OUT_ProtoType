@@ -3,6 +3,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Camera/CameraShakeBase.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "InventoryScreenWidget.h"
@@ -258,7 +260,7 @@ void AProtoCharacter::BeginPlay()
     }
 
     /*-------------------
-     네트워킹: 서버 접속 프롬프트 표시 (로컬 플레이어만)
+     네트워킹: 서버 접속 프롬프트 표시 + 저장된 진행 상황 복원 구독 (로컬 플레이어만)
     -------------------*/
     if (IsLocallyControlled())
     {
@@ -266,6 +268,7 @@ void AProtoCharacter::BeginPlay()
         {
             if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
             {
+                NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
                 NetClient->ShowConnectPrompt();
             }
         }
@@ -942,6 +945,37 @@ void AProtoCharacter::FireWeapon()
         return;
     }
     CurrentWeapon->Fire();
+    ApplyWeaponRecoil();
+}
+
+void AProtoCharacter::ApplyWeaponRecoil()
+{
+    if (!IsLocallyControlled() || !Controller)
+    {
+        return;
+    }
+
+    float PitchKick = RifleRecoilPitch;
+    float YawKick = FMath::RandRange(-RifleRecoilYaw, RifleRecoilYaw);
+    TSubclassOf<UCameraShakeBase> ShakeClass = RifleFireCameraShakeClass;
+
+    if (CurrentWeaponType == EWeaponType::Pistol)
+    {
+        PitchKick = PistolRecoilPitch;
+        YawKick = FMath::RandRange(-PistolRecoilYaw, PistolRecoilYaw);
+        ShakeClass = PistolFireCameraShakeClass;
+    }
+
+    AddControllerPitchInput(-PitchKick);
+    AddControllerYawInput(YawKick);
+
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        if (PC->PlayerCameraManager && ShakeClass)
+        {
+            PC->PlayerCameraManager->StartCameraShake(ShakeClass);
+        }
+    }
 }
 
 void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
@@ -1076,37 +1110,99 @@ void AProtoCharacter::PlayRemoteReloadMontage(EWeaponType ForWeaponType)
 
 void AProtoCharacter::ApplyRemoteWeaponEquip(EWeaponType ForWeaponType)
 {
-    if (ForWeaponType == CurrentWeaponType)
+    if (Swapping > 0.0f || ForWeaponType == CurrentWeaponType)
     {
         return;
     }
 
     const EWeaponType PreviousWeaponType = CurrentWeaponType;
-    // Storing (ForWeaponType == None) re-attaches the weapon that was just
-    // holstered, so it's still the one from PreviousWeaponType.
-    CurrentWeapon = ForWeaponType == EWeaponType::None ? GetWeaponByType(PreviousWeaponType) : GetWeaponByType(ForWeaponType);
-    CurrentWeaponType = ForWeaponType;
-    bHasWeapon = CurrentWeaponType != EWeaponType::None;
-
-    if (!CurrentWeapon)
+    // Storing (ForWeaponType == None) needs the weapon that's about to be
+    // holstered, not a lookup by the (already-None) target type.
+    AWeaponBase* SwapWeapon = ForWeaponType == EWeaponType::None ? GetWeaponByType(PreviousWeaponType) : GetWeaponByType(ForWeaponType);
+    if (!SwapWeapon)
     {
-        // The remote character doesn't have this weapon slot filled: nothing
-        // to attach.
+        // This remote character doesn't have the weapon slot filled; just
+        // snap the logical state so later broadcasts stay consistent.
+        CurrentWeaponType = ForWeaponType;
+        bHasWeapon = ForWeaponType != EWeaponType::None;
         return;
     }
 
-    switch (CurrentWeaponType)
+    CurrentWeapon = SwapWeapon;
+    SwapFromWeaponType = PreviousWeaponType;
+    PendingWeaponType = ForWeaponType;
+    CurrentWeaponType = ForWeaponType;
+    bHasWeapon = CurrentWeaponType != EWeaponType::None;
+
+    // Same swap-timer/montage flow as BeginWeaponSwap(), minus the
+    // SendWeaponEquip() broadcast (this transition came FROM the network;
+    // echoing it back would loop). Tick()'s Swapping countdown isn't gated
+    // to the local player, so it drives FinishWeaponSwap() for us -- that's
+    // also what does the actual socket attach, timed to match the montage.
+    const bool bIsEquippingWeapon = ForWeaponType != EWeaponType::None;
+    Swapping = bIsEquippingWeapon ? SwapWeapon->EquipSwapTime : SwapWeapon->UnequipSwapTime;
+    Swapping = FMath::Max(0.0f, Swapping);
+    SwappingAlpha = false;
+
+    if (WeaponSwapMontage)
     {
-    case EWeaponType::Rifle:
-        AttachCurrentWeaponToSocket(TEXT("WeaponSocket"));
-        break;
-    case EWeaponType::Pistol:
-        AttachCurrentWeaponToSocket(TEXT("PistolSocket"));
-        break;
-    default:
-        AttachCurrentWeaponToSocket(PreviousWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage"));
-        break;
+        if (ForWeaponType == EWeaponType::None)
+        {
+            if (PreviousWeaponType == EWeaponType::Rifle)
+            {
+                PlayAnimMontage(WeaponSwapMontage, 1.0f, RifleToHandSectionName);
+            }
+            else if (PreviousWeaponType == EWeaponType::Pistol)
+            {
+                PlayAnimMontage(WeaponSwapMontage, 1.0f, PistolToHandSectionName);
+            }
+        }
+        else if (PreviousWeaponType == EWeaponType::None && ForWeaponType == EWeaponType::Rifle)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToRifleSectionName);
+        }
+        else if (PreviousWeaponType == EWeaponType::None && ForWeaponType == EWeaponType::Pistol)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToPistolSectionName);
+        }
     }
+
+    if (Swapping <= 0.0f)
+    {
+        FinishWeaponSwap();
+    }
+}
+
+void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType)
+{
+    SetActorLocation(Position);
+    if (Controller)
+    {
+        Controller->SetControlRotation(Look);
+    }
+
+    const EWeaponType RestoredType = static_cast<EWeaponType>(WeaponType);
+    if (RestoredType == EWeaponType::None)
+    {
+        return;
+    }
+
+    AWeaponBase* RestoredWeapon = GetWeaponByType(RestoredType);
+    if (!RestoredWeapon)
+    {
+        // Nothing to attach yet (e.g. CurrentRifle/CurrentPistol aren't
+        // populated at this point) -- the weapon_type is still tracked
+        // server-side, so a subsequent equip/store still broadcasts
+        // correctly even though the visual didn't restore here.
+        return;
+    }
+
+    CurrentWeapon = RestoredWeapon;
+    CurrentWeaponType = RestoredType;
+    PendingWeaponType = RestoredType;
+    bHasWeapon = true;
+
+    AttachCurrentWeaponToSocket(RestoredType == EWeaponType::Pistol ? TEXT("PistolSocket") : TEXT("WeaponSocket"));
 }
 
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)

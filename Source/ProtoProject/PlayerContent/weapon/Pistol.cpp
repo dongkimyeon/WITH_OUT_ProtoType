@@ -9,6 +9,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 #include "../../Network/ProtoNetClientSubsystem.h"
 
@@ -33,6 +34,24 @@ APistol::APistol()
     if (PistolAmmoClassFinder.Succeeded())
     {
         PistolAmmoClass = PistolAmmoClassFinder.Class;
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> FireSound01(TEXT("/Game/FreeWeaponSounds/Wav/Handgun/Gunshots/handgun_sil_gunshot_01_Wav.handgun_sil_gunshot_01_Wav"));
+    if (FireSound01.Succeeded())
+    {
+        PistolFireSounds.Add(FireSound01.Object);
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> FireSound02(TEXT("/Game/FreeWeaponSounds/Wav/Handgun/Gunshots/handgun_sil_gunshot_02_Wav.handgun_sil_gunshot_02_Wav"));
+    if (FireSound02.Succeeded())
+    {
+        PistolFireSounds.Add(FireSound02.Object);
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> FireSound03(TEXT("/Game/FreeWeaponSounds/Wav/Handgun/Gunshots/handgun_sil_gunshot_03_Wav.handgun_sil_gunshot_03_Wav"));
+    if (FireSound03.Succeeded())
+    {
+        PistolFireSounds.Add(FireSound03.Object);
     }
 }
 
@@ -76,6 +95,15 @@ void APistol::Fire()
     }
 
     const FVector MuzzleStart = MuzzlePoint->GetComponentLocation();
+
+    if (PistolFireSounds.Num() > 0)
+    {
+        const int32 RandomFireSoundIndex = FMath::RandRange(0, PistolFireSounds.Num() - 1);
+        if (USoundBase* FireSound = PistolFireSounds[RandomFireSoundIndex])
+        {
+            UGameplayStatics::PlaySoundAtLocation(this, FireSound, MuzzleStart, FireSoundVolume, FireSoundPitch);
+        }
+    }
 
     FVector CameraStart = MuzzleStart;
     FVector CameraForward = MuzzlePoint->GetForwardVector();

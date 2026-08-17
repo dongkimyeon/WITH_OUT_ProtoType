@@ -54,13 +54,20 @@ void UProtoNetClientSubsystem::ShowConnectPrompt()
 	if (ConnectPromptWidget.IsValid() || IsConnected())
 		return;
 
-	// Pre-fill from -ServerIP= if given, else leave blank (Connect submits
-	// blank/"0" as "skip connecting, play offline" -- see HandleConnectPromptSubmitted).
-	FString DefaultIp = TEXT("");
-	FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
+	// Prefer the last server we were connected to (set on a successful
+	// Connect()) so a reconnect after an unexpected disconnect just needs
+	// Enter; otherwise fall back to -ServerIP= if given, else leave blank
+	// (Connect submits blank/"0" as "skip connecting, play offline" -- see
+	// HandleConnectPromptSubmitted).
+	FString DefaultIp = LastServerIp;
+	if (DefaultIp.IsEmpty())
+	{
+		FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
+	}
 
 	SAssignNew(ConnectPromptWidget, SProtoConnectPrompt)
 		.InitialServerIp(DefaultIp)
+		.InitialUsername(LastUsername)
 		.OnConnectRequested(FProtoOnConnectRequested::CreateUObject(this, &UProtoNetClientSubsystem::HandleConnectPromptSubmitted));
 
 	if (GEngine && GEngine->GameViewport)
@@ -80,7 +87,7 @@ void UProtoNetClientSubsystem::ShowConnectPrompt()
 	}
 }
 
-void UProtoNetClientSubsystem::HandleConnectPromptSubmitted(const FString& ServerIp)
+void UProtoNetClientSubsystem::HandleConnectPromptSubmitted(const FString& ServerIp, const FString& Username, const FString& Password)
 {
 	const FString Trimmed = ServerIp.TrimStartAndEnd();
 
@@ -98,8 +105,25 @@ void UProtoNetClientSubsystem::HandleConnectPromptSubmitted(const FString& Serve
 	// freeze the game here rather than failing instantly.
 	if (Connect(Trimmed))
 	{
-		SendLoginTest(TEXT("guest"), TEXT("1.0"));
-		HideConnectPrompt();
+		const FString TrimmedUsername = Username.TrimStartAndEnd();
+		if (TrimmedUsername.IsEmpty())
+		{
+			// No account entered: same as before this feature existed --
+			// log in anonymously (no DB persistence) and close the prompt.
+			SendLoginTest(TEXT("guest"), TEXT("1.0"));
+			HideConnectPrompt();
+		}
+		else
+		{
+			LastUsername = TrimmedUsername;
+			bAwaitingAccountLoginReply = true;
+			SendAccountLogin(TrimmedUsername, Password);
+			// Keep the prompt up with a status message until
+			// S2C_LoginSuccess/S2C_LoginFail arrives (see HandleIncomingPacket)
+			// -- a wrong password needs to be retry-able, not silently eaten.
+			if (ConnectPromptWidget.IsValid())
+				ConnectPromptWidget->SetStatusText(FText::FromString(TEXT("로그인 중...")));
+		}
 	}
 	else if (ConnectPromptWidget.IsValid())
 	{
@@ -175,6 +199,7 @@ bool UProtoNetClientSubsystem::Connect(const FString& ServerIp, int32 ServerPort
 	WorkerThread = FRunnableThread::Create(Worker.Get(), TEXT("ProtoNetReceiveWorker"));
 
 	UE_LOG(LogProtoNet, Log, TEXT("Connect: connected to %s:%d"), *ServerIp, ServerPort);
+	LastServerIp = ServerIp;
 	OnConnected.Broadcast();
 	return true;
 }
@@ -201,6 +226,20 @@ void UProtoNetClientSubsystem::Disconnect()
 		ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Socket);
 		Socket = nullptr;
 	}
+
+	// Nothing will tell us about these players again until we reconnect and
+	// get a fresh roster -- despawn them now instead of leaving frozen ghosts.
+	for (const auto& Pair : RemotePlayers)
+	{
+		if (IsValid(Pair.Value))
+		{
+			Pair.Value->Destroy();
+		}
+	}
+	RemotePlayers.Empty();
+	RemoteTargetLocation.Empty();
+	RemoteTargetRotation.Empty();
+	LocalPlayerId = 0;
 }
 
 bool UProtoNetClientSubsystem::IsConnected() const
@@ -247,6 +286,23 @@ bool UProtoNetClientSubsystem::SendLoginTest(const FString& AuthToken, const FSt
 	LoginBuilder.add_client_version(Version);
 	auto Login = LoginBuilder.Finish();
 
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_Login, Login.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendAccountLogin(const FString& Username, const FString& Password)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto Token = Fbb.CreateString("");
+	auto Version = Fbb.CreateString("1.0");
+	auto UsernameOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Username));
+	auto PasswordOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Password));
+
+	auto Login = ProtoType::Net::CreateC2S_Login(Fbb, Token, Version, UsernameOffset, PasswordOffset);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_Login, Login.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
@@ -369,6 +425,47 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			{
 				LocalPlayerId = Success->player_id();
 				UE_LOG(LogProtoNet, Log, TEXT("Logged in as player %u"), LocalPlayerId);
+
+				if (Success->has_saved_progress())
+				{
+					const auto* Pos = Success->position();
+					const auto* Look = Success->look();
+					OnProgressRestored.Broadcast(
+						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
+						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
+						Success->weapon_type());
+				}
+
+				if (bAwaitingAccountLoginReply)
+				{
+					bAwaitingAccountLoginReply = false;
+					HideConnectPrompt();
+				}
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_LoginFail:
+			if (const auto* Fail = Packet->payload_as_S2C_LoginFail())
+			{
+				const FString Message = Fail->message() ? UTF8_TO_TCHAR(Fail->message()->c_str()) : FString();
+				UE_LOG(LogProtoNet, Warning, TEXT("Login failed: %s"), *Message);
+
+				if (bAwaitingAccountLoginReply)
+				{
+					bAwaitingAccountLoginReply = false;
+					// The server leaves the connection open but never spawns
+					// this session into the game (see Session.cpp's
+					// C2S_Login case) -- disconnect our end so a retry
+					// starts from a clean Connect().
+					Disconnect();
+					ShowConnectPrompt();
+					if (ConnectPromptWidget.IsValid())
+					{
+						ConnectPromptWidget->SetStatusText(Message.IsEmpty()
+							? FText::FromString(TEXT("로그인 실패. 다시 시도하세요."))
+							: FText::FromString(Message));
+					}
+				}
 			}
 			break;
 
@@ -449,6 +546,32 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			}
 			break;
 
+		case ProtoType::Net::Payload::S2C_PlayerLeft:
+			if (const auto* Left = Packet->payload_as_S2C_PlayerLeft())
+			{
+				RemoveRemotePlayer(Left->player_id());
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_AttackResult:
+			if (const auto* Result = Packet->payload_as_S2C_AttackResult())
+			{
+				// Approximate server-side hit confirmation (see the schema
+				// comment on S2C_AttackBroadcast); just a placeholder marker
+				// until there's real hit-reaction FX/damage numbers.
+				if (Result->hit())
+				{
+					if (const auto* HitPos = Result->hit_position())
+					{
+						if (UWorld* World = GetWorld())
+						{
+							DrawDebugSphere(World, FVector(HitPos->x(), HitPos->y(), HitPos->z()), 20.0f, 8, FColor::Red, false, 1.0f, 0, 2.0f);
+						}
+					}
+				}
+			}
+			break;
+
 		default:
 			break;
 	}
@@ -520,6 +643,24 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 	}
 }
 
+void UProtoNetClientSubsystem::RemoveRemotePlayer(uint32 PlayerId)
+{
+	const int32 Key = static_cast<int32>(PlayerId);
+
+	if (AActor** Existing = RemotePlayers.Find(Key))
+	{
+		if (IsValid(*Existing))
+		{
+			(*Existing)->Destroy();
+		}
+		RemotePlayers.Remove(Key);
+	}
+	RemoteTargetLocation.Remove(Key);
+	RemoteTargetRotation.Remove(Key);
+
+	UE_LOG(LogProtoNet, Log, TEXT("Removed remote player %u"), PlayerId);
+}
+
 void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 {
 	constexpr float ArrivalToleranceCm = 5.0f;
@@ -589,6 +730,10 @@ void UProtoNetClientSubsystem::Tick(float DeltaTime)
 		UE_LOG(LogProtoNet, Warning, TEXT("Disconnected: %s"), *Reason);
 		Disconnect();
 		OnDisconnected.Broadcast(Reason);
+
+		// Unexpected disconnect (peer closed, framing error, ...) -- offer a
+		// reconnect right away instead of leaving the player stuck with no UI.
+		ShowConnectPrompt();
 	}
 
 	TickRemotePlayers(DeltaTime);

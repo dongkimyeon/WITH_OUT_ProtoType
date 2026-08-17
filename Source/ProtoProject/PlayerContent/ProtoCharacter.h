@@ -20,6 +20,7 @@ class UPlayerDefalutUI;
 class UContainerScreenWidget;
 class UAnimMontage;
 class UAnimSequenceBase;
+class UCameraShakeBase;
 class UPlayerStatusComponent;
 class ULevelChangeSelectWidget;
 class ALevelChanger;
@@ -160,6 +161,7 @@ private:
     void StartFireWeapon();
     void StopFireWeapon();
     void FireWeapon();
+    void ApplyWeaponRecoil();
     void ReloadWeapon();
 
     UFUNCTION()
@@ -282,6 +284,17 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     void ApplyRemoteWeaponEquip(EWeaponType ForWeaponType);
 
+    // Bound (locally-controlled instance only, in BeginPlay) to
+    // UProtoNetClientSubsystem::OnProgressRestored: moves this player to
+    // their saved MSSQL position and silently shows their saved weapon (no
+    // swap animation -- this is initial spawn state, not a live transition).
+    // The weapon restore only actually shows something if CurrentRifle/
+    // CurrentPistol are already populated (see GetWeaponByType) -- it
+    // doesn't reach into the inventory/equipment system to re-equip from
+    // scratch.
+    UFUNCTION()
+    void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType);
+
     UFUNCTION(BlueprintCallable, Category = "Interaction|Animation")
     void PlayPickupAnimationIfUnarmed();
 
@@ -296,6 +309,24 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
     bool bDebugLeftHandIK = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
+    float RifleRecoilPitch = 0.22f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
+    float RifleRecoilYaw = 0.07f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
+    float PistolRecoilPitch = 0.45f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil", meta = (ClampMin = "0.0"))
+    float PistolRecoilYaw = 0.15f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+    TSubclassOf<UCameraShakeBase> RifleFireCameraShakeClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+    TSubclassOf<UCameraShakeBase> PistolFireCameraShakeClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|IK")
     float LeftHandIKDebugDrawSize = 8.0f;

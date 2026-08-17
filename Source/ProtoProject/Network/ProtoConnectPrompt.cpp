@@ -35,6 +35,23 @@ void SProtoConnectPrompt::Construct(const FArguments& InArgs)
 					SAssignNew(IpTextBox, SEditableTextBox)
 					.Text(FText::FromString(InArgs._InitialServerIp))
 					.MinDesiredWidth(240.0f)
+					.HintText(FText::FromString(TEXT("서버 IP (127.0.0.1)")))
+					.OnTextCommitted(this, &SProtoConnectPrompt::HandleTextCommitted)
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 8.0f)
+				[
+					SAssignNew(UsernameTextBox, SEditableTextBox)
+					.Text(FText::FromString(InArgs._InitialUsername))
+					.MinDesiredWidth(240.0f)
+					.HintText(FText::FromString(TEXT("아이디 (비워두면 계정 없이 접속)")))
+					.OnTextCommitted(this, &SProtoConnectPrompt::HandleTextCommitted)
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 8.0f)
+				[
+					SAssignNew(PasswordTextBox, SEditableTextBox)
+					.MinDesiredWidth(240.0f)
+					.HintText(FText::FromString(TEXT("비밀번호")))
+					.IsPassword(true)
 					.OnTextCommitted(this, &SProtoConnectPrompt::HandleTextCommitted)
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 8.0f)
@@ -62,7 +79,11 @@ void SProtoConnectPrompt::Construct(const FArguments& InArgs)
 FReply SProtoConnectPrompt::HandleConnectClicked()
 {
 	if (IpTextBox.IsValid() && OnConnectRequested.IsBound())
-		OnConnectRequested.Execute(IpTextBox->GetText().ToString());
+	{
+		const FString Username = UsernameTextBox.IsValid() ? UsernameTextBox->GetText().ToString() : FString();
+		const FString Password = PasswordTextBox.IsValid() ? PasswordTextBox->GetText().ToString() : FString();
+		OnConnectRequested.Execute(IpTextBox->GetText().ToString(), Username, Password);
+	}
 
 	return FReply::Handled();
 }
