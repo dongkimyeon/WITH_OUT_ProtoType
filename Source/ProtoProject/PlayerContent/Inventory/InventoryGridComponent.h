@@ -47,6 +47,13 @@ struct FInventoryItemInstance
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryItemRemoved, FGuid, RemovedInstanceId);
 
+// Fired at the end of every successful mutation (add/move/rotate/remove/
+// split/merge) so a single listener (see AProtoCharacter) can push the
+// whole grid to the server without hooking every call site that touches
+// Items -- widgets/other code call these methods directly, not through
+// AProtoCharacter, so a per-call-site hook would be easy to miss one of.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryChanged);
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent, PrioritizeCategories = "Inventory"))
 class PROTOPROJECT_API UInventoryGridComponent : public UActorComponent
 {
@@ -129,4 +136,7 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Inventory")
     FOnInventoryItemRemoved OnItemInstanceRemoved;
+
+    UPROPERTY(BlueprintAssignable, Category = "Inventory")
+    FOnInventoryChanged OnInventoryChanged;
 };

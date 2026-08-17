@@ -5,6 +5,7 @@
 #include "InputActionValue.h"
 #include "Interactable.h"
 #include "Inventory/EquipmentComponent.h"
+#include "../Network/ProtoNetClientSubsystem.h" // FProtoInventoryItemEntry (HandleInventoryRestored)
 #include "ProtoCharacter.generated.h"
 
 class UInputMappingContext;
@@ -322,6 +323,31 @@ public:
     // aren't populated yet (see GetWeaponByType).
     UFUNCTION()
     void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType);
+
+    /*-------------------
+     네트워킹: 인벤토리 동기화 (로컬 플레이어만)
+    -------------------*/
+    // Bound to UProtoNetClientSubsystem::OnInventoryRestored: rebuilds the
+    // saved grid by resolving each entry's item asset name back to a
+    // UItemDataBase* (see ResolveItemDataByName) and calling AddItemAt().
+    UFUNCTION()
+    void HandleInventoryRestored(const TArray<FProtoInventoryItemEntry>& Items);
+
+    // Bound to InventoryComponent->OnInventoryChanged: pushes the whole
+    // current grid to the server so it's never more than one change behind.
+    // No-op while bIsRestoringInventory is true, so applying a restore
+    // doesn't immediately re-save the exact same data right back.
+    UFUNCTION()
+    void HandleInventoryChanged();
+
+    // Finds a UItemDataBase asset by its own object name (e.g.
+    // "DA_Item_AK47") via the Asset Registry -- not by ItemId, which isn't
+    // guaranteed to be filled in (see inventory.fbs's item_id comment).
+    // Scans the whole content tree the first time it's called and caches
+    // the result, so repeated restores don't re-scan.
+    UItemDataBase* ResolveItemDataByName(const FString& AssetName) const;
+
+    bool bIsRestoringInventory = false;
 
     UFUNCTION(BlueprintCallable, Category = "Interaction|Animation")
     void PlayPickupAnimationIfUnarmed();

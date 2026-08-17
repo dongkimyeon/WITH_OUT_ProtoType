@@ -461,6 +461,34 @@ bool UProtoNetClientSubsystem::SendWeaponEquip(uint8 WeaponType)
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendSaveInventory(const TArray<FProtoInventoryItemEntry>& Items)
+{
+	// Not gated by bMultiplayerVisualsEnabled -- see the header comment.
+	// Still requires a real login (LocalPlayerId==0 before that), same as
+	// every other Send* here would be meaningless without one.
+	flatbuffers::FlatBufferBuilder Fbb;
+
+	TArray<flatbuffers::Offset<ProtoType::Net::InventoryItemEntry>> ItemOffsets;
+	ItemOffsets.Reserve(Items.Num());
+	for (const FProtoInventoryItemEntry& Item : Items)
+	{
+		auto ItemIdOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Item.ItemId.ToString()));
+		ItemOffsets.Add(ProtoType::Net::CreateInventoryItemEntry(
+			Fbb, ItemIdOffset,
+			static_cast<int16_t>(Item.GridX), static_cast<int16_t>(Item.GridY),
+			Item.bRotated, static_cast<int16_t>(Item.StackCount)));
+	}
+	auto ItemsVector = Fbb.CreateVector(ItemOffsets.GetData(), ItemOffsets.Num());
+
+	auto Req = ProtoType::Net::CreateC2S_SaveInventory(Fbb, ItemsVector);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_SaveInventory, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 /*-------------------
  수신 패킷 처리
 -------------------*/
@@ -508,6 +536,30 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
 						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
 						Success->weapon_type());
+
+					// Gated the same as OnProgressRestored above (has_saved_progress)
+					// rather than firing on every login with an empty array --
+					// a fresh account has no saved inventory yet, and the
+					// listener applying an empty restore would wipe out
+					// whatever default starting items it spawned with.
+					TArray<FProtoInventoryItemEntry> InventoryItems;
+					if (const auto* Inventory = Success->inventory())
+					{
+						InventoryItems.Reserve(Inventory->size());
+						for (const auto* Entry : *Inventory)
+						{
+							if (!Entry || !Entry->item_id())
+								continue;
+							FProtoInventoryItemEntry ItemEntry;
+							ItemEntry.ItemId = FName(UTF8_TO_TCHAR(Entry->item_id()->c_str()));
+							ItemEntry.GridX = Entry->grid_x();
+							ItemEntry.GridY = Entry->grid_y();
+							ItemEntry.bRotated = Entry->rotated();
+							ItemEntry.StackCount = Entry->stack_count();
+							InventoryItems.Add(ItemEntry);
+						}
+					}
+					OnInventoryRestored.Broadcast(InventoryItems);
 				}
 
 				if (bAwaitingAccountLoginReply)

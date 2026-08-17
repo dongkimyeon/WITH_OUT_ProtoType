@@ -35,6 +35,8 @@
 #include "Engine/World.h"
 #include "UObject/ConstructorHelpers.h"
 #include "../Network/ProtoNetClientSubsystem.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
 
 AProtoCharacter::AProtoCharacter()
 {
@@ -314,8 +316,14 @@ void AProtoCharacter::BeginPlay()
             if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
             {
                 NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
+                NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
                 NetClient->ShowConnectPrompt();
             }
+        }
+
+        if (InventoryComponent)
+        {
+            InventoryComponent->OnInventoryChanged.AddDynamic(this, &AProtoCharacter::HandleInventoryChanged);
         }
     }
 
@@ -788,195 +796,6 @@ void AProtoCharacter::SetWeaponSlot2()
 
 void AProtoCharacter::SetWeaponFromSlot(EEquipmentSlot Slot)
 {
-    if (Swapping > 0.0f)
-    {
-        return;
-    }
-
-    if (CurrentWeaponType != EWeaponType::None)
-    {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Store current weapon first"));
-        }
-        return;
-    }
-
-    AWeaponBase* const* Found = EquippedWeaponActors.Find(Slot);
-    AWeaponBase* SlotWeapon = Found ? *Found : nullptr;
-    if (!SlotWeapon)
-    {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
-        }
-        return;
-    }
-
-    CurrentWeapon = SlotWeapon;
-    BeginWeaponSwap(SlotWeapon->WeaponType, SlotWeapon);
-}
-
-AWeaponBase* AProtoCharacter::GetWeaponByType(EWeaponType WeaponType) const
-{
-    switch (WeaponType)
-    {
-    case EWeaponType::Rifle:
-        return CurrentRifle;
-    case EWeaponType::Pistol:
-        return CurrentPistol;
-    default:
-        return nullptr;
-    }
-}
-
-AWeaponBase* AProtoCharacter::SpawnFallbackRemoteWeapon(EWeaponType WeaponType)
-{
-    if (WeaponType != EWeaponType::Rifle && WeaponType != EWeaponType::Pistol)
-    {
-        return nullptr;
-    }
-    if (!GetMesh())
-    {
-        return nullptr;
-    }
-
-    const TSubclassOf<AWeaponBase> WeaponClass = WeaponType == EWeaponType::Rifle ? RemoteRifleClass : RemotePistolClass;
-    if (!WeaponClass)
-    {
-        return nullptr;
-    }
-
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.Owner = this;
-    SpawnParams.Instigator = this;
-
-    AWeaponBase* WeaponActor = GetWorld()->SpawnActor<AWeaponBase>(WeaponClass, GetActorTransform(), SpawnParams);
-    if (!WeaponActor)
-    {
-        return nullptr;
-    }
-
-    WeaponActor->SetOwner(this);
-    WeaponActor->SetInstigator(this);
-    WeaponActor->SetActorEnableCollision(false);
-
-    if (UStaticMeshComponent* WeaponMesh = WeaponActor->WeaponMesh)
-    {
-        WeaponMesh->SetSimulatePhysics(false);
-        WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
-        WeaponMesh->SetGenerateOverlapEvents(false);
-    }
-    if (UBoxComponent* CollisionBox = WeaponActor->CollisionBox)
-    {
-        CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-        CollisionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
-        CollisionBox->SetGenerateOverlapEvents(false);
-    }
-
-    // Start holstered; the caller (ApplyRemoteWeaponEquip / HandleProgressRestored)
-    // is the one deciding whether it should actually be drawn.
-    const FName StorageSocketName = WeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage");
-    const FAttachmentTransformRules AttachRules(
-        EAttachmentRule::SnapToTarget,
-        EAttachmentRule::SnapToTarget,
-        EAttachmentRule::KeepRelative,
-        true);
-    WeaponActor->AttachToComponent(GetMesh(), AttachRules, StorageSocketName);
-
-    if (WeaponType == EWeaponType::Rifle)
-    {
-        CurrentRifle = WeaponActor;
-    }
-    else
-    {
-        CurrentPistol = WeaponActor;
-    }
-
-    return WeaponActor;
-}
-
-void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor)
-{
-    StopFireWeapon();
-
-    if (Swapping > 0.0f)
-    {
-        return;
-    }
-
-    if (CurrentWeaponType == TargetWeaponType)
-    {
-        return;
-    }
-
-    AWeaponBase* SwapWeapon = TargetWeaponType == EWeaponType::None
-        ? CurrentWeapon
-        : (TargetWeaponActor ? TargetWeaponActor : GetWeaponByType(TargetWeaponType));
-
-    if (!SwapWeapon)
-    {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("No weapon in slot"));
-        }
-        return;
-    }
-
-    CurrentWeapon = SwapWeapon;
-
-    const EWeaponType PreviousWeaponType = CurrentWeaponType;
-    SwapFromWeaponType = PreviousWeaponType;
-
-    PendingWeaponType = TargetWeaponType;
-    CurrentWeaponType = TargetWeaponType;
-    bHasWeapon = CurrentWeaponType != EWeaponType::None;
-
-    /*-------------------
-     네트워킹: 무기 장착 브로드캐스트
-    -------------------*/
-    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
-    {
-        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
-        {
-            NetClient->SendWeaponEquip(static_cast<uint8>(TargetWeaponType));
-        }
-    }
-
-    const bool bIsEquippingWeapon = TargetWeaponType != EWeaponType::None;
-    Swapping = bIsEquippingWeapon ? SwapWeapon->EquipSwapTime : SwapWeapon->UnequipSwapTime;
-    Swapping = FMath::Max(0.0f, Swapping);
-    SwappingAlpha = false;
-
-    if (WeaponSwapMontage)
-    {
-        if (TargetWeaponType == EWeaponType::None)
-        {
-            if (PreviousWeaponType == EWeaponType::Rifle)
-            {
-                PlayAnimMontage(WeaponSwapMontage, 1.0f, RifleToHandSectionName);
-            }
-            else if (PreviousWeaponType == EWeaponType::Pistol)
-            {
-                PlayAnimMontage(WeaponSwapMontage, 1.0f, PistolToHandSectionName);
-            }
-        }
-        else if (PreviousWeaponType == EWeaponType::None && TargetWeaponType == EWeaponType::Rifle)
-        {
-            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToRifleSectionName);
-        }
-        else if (PreviousWeaponType == EWeaponType::None && TargetWeaponType == EWeaponType::Pistol)
-        {
-            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToPistolSectionName);
-        }
-    }
-    if (Swapping <= 0.0f)
-    {
-        FinishWeaponSwap();
-        return;
-    }
-
     if (GEngine)
     {
         const AWeaponBase* WeaponCDO = CurrentWeapon ? Cast<AWeaponBase>(CurrentWeapon->GetClass()->GetDefaultObject()) : nullptr;
@@ -1129,7 +948,7 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
     }
 
     CurrentWeapon = SwapWeapon;
-
+
     if (TargetWeaponType != EWeaponType::None)
     {
         Joint = CurrentWeapon->LeftHandJointTarget;
@@ -1582,6 +1401,101 @@ void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, ui
     AttachCurrentWeaponToSocket(RestoredType == EWeaponType::Pistol ? TEXT("PistolSocket") : TEXT("WeaponSocket"));
 }
 
+UItemDataBase* AProtoCharacter::ResolveItemDataByName(const FString& AssetName) const
+{
+    static TMap<FString, TWeakObjectPtr<UItemDataBase>> Cache;
+
+    if (const TWeakObjectPtr<UItemDataBase>* Cached = Cache.Find(AssetName))
+    {
+        if (Cached->IsValid())
+        {
+            return Cached->Get();
+        }
+        Cache.Remove(AssetName);
+    }
+
+    FAssetRegistryModule& AssetRegistryModule =
+        FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+    TArray<FAssetData> AssetDataList;
+    AssetRegistryModule.Get().GetAssetsByClass(UItemDataBase::StaticClass()->GetClassPathName(), AssetDataList, /*bSearchSubClasses=*/true);
+
+    for (const FAssetData& AssetData : AssetDataList)
+    {
+        if (AssetData.AssetName.ToString() != AssetName)
+        {
+            continue;
+        }
+
+        if (UItemDataBase* Resolved = Cast<UItemDataBase>(AssetData.GetAsset()))
+        {
+            Cache.Add(AssetName, Resolved);
+            return Resolved;
+        }
+    }
+
+    return nullptr;
+}
+
+void AProtoCharacter::HandleInventoryRestored(const TArray<FProtoInventoryItemEntry>& Items)
+{
+    if (!InventoryComponent)
+    {
+        return;
+    }
+
+    bIsRestoringInventory = true;
+
+    for (const FProtoInventoryItemEntry& Entry : Items)
+    {
+        UItemDataBase* ItemData = ResolveItemDataByName(Entry.ItemId.ToString());
+        if (!ItemData)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("HandleInventoryRestored: couldn't resolve item asset '%s', skipping"), *Entry.ItemId.ToString());
+            continue;
+        }
+
+        InventoryComponent->AddItemAt(ItemData, FIntPoint(Entry.GridX, Entry.GridY), Entry.bRotated, Entry.StackCount);
+    }
+
+    bIsRestoringInventory = false;
+}
+
+void AProtoCharacter::HandleInventoryChanged()
+{
+    if (bIsRestoringInventory || !InventoryComponent)
+    {
+        return;
+    }
+
+    UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+    if (!NetClient)
+    {
+        return;
+    }
+
+    TArray<FProtoInventoryItemEntry> Snapshot;
+    Snapshot.Reserve(InventoryComponent->Items.Num());
+    for (const FInventoryItemInstance& Item : InventoryComponent->Items)
+    {
+        if (!Item.ItemData)
+        {
+            continue;
+        }
+
+        FProtoInventoryItemEntry Entry;
+        Entry.ItemId = FName(*Item.ItemData->GetName());
+        Entry.GridX = Item.GridPosition.X;
+        Entry.GridY = Item.GridPosition.Y;
+        Entry.bRotated = Item.bIsRotated;
+        Entry.StackCount = Item.StackCount;
+        Snapshot.Add(Entry);
+    }
+
+    NetClient->SendSaveInventory(Snapshot);
+}
+
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
 {
     if (!CurrentWeapon || !GetMesh())
@@ -1940,4 +1854,10 @@ void AProtoCharacter::OnQuickSlotKeyReleased()
         QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
     }
 }
+
+
+
+
+
+
 

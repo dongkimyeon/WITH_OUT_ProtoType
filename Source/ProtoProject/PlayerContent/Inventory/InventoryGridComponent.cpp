@@ -88,9 +88,10 @@ bool UInventoryGridComponent::AddItemAt(UItemDataBase* NewItem, const FIntPoint&
         NewInstance.InstanceId = FGuid::NewGuid();
 
         Items.Add(NewInstance);
+        OnInventoryChanged.Broadcast();
         return true;
     }
-    return false; 
+    return false;
 }
 
 bool UInventoryGridComponent::MoveItem(int32 ItemIndex, const FIntPoint& NewPosition)
@@ -103,6 +104,7 @@ bool UInventoryGridComponent::MoveItem(int32 ItemIndex, const FIntPoint& NewPosi
     if (CanPlaceAt(NewPosition, ItemSize, ItemIndex))
     {
         Item.GridPosition = NewPosition;
+        OnInventoryChanged.Broadcast();
         return true;
     }
     return false;
@@ -123,6 +125,7 @@ bool UInventoryGridComponent::RotateItem(int32 ItemIndex)
     if (CanPlaceAt(Item.GridPosition, NewSize, ItemIndex))
     {
         Item.bIsRotated = bNewRotated;
+        OnInventoryChanged.Broadcast();
         return true;
     }
     return false;
@@ -143,6 +146,7 @@ bool UInventoryGridComponent::PlaceItem(int32 ItemIndex, const FIntPoint& NewPos
     {
         Item.GridPosition = NewPosition;
         Item.bIsRotated = bNewRotated;
+        OnInventoryChanged.Broadcast();
         return true;
     }
     return false;
@@ -155,6 +159,7 @@ UItemDataBase* UInventoryGridComponent::RemoveItemAt(int32 ItemIndex)
     FGuid RemovedId = Items[ItemIndex].InstanceId;
     Items.RemoveAt(ItemIndex);
     OnItemInstanceRemoved.Broadcast(RemovedId);
+    OnInventoryChanged.Broadcast();
     return Data;
 }
 
@@ -203,6 +208,7 @@ UItemDataBase* UInventoryGridComponent::SplitStack(const FGuid& InstanceId, int3
     {
         OutSplitCount = Count;
         Items[Index].StackCount -= Count;
+        OnInventoryChanged.Broadcast();
     }
 
     return ItemData;
@@ -234,6 +240,7 @@ bool UInventoryGridComponent::MergeStackFrom(UInventoryGridComponent* SourceInve
     if (TargetIndex == INDEX_NONE) return false;
 
     Items[TargetIndex].StackCount += ActuallySplit;
+    OnInventoryChanged.Broadcast();
     return true;
 }
 

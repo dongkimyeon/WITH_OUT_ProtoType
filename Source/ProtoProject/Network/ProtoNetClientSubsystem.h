@@ -44,6 +44,35 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnLoginSucceeded, int32, Play
 // Fired on S2C_LoginFail, same as above.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnLoginFailed, EProtoLoginFailReason, Reason, const FString&, Message);
 
+// One placed item in the grid inventory, as sent to/from the server. ItemId
+// is the item Data Asset's own object name (e.g. "DA_Item_AK47") -- see
+// AProtoCharacter::ResolveItemDataByName for how it's turned back into a
+// UItemDataBase* on restore.
+USTRUCT(BlueprintType)
+struct FProtoInventoryItemEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	FName ItemId;
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	int32 GridX = 0;
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	int32 GridY = 0;
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	bool bRotated = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	int32 StackCount = 1;
+};
+
+// Fired once, right after S2C_LoginSuccess, only when the account had a
+// saved inventory (same has_saved_progress lifecycle as OnProgressRestored).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnInventoryRestored, const TArray<FProtoInventoryItemEntry>&, Items);
+
 // Client-side counterpart to the WOP_SERVER RIO echo server: a plain TCP
 // connection speaking the same Protocol (FlatBuffers, size-prefixed "PTPK").
 // A GameInstanceSubsystem so it's reachable from Blueprint anywhere.
@@ -165,6 +194,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendWeaponEquip(uint8 WeaponType);
 
+	// Persists the account's full current grid inventory contents (not a
+	// diff -- see C2S_SaveInventory's schema comment). Not gated by
+	// SetMultiplayerVisualsEnabled: this is account persistence, not
+	// something other players see, so it works the same in Single and Multi.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendSaveInventory(const TArray<FProtoInventoryItemEntry>& Items);
+
 	/*-------------------
 	 상태 조회 / 델리게이트
 	-------------------*/
@@ -186,6 +222,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnProgressRestored OnProgressRestored;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnInventoryRestored OnInventoryRestored;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnLoginSucceeded OnLoginSucceeded;
