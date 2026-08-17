@@ -693,6 +693,12 @@ void AProtoCharacter::SetWeaponFromSlot(EEquipmentSlot Slot)
         return;
     }
 
+    if (CurrentWeaponType != EWeaponType::None && SlotWeapon->WeaponType != EWeaponType::None && CurrentWeaponType != SlotWeapon->WeaponType)
+    {
+        BeginWeaponToWeaponSwap(SlotWeapon->WeaponType, SlotWeapon);
+        return;
+    }
+
     CurrentWeapon = SlotWeapon;
     BeginWeaponSwap(SlotWeapon->WeaponType, SlotWeapon);
 }
@@ -803,6 +809,8 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
         return;
     }
 
+    StopAim();
+
     CurrentWeapon = SwapWeapon;
 
     if (TargetWeaponType != EWeaponType::None)
@@ -870,6 +878,82 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
     }
 }
 
+void AProtoCharacter::BeginWeaponToWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor)
+{
+    StopFireWeapon();
+
+    if (Swapping > 0.0f || CurrentWeaponType == EWeaponType::None || TargetWeaponType == EWeaponType::None)
+    {
+        return;
+    }
+
+    if (CurrentWeaponType == TargetWeaponType)
+    {
+        return;
+    }
+
+    AWeaponBase* NextWeapon = TargetWeaponActor ? TargetWeaponActor : GetWeaponByType(TargetWeaponType);
+    if (!NextWeapon || !GetMesh())
+    {
+        return;
+    }
+
+    const EWeaponType PreviousWeaponType = CurrentWeaponType;
+    AWeaponBase* PreviousWeapon = GetWeaponByType(PreviousWeaponType);
+    if (!PreviousWeapon)
+    {
+        PreviousWeapon = CurrentWeapon;
+    }
+
+    StopAim();
+
+    if (PreviousWeapon)
+    {
+        const FName PreviousStorageSocketName = PreviousWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage");
+        const FAttachmentTransformRules StorageAttachRules(
+            EAttachmentRule::SnapToTarget,
+            EAttachmentRule::SnapToTarget,
+            EAttachmentRule::KeepRelative,
+            true);
+        PreviousWeapon->AttachToComponent(GetMesh(), StorageAttachRules, PreviousStorageSocketName);
+        PreviousWeapon->SetActorEnableCollision(false);
+    }
+
+    CurrentWeapon = NextWeapon;
+    Joint = CurrentWeapon->LeftHandJointTarget;
+    SwapFromWeaponType = PreviousWeaponType;
+    PendingWeaponType = TargetWeaponType;
+    CurrentWeaponType = TargetWeaponType;
+    bHasWeapon = true;
+
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendWeaponEquip(static_cast<uint8>(TargetWeaponType));
+        }
+    }
+
+    Swapping = FMath::Max(0.0f, CurrentWeapon->EquipSwapTime);
+    SwappingAlpha = false;
+
+    if (WeaponSwapMontage)
+    {
+        if (TargetWeaponType == EWeaponType::Rifle)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToRifleSectionName);
+        }
+        else if (TargetWeaponType == EWeaponType::Pistol)
+        {
+            PlayAnimMontage(RifleReloadMontage ? RifleReloadMontage : WeaponSwapMontage, 1.0f, HandToPistolSectionName);
+        }
+    }
+
+    if (Swapping <= 0.0f)
+    {
+        FinishWeaponSwap();
+    }
+}
 void AProtoCharacter::FinishWeaponSwap()
 {
     Swapping = 0.0f;
@@ -1188,6 +1272,25 @@ void AProtoCharacter::SetRemoteAiming(bool bAiming, float Pitch)
 
 void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType)
 {
+    // This can run two ways: BeginPlay's direct ConsumePendingProgressRestore()
+    // pull (which already cleared the pending cache), or the live
+    // OnProgressRestored broadcast catching a character that already existed
+    // when S2C_LoginSuccess arrived (old in-game Slate popup reconnect --
+    // that character's BeginPlay ran before the login, so nothing was
+    // pending to pull). In the second case the pending cache is still set
+    // and would otherwise sit there and get wrongly replayed onto whatever
+    // unrelated character spawns next (e.g. walking into a LevelChanger to
+    // the Single/Multi map) -- clear it here too so a restore is only ever
+    // applied once, to whichever character actually received it.
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            FVector UnusedPos; FRotator UnusedLook; uint8 UnusedWeapon;
+            NetClient->ConsumePendingProgressRestore(UnusedPos, UnusedLook, UnusedWeapon);
+        }
+    }
+
     SetActorLocation(Position);
     if (Controller)
     {
@@ -1261,6 +1364,18 @@ UItemDataBase* AProtoCharacter::ResolveItemDataByName(const FString& AssetName) 
 
 void AProtoCharacter::HandleInventoryRestored(const TArray<FProtoInventoryItemEntry>& Items)
 {
+    // See the matching comment in HandleProgressRestored -- same reasoning,
+    // same fix: make sure the pending cache can't outlive this delivery and
+    // get replayed onto a later, unrelated character.
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            TArray<FProtoInventoryItemEntry> Unused;
+            NetClient->ConsumePendingInventoryRestore(Unused);
+        }
+    }
+
     if (!InventoryComponent)
     {
         return;
@@ -1694,17 +1809,5 @@ void AProtoCharacter::OnQuickSlotKeyReleased()
         QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 

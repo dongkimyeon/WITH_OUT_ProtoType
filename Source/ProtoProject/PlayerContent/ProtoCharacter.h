@@ -158,6 +158,7 @@ private:
     void SetWeaponSlot2();
     void SetWeaponFromSlot(EEquipmentSlot Slot);
     void BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor = nullptr);
+    void BeginWeaponToWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor);
     void FinishWeaponSwap();
     void StartFireWeapon();
     void StopFireWeapon();
@@ -454,3 +455,4 @@ public:
 private:
     bool bIsInvetoryOpened = false;
 };
+
