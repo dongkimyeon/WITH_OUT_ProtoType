@@ -640,6 +640,21 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 			if (UCharacterMovementComponent* MovementComponent = RemoteCharacter->GetCharacterMovement())
 			{
 				MovementComponent->bRunPhysicsWithNoController = true;
+
+				// ACharacter::PostInitializeComponents() is what normally
+				// bootstraps MovementMode out of MOVE_None into MOVE_Walking,
+				// but only when bRunPhysicsWithNoController is *already* true
+				// at that point (see its source: "if (CharacterMovement &&
+				// CharacterMovement->bRunPhysicsWithNoController)"). That
+				// runs synchronously inside SpawnActor() above, before we
+				// ever get a chance to set the flag -- so MovementMode is
+				// left stuck at MOVE_None forever, and PerformMovement()
+				// early-outs on MOVE_None regardless of bForce on
+				// AddMovementInput. Confirmed via [MoveDiag] logs from a
+				// live 2-client test: mode=0 (MOVE_None) and speed=0.0 the
+				// entire time. Explicitly finish the bootstrap ourselves.
+				MovementComponent->SetMovementMode(MOVE_Walking);
+
 				UE_LOG(LogProtoNet, Log, TEXT("[MoveDiag] spawned AProtoCharacter for player %u, bRunPhysicsWithNoController=%d, MovementMode=%d"),
 					PlayerId, MovementComponent->bRunPhysicsWithNoController, static_cast<int32>(MovementComponent->MovementMode));
 			}
