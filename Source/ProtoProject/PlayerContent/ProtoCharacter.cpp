@@ -1272,6 +1272,25 @@ void AProtoCharacter::SetRemoteAiming(bool bAiming, float Pitch)
 
 void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType)
 {
+    // This can run two ways: BeginPlay's direct ConsumePendingProgressRestore()
+    // pull (which already cleared the pending cache), or the live
+    // OnProgressRestored broadcast catching a character that already existed
+    // when S2C_LoginSuccess arrived (old in-game Slate popup reconnect --
+    // that character's BeginPlay ran before the login, so nothing was
+    // pending to pull). In the second case the pending cache is still set
+    // and would otherwise sit there and get wrongly replayed onto whatever
+    // unrelated character spawns next (e.g. walking into a LevelChanger to
+    // the Single/Multi map) -- clear it here too so a restore is only ever
+    // applied once, to whichever character actually received it.
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            FVector UnusedPos; FRotator UnusedLook; uint8 UnusedWeapon;
+            NetClient->ConsumePendingProgressRestore(UnusedPos, UnusedLook, UnusedWeapon);
+        }
+    }
+
     SetActorLocation(Position);
     if (Controller)
     {
@@ -1345,6 +1364,18 @@ UItemDataBase* AProtoCharacter::ResolveItemDataByName(const FString& AssetName) 
 
 void AProtoCharacter::HandleInventoryRestored(const TArray<FProtoInventoryItemEntry>& Items)
 {
+    // See the matching comment in HandleProgressRestored -- same reasoning,
+    // same fix: make sure the pending cache can't outlive this delivery and
+    // get replayed onto a later, unrelated character.
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            TArray<FProtoInventoryItemEntry> Unused;
+            NetClient->ConsumePendingInventoryRestore(Unused);
+        }
+    }
+
     if (!InventoryComponent)
     {
         return;
