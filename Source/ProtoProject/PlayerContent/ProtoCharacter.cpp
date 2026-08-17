@@ -99,6 +99,30 @@ void AProtoCharacter::Tick(float DeltaTime)
                 static_cast<int32>(CurrentWeaponType)));
     }
 
+    if (GEngine)
+    {
+        const AWeaponBase* WeaponCDO = CurrentWeapon ? Cast<AWeaponBase>(CurrentWeapon->GetClass()->GetDefaultObject()) : nullptr;
+        const FVector InstanceJoint = CurrentWeapon ? CurrentWeapon->LeftHandJointTarget : FVector::ZeroVector;
+        const FVector ClassDefaultJoint = WeaponCDO ? WeaponCDO->LeftHandJointTarget : FVector::ZeroVector;
+        GEngine->AddOnScreenDebugMessage(
+            12006,
+            0.0f,
+            FColor::Magenta,
+            FString::Printf(TEXT("Joint %.1f %.1f %.1f | Inst %.1f %.1f %.1f | CDO %.1f %.1f %.1f | %s | Class %s | Type %d"),
+                Joint.X,
+                Joint.Y,
+                Joint.Z,
+                InstanceJoint.X,
+                InstanceJoint.Y,
+                InstanceJoint.Z,
+                ClassDefaultJoint.X,
+                ClassDefaultJoint.Y,
+                ClassDefaultJoint.Z,
+                CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
+                CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
+                static_cast<int32>(CurrentWeaponType)));
+    }
+
     if (Swapping > 0.0f)
     {
         Swapping = FMath::Max(0.0f, Swapping - DeltaTime);
@@ -758,17 +782,32 @@ void AProtoCharacter::SetWeaponSlot2()
 
 void AProtoCharacter::SetWeaponFromSlot(EEquipmentSlot Slot)
 {
-    if (Swapping > 0.0f)
+    if (GEngine)
     {
-        return;
+        const AWeaponBase* WeaponCDO = CurrentWeapon ? Cast<AWeaponBase>(CurrentWeapon->GetClass()->GetDefaultObject()) : nullptr;
+        const FVector InstanceJoint = CurrentWeapon ? CurrentWeapon->LeftHandJointTarget : FVector::ZeroVector;
+        const FVector ClassDefaultJoint = WeaponCDO ? WeaponCDO->LeftHandJointTarget : FVector::ZeroVector;
+        GEngine->AddOnScreenDebugMessage(
+            12006,
+            0.0f,
+            FColor::Magenta,
+            FString::Printf(TEXT("Joint %.1f %.1f %.1f | Inst %.1f %.1f %.1f | CDO %.1f %.1f %.1f | %s | Class %s | Type %d"),
+                Joint.X,
+                Joint.Y,
+                Joint.Z,
+                InstanceJoint.X,
+                InstanceJoint.Y,
+                InstanceJoint.Z,
+                ClassDefaultJoint.X,
+                ClassDefaultJoint.Y,
+                ClassDefaultJoint.Z,
+                CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
+                CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
+                static_cast<int32>(CurrentWeaponType)));
     }
 
-    if (CurrentWeaponType != EWeaponType::None)
+    if (Swapping > 0.0f)
     {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 1.5f, FColor::Red, TEXT("Store current weapon first"));
-        }
         return;
     }
 
@@ -895,6 +934,26 @@ void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase*
     }
 
     CurrentWeapon = SwapWeapon;
+
+    if (TargetWeaponType != EWeaponType::None)
+    {
+        Joint = CurrentWeapon->LeftHandJointTarget;
+
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1,
+                3.0f,
+                FColor::Magenta,
+                FString::Printf(TEXT("Swap Joint Updated | Weapon %s | Class %s | Type %d | X %.1f Y %.1f Z %.1f"),
+                    CurrentWeapon ? *CurrentWeapon->GetName() : TEXT("None"),
+                    CurrentWeapon ? *CurrentWeapon->GetClass()->GetPathName() : TEXT("None"),
+                    static_cast<int32>(TargetWeaponType),
+                    Joint.X,
+                    Joint.Y,
+                    Joint.Z));
+        }
+    }
 
     const EWeaponType PreviousWeaponType = CurrentWeaponType;
     SwapFromWeaponType = PreviousWeaponType;
@@ -959,6 +1018,21 @@ void AProtoCharacter::FinishWeaponSwap()
     SwappingAlpha = true;
     CurrentWeaponType = PendingWeaponType;
 
+    if (SwapFromWeaponType != EWeaponType::None && SwapFromWeaponType != CurrentWeaponType)
+    {
+        if (AWeaponBase* PreviousWeapon = GetWeaponByType(SwapFromWeaponType))
+        {
+            const FName PreviousStorageSocketName = SwapFromWeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage");
+            const FAttachmentTransformRules StorageAttachRules(
+                EAttachmentRule::SnapToTarget,
+                EAttachmentRule::SnapToTarget,
+                EAttachmentRule::KeepRelative,
+                true);
+            PreviousWeapon->AttachToComponent(GetMesh(), StorageAttachRules, PreviousStorageSocketName);
+            PreviousWeapon->SetActorEnableCollision(false);
+        }
+    }
+
     if (CurrentWeapon)
     {
         Joint = CurrentWeapon->LeftHandJointTarget;
@@ -1001,9 +1075,14 @@ void AProtoCharacter::FinishWeaponSwap()
 }
 void AProtoCharacter::StartFireWeapon()
 {
+    if (!CurrentWeapon || CurrentWeaponType == EWeaponType::None || !bIsAiming || Swapping > 0.0f || bIsReloading)
+    {
+        return;
+    }
+
     FireWeapon();
 
-    if (!CurrentWeapon || !CurrentWeapon->bAutomatic || CurrentWeapon->FireRate <= 0.0f)
+    if (!CurrentWeapon->bAutomatic || CurrentWeapon->FireRate <= 0.0f)
     {
         return;
     }
@@ -1019,14 +1098,11 @@ void AProtoCharacter::StopFireWeapon()
 
 void AProtoCharacter::FireWeapon()
 {
-    if (!CurrentWeapon)
+    if (!CurrentWeapon || CurrentWeaponType == EWeaponType::None || !bIsAiming || Swapping > 0.0f || bIsReloading)
     {
-        if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, TEXT("No CurrentWeapon"));
-        }
         return;
     }
+
     CurrentWeapon->Fire();
     ApplyWeaponRecoil();
 }
@@ -1142,6 +1218,8 @@ void AProtoCharacter::ReloadWeapon()
     {
         return;
     }
+
+    StopAim();
 
     StopFireWeapon();
 
@@ -1292,7 +1370,8 @@ void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, ui
         return;
     }
 
-    CurrentWeapon = RestoredWeapon;
+    CurrentWeapon = RestoredWeapon;
+    Joint = CurrentWeapon->LeftHandJointTarget;
     CurrentWeaponType = RestoredType;
     PendingWeaponType = RestoredType;
     bHasWeapon = true;
@@ -1658,3 +1737,10 @@ void AProtoCharacter::OnQuickSlotKeyReleased()
         QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
     }
 }
+
+
+
+
+
+
+
