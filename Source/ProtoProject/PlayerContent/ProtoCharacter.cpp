@@ -1422,7 +1422,17 @@ void AProtoCharacter::HandleInventoryChanged()
         return;
     }
 
+    NetClient->SendSaveInventory(BuildInventorySnapshot());
+}
+
+TArray<FProtoInventoryItemEntry> AProtoCharacter::BuildInventorySnapshot() const
+{
     TArray<FProtoInventoryItemEntry> Snapshot;
+    if (!InventoryComponent)
+    {
+        return Snapshot;
+    }
+
     Snapshot.Reserve(InventoryComponent->Items.Num());
     for (const FInventoryItemInstance& Item : InventoryComponent->Items)
     {
@@ -1439,8 +1449,25 @@ void AProtoCharacter::HandleInventoryChanged()
         Entry.StackCount = Item.StackCount;
         Snapshot.Add(Entry);
     }
+    return Snapshot;
+}
 
-    NetClient->SendSaveInventory(Snapshot);
+void AProtoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    if (IsLocallyControlled() && EndPlayReason == EEndPlayReason::LevelTransition)
+    {
+        if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+        {
+            if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+            {
+                const FRotator CurrentLook = Controller ? Controller->GetControlRotation() : GetActorRotation();
+                NetClient->CacheStateForLevelTransition(
+                    GetActorLocation(), CurrentLook, static_cast<uint8>(CurrentWeaponType), BuildInventorySnapshot());
+            }
+        }
+    }
+
+    Super::EndPlay(EndPlayReason);
 }
 
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
