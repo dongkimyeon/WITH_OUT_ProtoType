@@ -23,7 +23,7 @@ enum class EEffectApplication : uint8
     InstantThenOverTime 
 };
 
-// 3. 소모품 사용 시 발생할 수 있는 부작용 (예: 더러운 물을 마시면 갈증은 차지만 감염도 증가)
+// 3. 소모품 사용 시 발생할 수 있는 부작용 
 USTRUCT(BlueprintType)
 struct FConsumableSideEffect
 {

@@ -178,7 +178,6 @@ void UInventoryScreenWidget::OnItemContextAction(int32 ItemIndex, UInventoryGrid
 				int32 SplitCount = 0;
 				OwningComponent->SplitStack(ConsumedInstanceId, 1, SplitCount);
 
-				// 부분 갱신 시도, 항목 소멸 시 전체 재생성
 				if (!TryLightRefresh(OwningComponent, ItemIndex, ConsumedInstanceId, ItemWidgets))
 				{
 					RefreshGrid(OwningComponent);
