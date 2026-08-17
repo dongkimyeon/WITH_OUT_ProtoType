@@ -30,7 +30,6 @@ void UPlayerDefalutUI::NativeConstruct()
 		PlayerStatusComponent->OnInfectionChanged.AddDynamic(this, &UPlayerDefalutUI::HandleInfectionChanged);
 		PlayerStatusComponent->OnStaminaChanged.AddDynamic(this, &UPlayerDefalutUI::HandleStaminaChanged);
 
-		// 델리게이트는 값이 바뀔 때만 브로드캐스트되므로, 위젯을 현재 값으로 한 번 초기화해준다.
 		HandleHealthChanged(PlayerStatusComponent->GetHealth(), PlayerStatusComponent->GetMaxHealth());
 		HandleHungerChanged(PlayerStatusComponent->GetHunger(), PlayerStatusComponent->GetMaxHunger());
 		HandleThirstChanged(PlayerStatusComponent->GetThirst(), PlayerStatusComponent->GetMaxThirst());

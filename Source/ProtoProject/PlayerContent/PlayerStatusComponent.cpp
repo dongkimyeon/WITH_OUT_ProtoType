@@ -17,6 +17,8 @@ UPlayerStatusComponent::UPlayerStatusComponent()
 void UPlayerStatusComponent::SetMaxHealth(float newMaxHealth)
 {
 	MaxHealth = newMaxHealth;
+	Health = FMath::Clamp(Health, 0.0f, MaxHealth);
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
 void UPlayerStatusComponent::SetHealth(float newHealth)
