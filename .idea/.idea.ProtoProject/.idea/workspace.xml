@@ -18,9 +18,7 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/EquipmentComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Inventory/EquipmentComponent.cpp" afterDir="false" />
-    </list>
+    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -312,6 +310,7 @@
       <workItem from="1786280898158" duration="2141000" />
       <workItem from="1786284013011" duration="185000" />
       <workItem from="1786285615167" duration="1879000" />
+      <workItem from="1786618169928" duration="1616000" />
     </task>
     <servers />
   </component>
