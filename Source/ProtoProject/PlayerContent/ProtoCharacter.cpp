@@ -292,10 +292,10 @@ void AProtoCharacter::BeginPlay()
     }
     if (InventoryComponent)
     {
-        if (TestArmor) InventoryComponent->AddItem(TestArmor);
+        /*if (TestArmor) InventoryComponent->AddItem(TestArmor);
         if (TestRifle) InventoryComponent->AddItem(TestRifle);
         if (TestBandage) InventoryComponent->AddItem(TestBandage);
-        if (TestBandage) InventoryComponent->AddItem(TestBandage);
+        if (TestBandage) InventoryComponent->AddItem(TestBandage);*/
     }
 
     // Only the locally-controlled player's own HUD should go on screen; this

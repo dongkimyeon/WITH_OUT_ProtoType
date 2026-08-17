@@ -3,6 +3,7 @@
 
 #include "LevelChangeSelectWidget.h"
 #include "Components/Button.h"
+#include  "Kismet/GameplayStatics.h"
 
 void ULevelChangeSelectWidget::NativeConstruct()
 {
@@ -17,6 +18,7 @@ void ULevelChangeSelectWidget::NativeConstruct()
 void ULevelChangeSelectWidget::OnClickSingleMap1()
 {
 	RequestLevelChange(ELevelChangeMode::Single, TEXT("L_Stage1"));
+
 }
 
 void ULevelChangeSelectWidget::OnClickSingleMap2()
@@ -39,7 +41,7 @@ void ULevelChangeSelectWidget::RequestLevelChange(ELevelChangeMode Mode, FName M
 	const FString ModeText = (Mode == ELevelChangeMode::Single) ? TEXT("Single") : TEXT("Multi");
 	const FString Msg = FString::Printf(TEXT("레벨 변경 요청: %s / %s "),
 		*ModeText, *MapName.ToString());
-
+	UGameplayStatics::OpenLevel(GetWorld(), *MapName.ToString());
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Yellow, Msg);
 	UE_LOG(LogTemp, Log, TEXT("%s"), *Msg);
 }

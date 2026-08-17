@@ -4,6 +4,7 @@
 #include "TitleLevelWidget.h"
 #include "Components/Button.h"
 #include "Components/EditableText.h"
+#include "Kismet/GameplayStatics.h"
 
 void UTitleLevelWidget::NativeConstruct()
 {
@@ -22,6 +23,9 @@ void UTitleLevelWidget::OnClickLogIn()
 	const FString Msg = FString::Printf(TEXT("로그인 : ID: %s / PW: %s IP : %s"),
 			*FID, *FPassword, *FIP);
 	GEngine->AddOnScreenDebugMessage(-1,1.0f,FColor::Green, Msg);
+	
+	//if(아이디 비번 IP 맞으면) 조건 추가 
+	UGameplayStatics::OpenLevel(GetWorld(), FName(TEXT("TestMap")));
 }
 
 void UTitleLevelWidget::OnClickSignIn()
