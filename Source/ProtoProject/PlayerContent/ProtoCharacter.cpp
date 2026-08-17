@@ -61,6 +61,21 @@ AProtoCharacter::AProtoCharacter()
         PickupAnimation = PickupAnimationFinder.Object;
     }
 
+    // Same Blueprints the inventory/equipment system spawns from -- see
+    // SpawnFallbackRemoteWeapon()'s comment in the header for why a remote
+    // character needs its own copy instead of reusing that system.
+    static ConstructorHelpers::FClassFinder<AWeaponBase> RemoteRifleClassFinder(TEXT("/Game/Blueprint/weapon/BP_AK47"));
+    if (RemoteRifleClassFinder.Succeeded())
+    {
+        RemoteRifleClass = RemoteRifleClassFinder.Class;
+    }
+
+    static ConstructorHelpers::FClassFinder<AWeaponBase> RemotePistolClassFinder(TEXT("/Game/Blueprint/weapon/Pistol"));
+    if (RemotePistolClassFinder.Succeeded())
+    {
+        RemotePistolClass = RemotePistolClassFinder.Class;
+    }
+
 }
 void AProtoCharacter::Tick(float DeltaTime)
 {
@@ -784,6 +799,74 @@ AWeaponBase* AProtoCharacter::GetWeaponByType(EWeaponType WeaponType) const
         return nullptr;
     }
 }
+
+AWeaponBase* AProtoCharacter::SpawnFallbackRemoteWeapon(EWeaponType WeaponType)
+{
+    if (WeaponType != EWeaponType::Rifle && WeaponType != EWeaponType::Pistol)
+    {
+        return nullptr;
+    }
+    if (!GetMesh())
+    {
+        return nullptr;
+    }
+
+    const TSubclassOf<AWeaponBase> WeaponClass = WeaponType == EWeaponType::Rifle ? RemoteRifleClass : RemotePistolClass;
+    if (!WeaponClass)
+    {
+        return nullptr;
+    }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = this;
+    SpawnParams.Instigator = this;
+
+    AWeaponBase* WeaponActor = GetWorld()->SpawnActor<AWeaponBase>(WeaponClass, GetActorTransform(), SpawnParams);
+    if (!WeaponActor)
+    {
+        return nullptr;
+    }
+
+    WeaponActor->SetOwner(this);
+    WeaponActor->SetInstigator(this);
+    WeaponActor->SetActorEnableCollision(false);
+
+    if (UStaticMeshComponent* WeaponMesh = WeaponActor->WeaponMesh)
+    {
+        WeaponMesh->SetSimulatePhysics(false);
+        WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+        WeaponMesh->SetGenerateOverlapEvents(false);
+    }
+    if (UBoxComponent* CollisionBox = WeaponActor->CollisionBox)
+    {
+        CollisionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        CollisionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+        CollisionBox->SetGenerateOverlapEvents(false);
+    }
+
+    // Start holstered; the caller (ApplyRemoteWeaponEquip / HandleProgressRestored)
+    // is the one deciding whether it should actually be drawn.
+    const FName StorageSocketName = WeaponType == EWeaponType::Pistol ? TEXT("PistolStorage") : TEXT("WeaponStorage");
+    const FAttachmentTransformRules AttachRules(
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::SnapToTarget,
+        EAttachmentRule::KeepRelative,
+        true);
+    WeaponActor->AttachToComponent(GetMesh(), AttachRules, StorageSocketName);
+
+    if (WeaponType == EWeaponType::Rifle)
+    {
+        CurrentRifle = WeaponActor;
+    }
+    else
+    {
+        CurrentPistol = WeaponActor;
+    }
+
+    return WeaponActor;
+}
+
 void AProtoCharacter::BeginWeaponSwap(EWeaponType TargetWeaponType, AWeaponBase* TargetWeaponActor)
 {
     StopFireWeapon();
@@ -1119,9 +1202,17 @@ void AProtoCharacter::ApplyRemoteWeaponEquip(EWeaponType ForWeaponType)
     // Storing (ForWeaponType == None) needs the weapon that's about to be
     // holstered, not a lookup by the (already-None) target type.
     AWeaponBase* SwapWeapon = ForWeaponType == EWeaponType::None ? GetWeaponByType(PreviousWeaponType) : GetWeaponByType(ForWeaponType);
+    if (!SwapWeapon && ForWeaponType != EWeaponType::None)
+    {
+        // Remote character (see SpawnFallbackRemoteWeapon's header comment)
+        // being equipped with a weapon type it has never shown before --
+        // spawn one instead of just tracking the logical state, or the
+        // sender's weapon would never actually be visible to us.
+        SwapWeapon = SpawnFallbackRemoteWeapon(ForWeaponType);
+    }
     if (!SwapWeapon)
     {
-        // This remote character doesn't have the weapon slot filled; just
+        // Storing with nothing equipped (or the fallback spawn failed): just
         // snap the logical state so later broadcasts stay consistent.
         CurrentWeaponType = ForWeaponType;
         bHasWeapon = ForWeaponType != EWeaponType::None;
@@ -1190,10 +1281,14 @@ void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, ui
     AWeaponBase* RestoredWeapon = GetWeaponByType(RestoredType);
     if (!RestoredWeapon)
     {
-        // Nothing to attach yet (e.g. CurrentRifle/CurrentPistol aren't
-        // populated at this point) -- the weapon_type is still tracked
-        // server-side, so a subsequent equip/store still broadcasts
-        // correctly even though the visual didn't restore here.
+        RestoredWeapon = SpawnFallbackRemoteWeapon(RestoredType);
+    }
+    if (!RestoredWeapon)
+    {
+        // Fallback spawn also failed (e.g. no RemoteRifleClass/RemotePistolClass
+        // set) -- the weapon_type is still tracked server-side, so a
+        // subsequent equip/store still broadcasts correctly even though the
+        // visual didn't restore here.
         return;
     }
 

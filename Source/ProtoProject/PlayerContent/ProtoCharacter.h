@@ -217,6 +217,26 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
     TMap<EEquipmentSlot, AWeaponBase*> EquippedWeaponActors;
 
+    // Fallback weapon classes for remote characters (see SpawnFallbackRemoteWeapon):
+    // a remote proxy's CurrentRifle/CurrentPistol never get populated through
+    // HandleEquipmentChanged, since that's only ever driven by this player's
+    // own inventory/input -- a remote character never equips anything
+    // locally. Defaults wired to the same Blueprints the inventory system
+    // spawns (BP_AK47 / Pistol); overridable per-Blueprint if needed.
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
+    TSubclassOf<AWeaponBase> RemoteRifleClass;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
+    TSubclassOf<AWeaponBase> RemotePistolClass;
+
+    // Spawns+attaches (to the storage socket, holstered) a weapon actor of
+    // WeaponType using RemoteRifleClass/RemotePistolClass, and remembers it
+    // in CurrentRifle/CurrentPistol so subsequent GetWeaponByType() calls
+    // find it. Only meant for a remote character (no controller) whose
+    // weapon slot was never filled through the inventory system. Returns
+    // nullptr for EWeaponType::None or if no fallback class is set.
+    AWeaponBase* SpawnFallbackRemoteWeapon(EWeaponType WeaponType);
+
     // UEquipmentComponent::OnEquipmentChanged 구독 콜백: 인벤토리 장착/해제를 무기 액터 스폰/파괴로 반영
     UFUNCTION()
     void HandleEquipmentChanged(EEquipmentSlot ChangedSlot);
@@ -288,10 +308,8 @@ public:
     // UProtoNetClientSubsystem::OnProgressRestored: moves this player to
     // their saved MSSQL position and silently shows their saved weapon (no
     // swap animation -- this is initial spawn state, not a live transition).
-    // The weapon restore only actually shows something if CurrentRifle/
-    // CurrentPistol are already populated (see GetWeaponByType) -- it
-    // doesn't reach into the inventory/equipment system to re-equip from
-    // scratch.
+    // Falls back to SpawnFallbackRemoteWeapon() if CurrentRifle/CurrentPistol
+    // aren't populated yet (see GetWeaponByType).
     UFUNCTION()
     void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType);
 
