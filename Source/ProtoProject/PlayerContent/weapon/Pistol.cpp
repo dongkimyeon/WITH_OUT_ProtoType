@@ -10,8 +10,10 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "Particles/ParticleSystem.h"
 #include "UObject/ConstructorHelpers.h"
 #include "../../Network/ProtoNetClientSubsystem.h"
+#include "../../Enemy/EnemyBase.h"
 
 APistol::APistol()
 {
@@ -52,6 +54,11 @@ APistol::APistol()
     if (FireSound03.Succeeded())
     {
         PistolFireSounds.Add(FireSound03.Object);
+    }
+    static ConstructorHelpers::FObjectFinder<UParticleSystem> BloodEffectFinder(TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Blood/P_Blood_Splat_Cone.P_Blood_Splat_Cone"));
+    if (BloodEffectFinder.Succeeded())
+    {
+        BloodHitEffect = BloodEffectFinder.Object;
     }
 }
 
@@ -192,12 +199,33 @@ void APistol::Fire()
             BulletHoleDecalLifeSpan);
     }
 
-    if (bHit && FireHit.GetActor())
+    if (bHit)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Pistol hit: %s"), *FireHit.GetActor()->GetName());
-
-        if (GEngine)
+        AEnemyBase* HitEnemy = Cast<AEnemyBase>(FireHit.GetActor());
+        if (!HitEnemy && FireHit.GetComponent())
         {
+            HitEnemy = Cast<AEnemyBase>(FireHit.GetComponent()->GetOwner());
+        }
+
+        if (HitEnemy)
+        {
+            HitEnemy->TakeEnemyDamage(10.0f);
+
+            if (BloodHitEffect)
+            {
+                const FRotator BloodRotation = FRotationMatrix::MakeFromZ(FireHit.ImpactNormal).Rotator();
+                UGameplayStatics::SpawnEmitterAtLocation(
+                    GetWorld(),
+                    BloodHitEffect,
+                    FireHit.ImpactPoint,
+                    BloodRotation,
+                    FVector(0.1f),
+                    true);
+            }
+        }
+        else if (FireHit.GetActor())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Pistol hit: %s"), *FireHit.GetActor()->GetName());
         }
     }
 }

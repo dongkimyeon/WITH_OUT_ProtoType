@@ -1,6 +1,8 @@
 #include "EnemyBase.h"
 
 #include "AIController.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -107,6 +109,20 @@ AEnemyBase::AEnemyBase()
     if (UCharacterMovementComponent* Movement = GetCharacterMovement())
     {
         Movement->MaxWalkSpeed = 300.0f;
+    }
+
+    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    {
+        Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        Capsule->SetCollisionObjectType(ECC_Pawn);
+        Capsule->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+        Capsule->SetGenerateOverlapEvents(true);
+    }
+
+    if (USkeletalMeshComponent* MeshComponent = GetMesh())
+    {
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        MeshComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
     }
 }
 

@@ -10,8 +10,10 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "Particles/ParticleSystem.h"
 #include "UObject/ConstructorHelpers.h"
 #include "../../Network/ProtoNetClientSubsystem.h"
+#include "../../Enemy/EnemyBase.h"
 
 AAK47::AAK47()
 {
@@ -54,6 +56,11 @@ AAK47::AAK47()
     if (FireSound03.Succeeded())
     {
         RifleFireSounds.Add(FireSound03.Object);
+    }
+    static ConstructorHelpers::FObjectFinder<UParticleSystem> BloodEffectFinder(TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Blood/P_Blood_Splat_Cone.P_Blood_Splat_Cone"));
+    if (BloodEffectFinder.Succeeded())
+    {
+        BloodHitEffect = BloodEffectFinder.Object;
     }
 }
 
@@ -194,12 +201,33 @@ void AAK47::Fire()
             BulletHoleDecalLifeSpan);
     }
 
-    if (bHit && FireHit.GetActor())
+    if (bHit)
     {
-        UE_LOG(LogTemp, Warning, TEXT("AK47 hit: %s"), *FireHit.GetActor()->GetName());
-
-        if (GEngine)
+        AEnemyBase* HitEnemy = Cast<AEnemyBase>(FireHit.GetActor());
+        if (!HitEnemy && FireHit.GetComponent())
         {
+            HitEnemy = Cast<AEnemyBase>(FireHit.GetComponent()->GetOwner());
+        }
+
+        if (HitEnemy)
+        {
+            HitEnemy->TakeEnemyDamage(10.0f);
+
+            if (BloodHitEffect)
+            {
+                const FRotator BloodRotation = FRotationMatrix::MakeFromZ(FireHit.ImpactNormal).Rotator();
+                UGameplayStatics::SpawnEmitterAtLocation(
+                    GetWorld(),
+                    BloodHitEffect,
+                    FireHit.ImpactPoint,
+                    BloodRotation,
+                    FVector(0.1f),
+                    true);
+            }
+        }
+        else if (FireHit.GetActor())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("AK47 hit: %s"), *FireHit.GetActor()->GetName());
         }
     }
 }

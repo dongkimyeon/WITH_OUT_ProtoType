@@ -7,6 +7,7 @@
 class UArrowComponent;
 class USkeletalMeshComponent;
 class USoundBase;
+class UParticleSystem;
 
 UCLASS()
 class PROTOPROJECT_API AAK47 : public AWeaponBase
@@ -42,6 +43,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Sound", meta = (ClampMin = "0.0"))
     float FireSoundPitch = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|VFX")
+    UParticleSystem* BloodHitEffect = nullptr;
 
     virtual void Fire() override;
     virtual bool GetLeftHandSocketTransform(FTransform& OutTransform) const override;
