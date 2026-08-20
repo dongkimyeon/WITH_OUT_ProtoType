@@ -30,6 +30,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy|AI")
     bool IsTargetInAttackRange() const;
 
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Combat")
+    bool CanAttack() const;
+
     UFUNCTION(BlueprintCallable, Category = "Enemy|AI")
     virtual void Attack();
 
@@ -42,6 +45,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy|AI")
     virtual void Die();
 
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Combat")
+    virtual void TakeEnemyDamage(float DamageAmount);
+
     UFUNCTION(BlueprintCallable, Category = "Enemy|AI")
     virtual void OnHit(float DamageAmount);
 
@@ -51,6 +57,15 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Stats")
     float CurrentHealth = 100.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    float AttackDamage = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    float AttackCooldown = 1.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Combat")
+    float LastAttackTime = -999.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|AI")
     float SightRange = 1200.0f;

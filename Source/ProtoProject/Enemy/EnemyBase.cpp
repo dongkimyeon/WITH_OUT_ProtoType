@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 class FEnemyBTNode
 {
@@ -146,6 +147,22 @@ bool AEnemyBase::IsTargetInAttackRange() const
     return FVector::DistSquared(GetActorLocation(), TargetActor->GetActorLocation()) <= FMath::Square(AttackRange);
 }
 
+bool AEnemyBase::CanAttack() const
+{
+    if (bIsDead || !HasTarget() || !IsTargetInAttackRange())
+    {
+        return false;
+    }
+
+    const UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    return World->GetTimeSeconds() - LastAttackTime >= AttackCooldown;
+}
+
 void AEnemyBase::Attack()
 {
     if (AAIController* AIController = Cast<AAIController>(GetController()))
@@ -153,7 +170,14 @@ void AEnemyBase::Attack()
         AIController->StopMovement();
     }
 
-    PrintBehaviorDebug(TEXT("Enemy BT: Attack"), FColor::Red);
+    if (!CanAttack())
+    {
+        PrintBehaviorDebug(TEXT("Enemy BT: Attack Cooldown"), FColor::Orange);
+        return;
+    }
+
+    LastAttackTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastAttackTime;
+    PrintBehaviorDebug(FString::Printf(TEXT("Enemy BT: Attack / Damage %.1f"), AttackDamage), FColor::Red);
 }
 
 void AEnemyBase::MoveToTarget()
@@ -203,9 +227,9 @@ void AEnemyBase::Die()
     PrintBehaviorDebug(TEXT("Enemy BT: Die"), FColor::Silver);
 }
 
-void AEnemyBase::OnHit(float DamageAmount)
+void AEnemyBase::TakeEnemyDamage(float DamageAmount)
 {
-    if (bIsDead)
+    if (bIsDead || DamageAmount <= 0.0f)
     {
         return;
     }
@@ -217,6 +241,11 @@ void AEnemyBase::OnHit(float DamageAmount)
     {
         Die();
     }
+}
+
+void AEnemyBase::OnHit(float DamageAmount)
+{
+    TakeEnemyDamage(DamageAmount);
 }
 
 void AEnemyBase::BuildBehaviorTree()
@@ -299,10 +328,10 @@ void AEnemyBase::PrintBehaviorDebug(const FString& Message, const FColor& Color)
 
     DebugPrintTimer = DebugPrintInterval;
 
-    UE_LOG(LogTemp, Log, TEXT("%s"), *Message);
 
-    if (GEngine)
-    {
-        GEngine->AddOnScreenDebugMessage(reinterpret_cast<uint64>(this), DebugPrintInterval, Color, Message);
-    }
+    UKismetSystemLibrary::PrintString(this, Message, true, false, Color, DebugPrintInterval);
 }
+
+
+
+
