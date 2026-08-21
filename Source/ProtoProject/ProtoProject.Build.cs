@@ -8,14 +8,15 @@ public class ProtoProject : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AIModule" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "Sockets", "Networking", "AssetRegistry" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "Sockets", "Networking", "AssetRegistry", "HTTP", "Json", "JsonUtilities", "AudioCaptureCore" });
 
 		// 기존 코드 아래에 이 구문을 추가합니다.
 		PublicIncludePaths.AddRange(new string[] {
 			"ProtoProject/PlayerContent/Inventory",
-			"ProtoProject/PlayerContent/Item"
+			"ProtoProject/PlayerContent/Item",
+			"ProtoProject/Companion"
 		});
 
 		// RIO 에코 서버와 통신하기 위한 Protocol(FlatBuffers) 헤더 경로.

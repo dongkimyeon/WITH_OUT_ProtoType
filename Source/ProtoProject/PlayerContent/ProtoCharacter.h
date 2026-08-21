@@ -25,6 +25,7 @@ class UCameraShakeBase;
 class UPlayerStatusComponent;
 class ULevelChangeSelectWidget;
 class ALevelChanger;
+class ACompanionNPC;
 struct FBranchingPointNotifyPayload;
 enum class EConsumableTargetStat : uint8;
 
@@ -77,6 +78,13 @@ private:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
     UInputAction* InteractAction;
+
+    // 동료 NPC와 PTT(누르고 말하기) 대화를 위한 매핑 컨텍스트/액션.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Companion", meta = (AllowPrivateAccess = "true"))
+    UInputMappingContext* CompanionMappingContext;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input|Companion", meta = (AllowPrivateAccess = "true"))
+    UInputAction* TalkToCompanionAction;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
     TSubclassOf<UUserWidget> InventoryWidgetClass;
@@ -159,6 +167,13 @@ private:
     void StopAim();
     void ToggleInventory(const FInputActionValue& Value);
     void Interact(const FInputActionValue& Value);
+    void TalkToCompanionPressed(const FInputActionValue& Value);
+    void TalkToCompanionReleased(const FInputActionValue& Value);
+
+    // 월드에서 동료 NPC를 찾아 캐시해둔다 (없으면 매번 재탐색).
+    UPROPERTY()
+    ACompanionNPC* CachedCompanionNPC = nullptr;
+    ACompanionNPC* GetCompanionNPC();
     void SetWeaponTypeNone();
     void SetWeaponSlot1();
     void SetWeaponSlot2();

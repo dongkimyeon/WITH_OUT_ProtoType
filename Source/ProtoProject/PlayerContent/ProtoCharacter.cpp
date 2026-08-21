@@ -37,6 +37,9 @@
 #include "../Network/ProtoNetClientSubsystem.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "Kismet/GameplayStatics.h"
+#include "../Companion/CompanionNPC.h"
+#include "../Companion/CompanionListenComponent.h"
 
 AProtoCharacter::AProtoCharacter()
 {
@@ -161,13 +164,13 @@ void AProtoCharacter::BeginPlay()
 
     bDebugLeftHandIK = false;
 
-    if (IsLocallyControlled())
+    /*if (IsLocallyControlled())
     {
         if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
         {
             PlayerController->ConsoleCommand(TEXT("DisableAllScreenMessages"));
         }
-    }
+    }*/
 
     StopAim();
     StopSprint();
@@ -225,6 +228,10 @@ void AProtoCharacter::BeginPlay()
         if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
         {
             Subsystem->AddMappingContext(DefaultMappingContext, 0);
+            if (CompanionMappingContext)
+            {
+                Subsystem->AddMappingContext(CompanionMappingContext, 0);
+            }
         }
     }
 
@@ -278,6 +285,13 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
         if (InteractAction)
         {
             EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AProtoCharacter::Interact);
+        }
+
+        if (TalkToCompanionAction)
+        {
+            EnhancedInputComponent->BindAction(TalkToCompanionAction, ETriggerEvent::Started, this, &AProtoCharacter::TalkToCompanionPressed);
+            EnhancedInputComponent->BindAction(TalkToCompanionAction, ETriggerEvent::Completed, this, &AProtoCharacter::TalkToCompanionReleased);
+            EnhancedInputComponent->BindAction(TalkToCompanionAction, ETriggerEvent::Canceled, this, &AProtoCharacter::TalkToCompanionReleased);
         }
     }
 
@@ -494,6 +508,31 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
     if (HitActor->Implements<UInteractable>() && IInteractable::Execute_CanInteract(HitActor, this))
     {
         IInteractable::Execute_OnInteract(HitActor, this);
+    }
+}
+
+ACompanionNPC* AProtoCharacter::GetCompanionNPC()
+{
+    if (!IsValid(CachedCompanionNPC))
+    {
+        CachedCompanionNPC = Cast<ACompanionNPC>(UGameplayStatics::GetActorOfClass(GetWorld(), ACompanionNPC::StaticClass()));
+    }
+    return CachedCompanionNPC;
+}
+
+void AProtoCharacter::TalkToCompanionPressed(const FInputActionValue& Value)
+{
+    if (ACompanionNPC* Companion = GetCompanionNPC())
+    {
+        Companion->ListenComponent->StartListening();
+    }
+}
+
+void AProtoCharacter::TalkToCompanionReleased(const FInputActionValue& Value)
+{
+    if (ACompanionNPC* Companion = GetCompanionNPC())
+    {
+        Companion->ListenComponent->StopListeningAndSend();
     }
 }
 
