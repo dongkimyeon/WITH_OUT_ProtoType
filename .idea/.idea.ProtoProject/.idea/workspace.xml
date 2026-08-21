@@ -18,15 +18,7 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/BP_ProtoCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/BP_ProtoCharacter.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/Enemy/MyEnemyBase.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/Enemy/MyEnemyBase.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Maps/L_Stage2.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_Stage2.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/ProtoProject.Build.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/ProtoProject.Build.cs" afterDir="false" />
-    </list>
+    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -334,6 +326,7 @@
       <workItem from="1786976181535" duration="6387000" />
       <workItem from="1787312082825" duration="2772000" />
       <workItem from="1787318211930" duration="3060000" />
+      <workItem from="1787321417065" duration="222000" />
     </task>
     <servers />
   </component>
