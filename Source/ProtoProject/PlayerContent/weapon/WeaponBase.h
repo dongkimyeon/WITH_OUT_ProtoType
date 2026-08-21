@@ -41,6 +41,17 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Fire")
     bool bAutomatic = false;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Ammo", meta = (ClampMin = "0"))
+    int32 MagazineCapacity = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|Ammo")
+    int32 CurrentAmmoInMagazine = 0;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Ammo", meta = (ClampMin = "0"))
+    int32 MaxReserveAmmo = 0;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|Ammo")
+    int32 ReserveAmmo = 0;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Impact")
     UMaterialInterface* BulletHoleDecalMaterial = nullptr;
@@ -51,6 +62,21 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Impact", meta = (ClampMin = "0.0"))
     float BulletHoleDecalLifeSpan = 0.0f;
 
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Ammo")
+    bool CanFire() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Ammo")
+    bool ConsumeAmmo(int32 Amount = 1);
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Ammo")
+    bool CanReload() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Ammo")
+    bool ReloadMagazine();
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Ammo")
+    FString GetAmmoText() const;
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     virtual void Fire();
 

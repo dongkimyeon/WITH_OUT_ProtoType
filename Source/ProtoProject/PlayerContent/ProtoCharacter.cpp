@@ -1014,7 +1014,7 @@ void AProtoCharacter::FinishWeaponSwap()
 }
 void AProtoCharacter::StartFireWeapon()
 {
-    if (!CurrentWeapon || CurrentWeaponType == EWeaponType::None || !bIsAiming || Swapping > 0.0f || bIsReloading)
+    if (!CurrentWeapon || CurrentWeaponType == EWeaponType::None || !bIsAiming || Swapping > 0.0f || bIsReloading || !CurrentWeapon->CanFire())
     {
         return;
     }
@@ -1037,7 +1037,7 @@ void AProtoCharacter::StopFireWeapon()
 
 void AProtoCharacter::FireWeapon()
 {
-    if (!CurrentWeapon || CurrentWeaponType == EWeaponType::None || !bIsAiming || Swapping > 0.0f || bIsReloading)
+    if (!CurrentWeapon || CurrentWeaponType == EWeaponType::None || !bIsAiming || Swapping > 0.0f || bIsReloading || !CurrentWeapon->CanFire())
     {
         return;
     }
@@ -1123,13 +1123,18 @@ void AProtoCharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupte
         return;
     }
 
+    if (!bInterrupted && CurrentWeapon)
+    {
+        CurrentWeapon->ReloadMagazine();
+    }
+
     bIsReloading = false;
     SwappingAlpha = true;
 }
 
 void AProtoCharacter::ReloadWeapon()
 {
-    if (Swapping > 0.0f || !CurrentWeapon)
+    if (Swapping > 0.0f || !CurrentWeapon || !CurrentWeapon->CanReload())
     {
         return;
     }

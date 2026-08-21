@@ -36,6 +36,50 @@ void AWeaponBase::Fire()
 {
     UE_LOG(LogTemp, Warning, TEXT("AWeaponBase::Fire called."));
 }
+bool AWeaponBase::CanFire() const
+{
+    return CurrentAmmoInMagazine > 0;
+}
+
+bool AWeaponBase::ConsumeAmmo(int32 Amount)
+{
+    if (Amount <= 0)
+    {
+        return true;
+    }
+
+    if (CurrentAmmoInMagazine < Amount)
+    {
+        return false;
+    }
+
+    CurrentAmmoInMagazine -= Amount;
+    return true;
+}
+
+bool AWeaponBase::CanReload() const
+{
+    return MagazineCapacity > 0 && CurrentAmmoInMagazine < MagazineCapacity && ReserveAmmo > 0;
+}
+
+bool AWeaponBase::ReloadMagazine()
+{
+    if (!CanReload())
+    {
+        return false;
+    }
+
+    const int32 NeededAmmo = MagazineCapacity - CurrentAmmoInMagazine;
+    const int32 AmmoToLoad = FMath::Min(NeededAmmo, ReserveAmmo);
+    CurrentAmmoInMagazine += AmmoToLoad;
+    ReserveAmmo -= AmmoToLoad;
+    return AmmoToLoad > 0;
+}
+
+FString AWeaponBase::GetAmmoText() const
+{
+    return FString::Printf(TEXT("%d/%d"), CurrentAmmoInMagazine, ReserveAmmo);
+}
 
 
 bool AWeaponBase::GetLeftHandSocketTransform(FTransform& OutTransform) const

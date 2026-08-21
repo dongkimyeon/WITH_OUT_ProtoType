@@ -18,6 +18,10 @@
 APistol::APistol()
 {
     WeaponType = EWeaponType::Pistol;
+    MagazineCapacity = 20;
+    CurrentAmmoInMagazine = MagazineCapacity;
+    MaxReserveAmmo = 240;
+    ReserveAmmo = MaxReserveAmmo;
 
     PistolSkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("PistolSkeletalMesh"));
     PistolSkeletalMesh->SetupAttachment(WeaponMesh);
@@ -78,6 +82,11 @@ bool APistol::GetLeftHandSocketTransform(FTransform& OutTransform) const
 void APistol::Fire()
 {
     if (!GetWorld() || !MuzzlePoint)
+    {
+        return;
+    }
+
+    if (!ConsumeAmmo())
     {
         return;
     }

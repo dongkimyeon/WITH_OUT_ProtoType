@@ -20,6 +20,10 @@ AAK47::AAK47()
     WeaponType = EWeaponType::Rifle;
     bAutomatic = true;
     FireRate = 10.0f;
+    MagazineCapacity = 60;
+    CurrentAmmoInMagazine = MagazineCapacity;
+    MaxReserveAmmo = 720;
+    ReserveAmmo = MaxReserveAmmo;
 
     RifleSkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("RifleSkeletalMesh"));
     RifleSkeletalMesh->SetupAttachment(WeaponMesh);
@@ -80,6 +84,11 @@ bool AAK47::GetLeftHandSocketTransform(FTransform& OutTransform) const
 void AAK47::Fire()
 {
     if (!GetWorld() || !MuzzlePoint)
+    {
+        return;
+    }
+
+    if (!ConsumeAmmo())
     {
         return;
     }
