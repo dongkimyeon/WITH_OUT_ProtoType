@@ -7,97 +7,15 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Perception/AIPerceptionStimuliSourceComponent.h"
+#include "Perception/AISense_Sight.h"
 
-class FEnemyBTNode
-{
-public:
-    virtual ~FEnemyBTNode() = default;
-    virtual EEnemyBTResult Tick(AEnemyBase* Enemy, float DeltaTime) = 0;
-};
-
-class FEnemySelectorNode : public FEnemyBTNode
-{
-public:
-    TArray<TSharedPtr<FEnemyBTNode>> Children;
-
-    virtual EEnemyBTResult Tick(AEnemyBase* Enemy, float DeltaTime) override
-    {
-        for (const TSharedPtr<FEnemyBTNode>& Child : Children)
-        {
-            if (!Child.IsValid())
-            {
-                continue;
-            }
-
-            const EEnemyBTResult Result = Child->Tick(Enemy, DeltaTime);
-            if (Result == EEnemyBTResult::Succeeded || Result == EEnemyBTResult::Running)
-            {
-                return Result;
-            }
-        }
-
-        return EEnemyBTResult::Failed;
-    }
-};
-
-class FEnemySequenceNode : public FEnemyBTNode
-{
-public:
-    TArray<TSharedPtr<FEnemyBTNode>> Children;
-
-    virtual EEnemyBTResult Tick(AEnemyBase* Enemy, float DeltaTime) override
-    {
-        for (const TSharedPtr<FEnemyBTNode>& Child : Children)
-        {
-            if (!Child.IsValid())
-            {
-                return EEnemyBTResult::Failed;
-            }
-
-            const EEnemyBTResult Result = Child->Tick(Enemy, DeltaTime);
-            if (Result == EEnemyBTResult::Failed || Result == EEnemyBTResult::Running)
-            {
-                return Result;
-            }
-        }
-
-        return EEnemyBTResult::Succeeded;
-    }
-};
-
-class FEnemyConditionNode : public FEnemyBTNode
-{
-public:
-    explicit FEnemyConditionNode(TFunction<bool(AEnemyBase*)> InCondition)
-        : Condition(MoveTemp(InCondition))
-    {
-    }
-
-    virtual EEnemyBTResult Tick(AEnemyBase* Enemy, float DeltaTime) override
-    {
-        return Condition && Condition(Enemy) ? EEnemyBTResult::Succeeded : EEnemyBTResult::Failed;
-    }
-
-private:
-    TFunction<bool(AEnemyBase*)> Condition;
-};
-
-class FEnemyActionNode : public FEnemyBTNode
-{
-public:
-    explicit FEnemyActionNode(TFunction<EEnemyBTResult(AEnemyBase*, float)> InAction)
-        : Action(MoveTemp(InAction))
-    {
-    }
-
-    virtual EEnemyBTResult Tick(AEnemyBase* Enemy, float DeltaTime) override
-    {
-        return Action ? Action(Enemy, DeltaTime) : EEnemyBTResult::Failed;
-    }
-
-private:
-    TFunction<EEnemyBTResult(AEnemyBase*, float)> Action;
-};
+using FEnemyBTNode = TBTNode<AEnemyBase>;
+using FEnemySelectorNode = TBTSelectorNode<AEnemyBase>;
+using FEnemySequenceNode = TBTSequenceNode<AEnemyBase>;
+using FEnemyConditionNode = TBTConditionNode<AEnemyBase>;
+using FEnemyActionNode = TBTActionNode<AEnemyBase>;
+using EEnemyBTResult = EBTNodeResult;
 
 AEnemyBase::AEnemyBase()
 {
@@ -124,6 +42,8 @@ AEnemyBase::AEnemyBase()
         MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
         MeshComponent->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
     }
+
+    PerceptionStimuliSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(TEXT("PerceptionStimuliSource"));
 }
 
 void AEnemyBase::BeginPlay()
@@ -132,6 +52,12 @@ void AEnemyBase::BeginPlay()
 
     CurrentHealth = MaxHealth;
     BuildBehaviorTree();
+
+    if (PerceptionStimuliSource)
+    {
+        PerceptionStimuliSource->RegisterForSense(UAISense_Sight::StaticClass());
+        PerceptionStimuliSource->RegisterWithPerceptionSystem();
+    }
 }
 
 void AEnemyBase::Tick(float DeltaTime)

@@ -8,9 +8,9 @@ public class ProtoProject : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AIModule" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AIModule", "GameplayTags", "NavigationSystem" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "Sockets", "Networking", "AssetRegistry", "HTTP", "Json", "JsonUtilities", "AudioCaptureCore" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "Sockets", "Networking", "AssetRegistry", "HTTP", "Json", "JsonUtilities", "AudioCaptureCore", "ImageWrapper" });
 
 		// 기존 코드 아래에 이 구문을 추가합니다.
 		PublicIncludePaths.AddRange(new string[] {

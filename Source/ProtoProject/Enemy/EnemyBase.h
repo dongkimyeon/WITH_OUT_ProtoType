@@ -2,16 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "../AI/SimpleBehaviorTree.h"
 #include "EnemyBase.generated.h"
 
-class FEnemyBTNode;
-
-enum class EEnemyBTResult : uint8
-{
-    Succeeded,
-    Failed,
-    Running
-};
+class UAIPerceptionStimuliSourceComponent;
 
 UCLASS()
 class PROTOPROJECT_API AEnemyBase : public ACharacter
@@ -51,7 +45,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy|AI")
     virtual void OnHit(float DamageAmount);
 
+    UFUNCTION(BlueprintPure, Category = "Enemy|Stats")
+    bool IsDead() const { return bIsDead; }
+
 protected:
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|AI")
+    TObjectPtr<UAIPerceptionStimuliSourceComponent> PerceptionStimuliSource;
+
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Stats")
     float MaxHealth = 100.0f;
 
@@ -96,7 +97,7 @@ protected:
     void PrintBehaviorDebug(const FString& Message, const FColor& Color = FColor::Cyan);
 
 private:
-    TSharedPtr<FEnemyBTNode> BehaviorTreeRoot;
+    TSharedPtr<TBTNode<AEnemyBase>> BehaviorTreeRoot;
     float DebugPrintTimer = 0.0f;
     float MoveRequestTimer = 0.0f;
     FString LastBehaviorDebugMessage;
