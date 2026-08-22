@@ -11,6 +11,7 @@
 #include "CompanionReportComponent.h"
 #include "AIController.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "../PlayerContent/Inventory/InventoryGridComponent.h"
 
 ACompanionNPC::ACompanionNPC()
 {
@@ -32,6 +33,8 @@ ACompanionNPC::ACompanionNPC()
 	VisionCaptureComponent->bCaptureEveryFrame = false;
 	VisionCaptureComponent->bCaptureOnMovement = false;
 	VisionCaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+
+	InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
 }
 
 void ACompanionNPC::BeginPlay()

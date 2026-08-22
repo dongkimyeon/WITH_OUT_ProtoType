@@ -15,6 +15,8 @@
 #include "Modules/ModuleManager.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
+#include "TimerManager.h"
+#include "Engine/World.h"
 
 UCompanionCommandRouterComponent::UCompanionCommandRouterComponent()
 {
@@ -23,6 +25,7 @@ UCompanionCommandRouterComponent::UCompanionCommandRouterComponent()
 	KeywordRules.Add({ { TEXT("따라와"), TEXT("따라와요"), TEXT("가자") }, ECompanionCommandType::Follow });
 	KeywordRules.Add({ { TEXT("멈춰"), TEXT("대기"), TEXT("기다려") }, ECompanionCommandType::Stop });
 	KeywordRules.Add({ { TEXT("싸워"), TEXT("공격"), TEXT("싸우자") }, ECompanionCommandType::Engage });
+	KeywordRules.Add({ { TEXT("탐색"), TEXT("둘러봐"), TEXT("살펴봐"), TEXT("찾아봐") }, ECompanionCommandType::Explore });
 	KeywordRules.Add({ { TEXT("가") }, ECompanionCommandType::MoveHere });
 
 	VisionQueryKeywords = { TEXT("보여"), TEXT("뭐야"), TEXT("저건"), TEXT("저게") };
@@ -47,6 +50,9 @@ void UCompanionCommandRouterComponent::BeginPlay()
 		VisionRenderTarget->UpdateResourceImmediate(true);
 		VisionCapture->TextureTarget = VisionRenderTarget;
 	}
+
+	LastPlayerSpokeTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	ScheduleNextIdleChatter();
 }
 
 ECompanionCommandType UCompanionCommandRouterComponent::MatchKeywordCommand(const FString& Text) const
@@ -80,6 +86,11 @@ bool UCompanionCommandRouterComponent::MatchesVisionQuery(const FString& Text) c
 
 void UCompanionCommandRouterComponent::HandleTranscribed(const FString& RecognizedText)
 {
+	if (GetWorld())
+	{
+		LastPlayerSpokeTime = GetWorld()->GetTimeSeconds();
+	}
+
 	const ECompanionCommandType Command = MatchKeywordCommand(RecognizedText);
 	if (Command != ECompanionCommandType::None)
 	{
@@ -133,6 +144,10 @@ void UCompanionCommandRouterComponent::HandleActionRequested(const FString& Acti
 	{
 		ExecuteCommand(ECompanionCommandType::MoveHere);
 	}
+	else if (ActionName == TEXT("explore"))
+	{
+		ExecuteCommand(ECompanionCommandType::Explore);
+	}
 	else
 	{
 		UE_LOG(LogCompanionAI, Warning, TEXT("[Router] 알 수 없는 액션: %s"), *ActionName);
@@ -165,6 +180,10 @@ void UCompanionCommandRouterComponent::ExecuteCommand(ECompanionCommandType Comm
 	case ECompanionCommandType::MoveHere:
 		PerformMoveToWherePlayerIsLooking();
 		AckLine = MoveHereAckLine;
+		break;
+	case ECompanionCommandType::Explore:
+		AIComponent->CommandExplore();
+		AckLine = ExploreAckLine;
 		break;
 	default:
 		break;
@@ -250,6 +269,13 @@ void UCompanionCommandRouterComponent::TriggerVisionReply(const FString& UserTex
 		return;
 	}
 
+	// 플레이어 시점 카메라에 그대로 정렬하면 3인칭/오버숄더 상태에서 플레이어 자신의 몸이 화면에
+	// 잡혀 Gemini가 "저게 뭐야?" 질문에 플레이어 자신을 좀비 등으로 오인할 수 있다 - 캡처에서 제외.
+	if (APawn* PlayerPawn = PC->GetPawn())
+	{
+		VisionCapture->HiddenActors.AddUnique(PlayerPawn);
+	}
+
 	UE_LOG(LogCompanionAI, Log, TEXT("[Router] 플레이어 시점으로 화면 캡처 수행"));
 	VisionCapture->SetWorldLocation(PC->PlayerCameraManager->GetCameraLocation());
 	VisionCapture->SetWorldRotation(PC->PlayerCameraManager->GetCameraRotation());
@@ -291,4 +317,40 @@ void UCompanionCommandRouterComponent::TriggerVisionReply(const FString& UserTex
 
 	UE_LOG(LogCompanionAI, Log, TEXT("[Router] 이미지(%d bytes) 포함 Brain 요청: \"%s\""), CompressedBytes.Num(), *UserText);
 	BrainComponent->RequestReplyWithImage(UserText, CompressedBytes);
+}
+
+void UCompanionCommandRouterComponent::ScheduleNextIdleChatter()
+{
+	if (!bIdleChatterEnabled || !GetWorld())
+	{
+		return;
+	}
+
+	const float Delay = FMath::FRandRange(FMath::Max(1.0f, IdleChatterMinInterval), FMath::Max(IdleChatterMinInterval, IdleChatterMaxInterval));
+	GetWorld()->GetTimerManager().SetTimer(IdleChatterTimerHandle, this, &UCompanionCommandRouterComponent::TryIdleChatter, Delay, false);
+}
+
+void UCompanionCommandRouterComponent::TryIdleChatter()
+{
+	// 발화 여부와 무관하게 다음 사이클을 계속 예약한다(끄고 켜는 토글은 bIdleChatterEnabled로).
+	ScheduleNextIdleChatter();
+
+	if (!bIdleChatterEnabled || !BrainComponent.IsValid() || !GetWorld())
+	{
+		return;
+	}
+
+	if (AIComponent.IsValid() && AIComponent->IsCombatEngaged())
+	{
+		return;
+	}
+
+	const float TimeSinceLastSpeech = GetWorld()->GetTimeSeconds() - LastPlayerSpokeTime;
+	if (TimeSinceLastSpeech < IdleChatterMinInterval)
+	{
+		return;
+	}
+
+	UE_LOG(LogCompanionAI, Log, TEXT("[Router] 침묵 %.0f초 경과 -> 혼잣말 유도"), TimeSinceLastSpeech);
+	BrainComponent->RequestAmbientLine();
 }

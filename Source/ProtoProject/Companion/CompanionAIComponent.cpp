@@ -9,6 +9,10 @@
 #include "Engine/World.h"
 #include "NavigationSystem.h"
 #include "DrawDebugHelpers.h"
+#include "EngineUtils.h"
+#include "../PlayerContent/Inventory/InventoryGridComponent.h"
+#include "../PlayerContent/Item/DropItem.h"
+#include "CompanionLog.h"
 
 namespace
 {
@@ -49,6 +53,7 @@ void UCompanionAIComponent::BeginPlay()
 	{
 		CombatComponent = Owner->FindComponentByClass<UCompanionCombatComponent>();
 		PerceptionComponent = Owner->FindComponentByClass<UCompanionPerceptionComponent>();
+		InventoryComponent = Owner->FindComponentByClass<UInventoryGridComponent>();
 	}
 
 	CachedPlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
@@ -129,6 +134,7 @@ void UCompanionAIComponent::CommandFollow()
 	bFollowEnabled = true;
 	bHasCommandedDestination = false;
 	bCombatSuppressed = false;
+	bExploring = false;
 }
 
 void UCompanionAIComponent::CommandStop()
@@ -137,6 +143,7 @@ void UCompanionAIComponent::CommandStop()
 	bHasCommandedDestination = false;
 	bCombatEngaged = false;
 	bCombatSuppressed = true;
+	bExploring = false;
 
 	if (AAIController* AIController = GetAIController())
 	{
@@ -164,6 +171,7 @@ void UCompanionAIComponent::CommandMoveToLocation(const FVector& Location)
 	CommandedLocation = ProjectedLocation;
 	CommandedTargetActor = nullptr;
 	bCombatSuppressed = false;
+	bExploring = false;
 }
 
 void UCompanionAIComponent::CommandMoveToActor(AActor* TargetActor)
@@ -177,12 +185,31 @@ void UCompanionAIComponent::CommandMoveToActor(AActor* TargetActor)
 	bCommandedDestinationIsActor = true;
 	CommandedTargetActor = TargetActor;
 	bCombatSuppressed = false;
+	bExploring = false;
 }
 
 void UCompanionAIComponent::CommandEngage()
 {
 	bCombatSuppressed = false;
 	bCombatEngaged = true;
+	bExploring = false;
+}
+
+void UCompanionAIComponent::CommandExplore()
+{
+	bExploring = true;
+	bHasCommandedDestination = false;
+	bCombatSuppressed = false;
+	CurrentExploreTargetItem = nullptr;
+	ExploreScanTimer = 0.0f;
+	ExploreWanderTimer = 0.0f;
+
+	if (AActor* Owner = GetOwner())
+	{
+		ExploreOriginLocation = Owner->GetActorLocation();
+	}
+
+	ExploreEndTime = GetWorld() ? GetWorld()->GetTimeSeconds() + ExploreDuration : 0.0f;
 }
 
 bool UCompanionAIComponent::HasEnemyTarget() const
@@ -288,6 +315,144 @@ EBTNodeResult UCompanionAIComponent::DoMoveToCommanded(float DeltaTime)
 	}
 
 	return EBTNodeResult::Running;
+}
+
+EBTNodeResult UCompanionAIComponent::DoExplore(float DeltaTime)
+{
+	AActor* Owner = GetOwner();
+	if (!Owner || !GetWorld())
+	{
+		return EBTNodeResult::Running;
+	}
+
+	if (GetWorld()->GetTimeSeconds() >= ExploreEndTime)
+	{
+		bExploring = false;
+		return EBTNodeResult::Failed;
+	}
+
+	// 플레이어와 너무 멀어지면 길을 잃지 않게 탐색을 접고 Follow로 복귀한다.
+	if (!CachedPlayerPawn.IsValid())
+	{
+		CachedPlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	}
+	if (APawn* Player = CachedPlayerPawn.Get())
+	{
+		if (FVector::DistSquared(Owner->GetActorLocation(), Player->GetActorLocation()) > FMath::Square(MaxExploreDistanceFromPlayer))
+		{
+			bExploring = false;
+			return EBTNodeResult::Failed;
+		}
+	}
+
+	// 습득 대상이 있으면 그쪽으로 이동하고, 도착하면 줍는다.
+	AActor* TargetItem = CurrentExploreTargetItem.Get();
+	if (IsValid(TargetItem))
+	{
+		if (FVector::DistSquared(Owner->GetActorLocation(), TargetItem->GetActorLocation()) <= FMath::Square(PickupRadius))
+		{
+			TryPickupItem(Cast<ADropItem>(TargetItem));
+			CurrentExploreTargetItem = nullptr;
+		}
+		else
+		{
+			RequestMoveToActor(TargetItem, PickupRadius);
+		}
+		return EBTNodeResult::Running;
+	}
+
+	// 주기적으로 근처 아이템을 스캔한다.
+	ExploreScanTimer -= DeltaTime;
+	if (ExploreScanTimer <= 0.0f)
+	{
+		ExploreScanTimer = ExploreScanInterval;
+		if (AActor* Found = FindNearestDropItem(ExploreSearchRadius))
+		{
+			CurrentExploreTargetItem = Found;
+			return EBTNodeResult::Running;
+		}
+	}
+
+	// 근처에 아이템이 없으면 시작 지점 주변을 배회한다.
+	ExploreWanderTimer -= DeltaTime;
+	if (ExploreWanderTimer <= 0.0f)
+	{
+		ExploreWanderTimer = ExploreWanderInterval;
+
+		if (UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetCurrent(GetWorld()))
+		{
+			FNavLocation RandomPoint;
+			if (NavSystem->GetRandomReachablePointInRadius(ExploreOriginLocation, ExploreRadius, RandomPoint))
+			{
+				RequestMoveToLocation(RandomPoint.Location, MoveAcceptanceRadius);
+			}
+		}
+	}
+
+	return EBTNodeResult::Running;
+}
+
+AActor* UCompanionAIComponent::FindNearestDropItem(float SearchRadius) const
+{
+	AActor* Owner = GetOwner();
+	if (!Owner || !GetWorld())
+	{
+		return nullptr;
+	}
+
+	AActor* Best = nullptr;
+	float BestDistSq = FMath::Square(SearchRadius);
+
+	for (TActorIterator<ADropItem> It(GetWorld()); It; ++It)
+	{
+		ADropItem* Item = *It;
+		if (!IsValid(Item) || !Item->ItemData)
+		{
+			continue;
+		}
+
+		const float DistSq = FVector::DistSquared(Owner->GetActorLocation(), Item->GetActorLocation());
+		if (DistSq <= BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = Item;
+		}
+	}
+
+	return Best;
+}
+
+void UCompanionAIComponent::TryPickupItem(ADropItem* Item)
+{
+	if (!Item || !Item->ItemData || !InventoryComponent.IsValid())
+	{
+		return;
+	}
+
+	const int32 CountToAdd = FMath::Max(1, Item->StackCount);
+	int32 AddedCount = 0;
+	for (; AddedCount < CountToAdd; ++AddedCount)
+	{
+		if (!InventoryComponent->AddItem(Item->ItemData))
+		{
+			break;
+		}
+	}
+
+	if (AddedCount >= CountToAdd)
+	{
+		Item->Destroy();
+	}
+	else if (AddedCount > 0)
+	{
+		// 인벤토리 공간이 모자라 일부만 주웠으면 남은 수량은 드롭 아이템으로 그대로 둔다.
+		Item->StackCount = CountToAdd - AddedCount;
+	}
+
+	if (AddedCount > 0)
+	{
+		UE_LOG(LogCompanionAI, Log, TEXT("[AI] 아이템 습득: %s x%d"), *Item->ItemData->DisplayName.ToString(), AddedCount);
+	}
 }
 
 EBTNodeResult UCompanionAIComponent::DoFollow(float DeltaTime)
@@ -428,13 +593,25 @@ void UCompanionAIComponent::BuildBehaviorTree()
 	}));
 	Root->Children.Add(MoveSequence);
 
-	// 3. 플레이어 추적
+	// 3. 탐색(주변 배회 + 아이템 습득)
+	TSharedPtr<FCompanionSequenceNode> ExploreSequence = MakeShared<FCompanionSequenceNode>();
+	ExploreSequence->Children.Add(MakeShared<FCompanionConditionNode>([](UCompanionAIComponent* AI)
+	{
+		return IsValid(AI) && AI->bExploring;
+	}));
+	ExploreSequence->Children.Add(MakeShared<FCompanionActionNode>([](UCompanionAIComponent* AI, float DeltaTime)
+	{
+		return AI->DoExplore(DeltaTime);
+	}));
+	Root->Children.Add(ExploreSequence);
+
+	// 4. 플레이어 추적
 	Root->Children.Add(MakeShared<FCompanionActionNode>([](UCompanionAIComponent* AI, float DeltaTime)
 	{
 		return AI->DoFollow(DeltaTime);
 	}));
 
-	// 4. Idle
+	// 5. Idle
 	Root->Children.Add(MakeShared<FCompanionActionNode>([](UCompanionAIComponent* AI, float DeltaTime)
 	{
 		return AI->DoIdle(DeltaTime);

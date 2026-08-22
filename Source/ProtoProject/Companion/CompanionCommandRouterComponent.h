@@ -19,7 +19,8 @@ enum class ECompanionCommandType : uint8
 	Follow,
 	Stop,
 	MoveHere,
-	Engage
+	Engage,
+	Explore
 };
 
 USTRUCT(BlueprintType)
@@ -74,6 +75,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command")
 	FString MoveHereAckLine = TEXT("그쪽으로 갈게.");
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command")
+	FString ExploreAckLine = TEXT("알겠어, 주변 좀 살펴볼게.");
+
+	// 플레이어가 이 시간(초) 동안 말이 없으면 혼잣말을 시도한다. Max는 다음 시도까지의 랜덤 상한.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command|IdleChatter")
+	bool bIdleChatterEnabled = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command|IdleChatter")
+	float IdleChatterMinInterval = 60.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command|IdleChatter")
+	float IdleChatterMaxInterval = 120.0f;
+
 	UFUNCTION()
 	void HandleTranscribed(const FString& RecognizedText);
 
@@ -94,9 +108,15 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTextureRenderTarget2D> VisionRenderTarget;
 
+	FTimerHandle IdleChatterTimerHandle;
+	float LastPlayerSpokeTime = 0.0f;
+
 	ECompanionCommandType MatchKeywordCommand(const FString& Text) const;
 	bool MatchesVisionQuery(const FString& Text) const;
 	void ExecuteCommand(ECompanionCommandType Command);
 	void PerformMoveToWherePlayerIsLooking();
 	void TriggerVisionReply(const FString& UserText);
+
+	void ScheduleNextIdleChatter();
+	void TryIdleChatter();
 };

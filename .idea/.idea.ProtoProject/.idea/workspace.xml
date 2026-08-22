@@ -20,14 +20,16 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/Enemy/MyEnemyBase.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/Enemy/MyEnemyBase.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/Companion/BP_CompanionNPC.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Companion/BP_CompanionNPC.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/ProtoProject.Build.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/ProtoProject.Build.cs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -338,6 +340,7 @@
       <workItem from="1787318211930" duration="3060000" />
       <workItem from="1787321417065" duration="222000" />
       <workItem from="1787406248983" duration="2059000" />
+      <workItem from="1787408694571" duration="1376000" />
     </task>
     <servers />
   </component>

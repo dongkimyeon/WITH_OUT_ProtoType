@@ -55,6 +55,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Companion|Brain")
 	void RequestReplyWithImage(const FString& UserText, const TArray<uint8>& ImageBytes);
 
+	// 플레이어가 한동안 말이 없을 때 짧은 혼잣말을 유도한다(CommandRouter의 침묵 타이머가 호출).
+	// Function Calling 도구를 붙이지 않아 실행 명령으로 오인되어 엉뚱한 행동이 트리거될 위험이 없다.
+	UFUNCTION(BlueprintCallable, Category = "Companion|Brain")
+	void RequestAmbientLine();
+
 	UFUNCTION(BlueprintCallable, Category = "Companion|Brain")
 	void SaveMemory();
 
@@ -73,7 +78,7 @@ private:
 	int32 NextRequestId = 0;
 	int32 LatestRequestId = -1;
 
-	void SendGeminiRequest(const FString& UserText, const TArray<uint8>* OptionalImageBytes);
+	void SendGeminiRequest(const FString& UserText, const TArray<uint8>* OptionalImageBytes, bool bIncludeTools = true);
 	FString BuildSystemInstruction() const;
 	void TrimHistory();
 

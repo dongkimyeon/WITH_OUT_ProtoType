@@ -15,6 +15,7 @@ class UCompanionPerceptionComponent;
 class UCompanionCommandRouterComponent;
 class UCompanionReportComponent;
 class USceneCaptureComponent2D;
+class UInventoryGridComponent;
 
 // STT(로컬 브릿지) -> Gemini LLM -> TTS(로컬 서버)로 음성 대화하고, AIController 기반 커스텀 BT로
 // 플레이어를 따라다니거나 명령에 따라 이동/전투하는 동료 NPC.
@@ -55,6 +56,10 @@ public:
 	// 비전 폴백(시각 질의)에서 플레이어 카메라 시점으로 정렬해 온디맨드 캡처하는 데 쓰인다.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Companion")
 	TObjectPtr<USceneCaptureComponent2D> VisionCaptureComponent;
+
+	// "주변 탐색해봐" 명령으로 주운 아이템을 담는 동료 전용 인벤토리(플레이어 인벤토리와 별개).
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Companion")
+	TObjectPtr<UInventoryGridComponent> InventoryComponent;
 
 protected:
 	virtual void BeginPlay() override;

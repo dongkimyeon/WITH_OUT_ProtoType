@@ -83,6 +83,13 @@ void UCompanionBrainComponent::RequestReplyWithImage(const FString& UserText, co
 	SendGeminiRequest(UserText, &ImageBytes);
 }
 
+void UCompanionBrainComponent::RequestAmbientLine()
+{
+	SendGeminiRequest(
+		TEXT("(플레이어가 한동안 말이 없다. 지금 상황에 맞게 혼잣말처럼 자연스럽게 한마디만 해줘. 1~2문장.)"),
+		nullptr, /*bIncludeTools=*/ false);
+}
+
 FString UCompanionBrainComponent::BuildSystemInstruction() const
 {
 	FString Instruction = PersonaSystemPrompt;
@@ -112,7 +119,7 @@ void UCompanionBrainComponent::TrimHistory()
 	}
 }
 
-void UCompanionBrainComponent::SendGeminiRequest(const FString& UserText, const TArray<uint8>* OptionalImageBytes)
+void UCompanionBrainComponent::SendGeminiRequest(const FString& UserText, const TArray<uint8>* OptionalImageBytes, bool bIncludeTools)
 {
 	UE_LOG(LogCompanionAI, Log, TEXT("[Brain] RequestReply: \"%s\""), *UserText);
 
@@ -175,7 +182,9 @@ void UCompanionBrainComponent::SendGeminiRequest(const FString& UserText, const 
 		RootObject->SetArrayField(TEXT("contents"), Contents);
 	}
 
-	// tools: 명령 의도 판단을 위한 Function Calling
+	// tools: 명령 의도 판단을 위한 Function Calling. 혼잣말 등 비명령성 요청은 bIncludeTools=false로
+	// 아예 tools 필드를 빼서 실수로 명령이 트리거되는 걸 원천 차단한다.
+	if (bIncludeTools)
 	{
 		auto MakeFunctionDeclaration = [](const TCHAR* Name, const TCHAR* Description) -> TSharedRef<FJsonValue>
 		{
@@ -196,6 +205,7 @@ void UCompanionBrainComponent::SendGeminiRequest(const FString& UserText, const 
 		FunctionDeclarations.Add(MakeFunctionDeclaration(TEXT("stop"), TEXT("멈추거나 대기하라는 명령으로 해석되면 호출한다.")));
 		FunctionDeclarations.Add(MakeFunctionDeclaration(TEXT("engage"), TEXT("주변 적과 싸우라는 명령으로 해석되면 호출한다.")));
 		FunctionDeclarations.Add(MakeFunctionDeclaration(TEXT("move_to"), TEXT("플레이어가 가리키는 곳으로 이동하라는 명령으로 해석되면 호출한다.")));
+		FunctionDeclarations.Add(MakeFunctionDeclaration(TEXT("explore"), TEXT("주변을 탐색/수색하고 아이템을 주우라는 명령으로 해석되면 호출한다.")));
 
 		TSharedRef<FJsonObject> ToolsEntry = MakeShared<FJsonObject>();
 		ToolsEntry->SetArrayField(TEXT("functionDeclarations"), FunctionDeclarations);
