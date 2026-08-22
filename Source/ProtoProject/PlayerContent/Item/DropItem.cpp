@@ -14,12 +14,20 @@ ADropItem::ADropItem()
 	// 고립된 네브메시 조각이 생겨서 AI가 경로를 못 찾는다 - 아이템은 네비게이션에서 완전히 제외한다.
 	StaticMeshComp->SetCanEverAffectNavigation(false);
 
-	// 물리 시뮬레이션: 떨어뜨리면 중력에 반응해 바닥에 안착하고, 플레이어/컴패니언이 발로 차거나
-	// 밀칠 수 있게 PhysicsActor 프로필(월드/폰 모두 Block, 오브젝트 타입 PhysicsBody)을 쓴다.
+	// 물리 시뮬레이션: 떨어뜨리면 중력에 반응해 바닥에 안착한다. 월드(바닥/벽/다른 물리 오브젝트)와는
+	// 부딪히되, 플레이어/컴패니언(Pawn)은 그대로 통과해서 걸리적거리지 않게 한다.
 	StaticMeshComp->SetMobility(EComponentMobility::Movable);
 	StaticMeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
+	StaticMeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 	StaticMeshComp->SetSimulatePhysics(true);
 	StaticMeshComp->SetEnableGravity(true);
+	// 기본 질량(메시 부피 기반 자동 산출)이 너무 가벼워서 캐릭터가 스치기만 해도 멀리 날아가고,
+	// 감쇠가 거의 없어 튕겨나간 속도로 바닥을 뚫고 지나가 사라진다 - 무게를 실어주고 감쇠를 걸고,
+	// 고속 충돌에도 바닥을 통과하지 않게 CCD를 켠다.
+	StaticMeshComp->SetMassOverrideInKg(NAME_None, 2.0f, true);
+	StaticMeshComp->SetLinearDamping(1.0f);
+	StaticMeshComp->SetAngularDamping(2.0f);
+	StaticMeshComp->SetUseCCD(true);
 
 	BoundingBox = CreateDefaultSubobject<UBoxComponent>(TEXT("BoundingBox"));
 	BoundingBox->SetupAttachment(StaticMeshComp);
