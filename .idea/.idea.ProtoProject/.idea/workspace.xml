@@ -20,16 +20,15 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/Enemy/MyEnemyBase.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/Enemy/MyEnemyBase.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Companion/BP_CompanionNPC.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Companion/BP_CompanionNPC.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/0/9X/WLCR0KO741CG6D5O9X3WW9.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/0/9X/WLCR0KO741CG6D5O9X3WW9.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/2/OP/H1RB986G4GV16I07PIQJUM.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/2/OP/H1RB986G4GV16I07PIQJUM.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/3/BU/AQSYEIQEAV4V4W5TV4OWJJ.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/3/BU/AQSYEIQEAV4V4W5TV4OWJJ.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/4/8L/RJ4FBL87MCMTAI4VD673D3.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/4/8L/RJ4FBL87MCMTAI4VD673D3.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/6/NP/84IF5OLMKANBROX25AAEP5.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/6/NP/84IF5OLMKANBROX25AAEP5.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/B/S6/E0MEULD975TL3VTE6VULGW.uasset" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -340,7 +339,7 @@
       <workItem from="1787318211930" duration="3060000" />
       <workItem from="1787321417065" duration="222000" />
       <workItem from="1787406248983" duration="2059000" />
-      <workItem from="1787408694571" duration="1376000" />
+      <workItem from="1787408694571" duration="3299000" />
     </task>
     <servers />
   </component>

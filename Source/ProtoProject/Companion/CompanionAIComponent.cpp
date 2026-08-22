@@ -4,6 +4,7 @@
 #include "CompanionCombatComponent.h"
 #include "CompanionPerceptionComponent.h"
 #include "AIController.h"
+#include "Navigation/PathFollowingComponent.h"
 #include "GameFramework/Character.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
@@ -12,6 +13,8 @@
 #include "EngineUtils.h"
 #include "../PlayerContent/Inventory/InventoryGridComponent.h"
 #include "../PlayerContent/Item/DropItem.h"
+#include "../Network/ProtoNetClientSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "CompanionLog.h"
 
 namespace
@@ -203,6 +206,8 @@ void UCompanionAIComponent::CommandExplore()
 	CurrentExploreTargetItem = nullptr;
 	ExploreScanTimer = 0.0f;
 	ExploreWanderTimer = 0.0f;
+	ExploreMoveFailCount = 0;
+	UnreachableExploreItems.Reset();
 
 	if (AActor* Owner = GetOwner())
 	{
@@ -327,6 +332,7 @@ EBTNodeResult UCompanionAIComponent::DoExplore(float DeltaTime)
 
 	if (GetWorld()->GetTimeSeconds() >= ExploreEndTime)
 	{
+		UE_LOG(LogCompanionAI, Log, TEXT("[AI] 탐색 종료: 시간 만료"));
 		bExploring = false;
 		return EBTNodeResult::Failed;
 	}
@@ -340,6 +346,7 @@ EBTNodeResult UCompanionAIComponent::DoExplore(float DeltaTime)
 	{
 		if (FVector::DistSquared(Owner->GetActorLocation(), Player->GetActorLocation()) > FMath::Square(MaxExploreDistanceFromPlayer))
 		{
+			UE_LOG(LogCompanionAI, Log, TEXT("[AI] 탐색 종료: 플레이어와 거리 초과(MaxExploreDistanceFromPlayer=%.0f)"), MaxExploreDistanceFromPlayer);
 			bExploring = false;
 			return EBTNodeResult::Failed;
 		}
@@ -349,14 +356,43 @@ EBTNodeResult UCompanionAIComponent::DoExplore(float DeltaTime)
 	AActor* TargetItem = CurrentExploreTargetItem.Get();
 	if (IsValid(TargetItem))
 	{
-		if (FVector::DistSquared(Owner->GetActorLocation(), TargetItem->GetActorLocation()) <= FMath::Square(PickupRadius))
+		// 순수 거리만으로 판정하면 MoveToActor가 실제로 멈추는 지점(엔진이 AcceptanceRadius에
+		// 에이전트 반경을 더해 도착 판정하는 지점)보다 항상 엄격해서 절대 만족되지 않는다.
+		// AIController가 쓰는 것과 동일한 수평 거리 공식을 재사용하되, 높이(Z)는 무시한다 - 진열대처럼
+		// 공중에 띄워둔 아이템은 캐릭터 캡슐 half-height를 넘는 높이 차 때문에 절대 도착 판정이 안 나서다.
+		AAIController* AIController = GetAIController();
+		UPathFollowingComponent* PathFollowing = AIController ? AIController->GetPathFollowingComponent() : nullptr;
+		FVector ReachTestPoint = TargetItem->GetActorLocation();
+		ReachTestPoint.Z = Owner->GetActorLocation().Z;
+		const bool bReachedItem = PathFollowing
+			&& PathFollowing->HasReached(ReachTestPoint, EPathFollowingReachMode::OverlapAgent, PickupRadius);
+
+		if (bReachedItem)
 		{
 			TryPickupItem(Cast<ADropItem>(TargetItem));
 			CurrentExploreTargetItem = nullptr;
 		}
 		else
 		{
-			RequestMoveToActor(TargetItem, PickupRadius);
+			const float DistToItem = FVector::Dist(Owner->GetActorLocation(), TargetItem->GetActorLocation());
+			UE_LOG(LogCompanionAI, Log, TEXT("[AI] 아이템으로 이동 중: %s (거리 %.0f)"), *TargetItem->GetName(), DistToItem);
+
+			if (RequestMoveToActor(TargetItem, PickupRadius))
+			{
+				++ExploreMoveFailCount;
+				if (ExploreMoveFailCount >= 3)
+				{
+					UE_LOG(LogCompanionAI, Warning, TEXT("[AI] %s 도달 불가로 판단해 포기(경로 탐색 %d회 실패)"),
+						*TargetItem->GetName(), ExploreMoveFailCount);
+					UnreachableExploreItems.Add(TargetItem);
+					CurrentExploreTargetItem = nullptr;
+					ExploreMoveFailCount = 0;
+				}
+			}
+			else
+			{
+				ExploreMoveFailCount = 0;
+			}
 		}
 		return EBTNodeResult::Running;
 	}
@@ -368,7 +404,9 @@ EBTNodeResult UCompanionAIComponent::DoExplore(float DeltaTime)
 		ExploreScanTimer = ExploreScanInterval;
 		if (AActor* Found = FindNearestDropItem(ExploreSearchRadius))
 		{
+			UE_LOG(LogCompanionAI, Log, TEXT("[AI] 탐색 대상 아이템 발견: %s"), *Found->GetName());
 			CurrentExploreTargetItem = Found;
+			ExploreMoveFailCount = 0;
 			return EBTNodeResult::Running;
 		}
 	}
@@ -411,6 +449,14 @@ AActor* UCompanionAIComponent::FindNearestDropItem(float SearchRadius) const
 			continue;
 		}
 
+		if (UnreachableExploreItems.ContainsByPredicate([Item](const TWeakObjectPtr<AActor>& Unreachable)
+		{
+			return Unreachable.Get() == Item;
+		}))
+		{
+			continue;
+		}
+
 		const float DistSq = FVector::DistSquared(Owner->GetActorLocation(), Item->GetActorLocation());
 		if (DistSq <= BestDistSq)
 		{
@@ -426,7 +472,21 @@ void UCompanionAIComponent::TryPickupItem(ADropItem* Item)
 {
 	if (!Item || !Item->ItemData || !InventoryComponent.IsValid())
 	{
+		UE_LOG(LogCompanionAI, Warning, TEXT("[AI] 습득 실패: Item=%s ItemData=%s InventoryComponent=%s"),
+			Item ? *Item->GetName() : TEXT("null"),
+			(Item && Item->ItemData) ? TEXT("valid") : TEXT("null"),
+			InventoryComponent.IsValid() ? TEXT("valid") : TEXT("invalid"));
 		return;
+	}
+
+	// 플레이어 픽업(ADropItem::OnInteract_Implementation)과 동일하게, 습득 전에 서버로 루팅을
+	// 브로드캐스트한다 - 안 하면 다른 클라이언트 화면에는 아이템이 그대로 남아있게 된다.
+	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->SendInteractLoot(static_cast<int32>(Item->GetUniqueID()));
+		}
 	}
 
 	const int32 CountToAdd = FMath::Max(1, Item->StackCount);
@@ -437,6 +497,13 @@ void UCompanionAIComponent::TryPickupItem(ADropItem* Item)
 		{
 			break;
 		}
+	}
+
+	if (AddedCount == 0)
+	{
+		UE_LOG(LogCompanionAI, Warning, TEXT("[AI] 습득 실패: %s - 인벤토리에 자리 없음(Grid %dx%d, 아이템 크기 %dx%d)"),
+			*Item->ItemData->DisplayName.ToString(), InventoryComponent->GridColumns, InventoryComponent->GridRows,
+			Item->ItemData->GridWidth, Item->ItemData->GridHeight);
 	}
 
 	if (AddedCount >= CountToAdd)
@@ -501,28 +568,29 @@ EBTNodeResult UCompanionAIComponent::DoIdle(float DeltaTime)
 	return EBTNodeResult::Running;
 }
 
-void UCompanionAIComponent::RequestMoveToActor(AActor* Target, float AcceptRadius)
+bool UCompanionAIComponent::RequestMoveToActor(AActor* Target, float AcceptRadius)
 {
 	AAIController* AIController = GetAIController();
 	if (!Target || !AIController)
 	{
-		return;
+		return false;
 	}
 
 	if (MoveRequestTimer > 0.0f)
 	{
-		return;
-	}
-
-	const FVector TargetLocation = Target->GetActorLocation();
-	if (FVector::DistSquared(TargetLocation, LastMoveRequestLocation) < FMath::Square(AcceptRadius * 0.5f))
-	{
-		return;
+		return false;
 	}
 
 	MoveRequestTimer = MoveRequestInterval;
-	LastMoveRequestLocation = TargetLocation;
-	AIController->MoveToActor(Target, AcceptRadius, true, true, true, nullptr, true);
+	const EPathFollowingRequestResult::Type Result =
+		AIController->MoveToActor(Target, AcceptRadius, true, true, true, nullptr, true);
+	if (Result == EPathFollowingRequestResult::Failed)
+	{
+		UE_LOG(LogCompanionAI, Warning, TEXT("[AI] %s(으)로 이동 요청 실패(경로 탐색 실패)"), *Target->GetName());
+		return true;
+	}
+
+	return false;
 }
 
 void UCompanionAIComponent::RequestMoveToLocation(const FVector& Location, float AcceptRadius)
@@ -538,14 +606,12 @@ void UCompanionAIComponent::RequestMoveToLocation(const FVector& Location, float
 		return;
 	}
 
-	if (FVector::DistSquared(Location, LastMoveRequestLocation) < FMath::Square(AcceptRadius * 0.5f))
-	{
-		return;
-	}
-
 	MoveRequestTimer = MoveRequestInterval;
-	LastMoveRequestLocation = Location;
-	AIController->MoveToLocation(Location, AcceptRadius);
+	const EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(Location, AcceptRadius);
+	if (Result == EPathFollowingRequestResult::Failed)
+	{
+		UE_LOG(LogCompanionAI, Warning, TEXT("[AI] %s(으)로 이동 요청 실패(경로 탐색 실패)"), *Location.ToString());
+	}
 }
 
 void UCompanionAIComponent::BuildBehaviorTree()
@@ -556,7 +622,12 @@ void UCompanionAIComponent::BuildBehaviorTree()
 	TSharedPtr<FCompanionSequenceNode> CombatSequence = MakeShared<FCompanionSequenceNode>();
 	CombatSequence->Children.Add(MakeShared<FCompanionConditionNode>([](UCompanionAIComponent* AI)
 	{
-		return IsValid(AI) && AI->bCombatEngaged && AI->HasEnemyTarget();
+		const bool bInCombat = IsValid(AI) && AI->bCombatEngaged && AI->HasEnemyTarget();
+		if (bInCombat && AI->bExploring)
+		{
+			UE_LOG(LogCompanionAI, Verbose, TEXT("[AI] 탐색 중 전투 우선순위에 밀림(적 감지됨)"));
+		}
+		return bInCombat;
 	}));
 
 	TSharedPtr<FCompanionSelectorNode> CombatInner = MakeShared<FCompanionSelectorNode>();

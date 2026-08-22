@@ -10,17 +10,29 @@ ADropItem::ADropItem()
 
 	StaticMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComp"));
 	RootComponent = StaticMeshComp;
+	// 드롭 아이템(특히 진열대/상자 위에 얹힌 것들) 콜리전이 네브메시 생성에 끼면 바닥과 연결 안 된
+	// 고립된 네브메시 조각이 생겨서 AI가 경로를 못 찾는다 - 아이템은 네비게이션에서 완전히 제외한다.
+	StaticMeshComp->SetCanEverAffectNavigation(false);
+
+	// 물리 시뮬레이션: 떨어뜨리면 중력에 반응해 바닥에 안착하고, 플레이어/컴패니언이 발로 차거나
+	// 밀칠 수 있게 PhysicsActor 프로필(월드/폰 모두 Block, 오브젝트 타입 PhysicsBody)을 쓴다.
+	StaticMeshComp->SetMobility(EComponentMobility::Movable);
+	StaticMeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
+	StaticMeshComp->SetSimulatePhysics(true);
+	StaticMeshComp->SetEnableGravity(true);
 
 	BoundingBox = CreateDefaultSubobject<UBoxComponent>(TEXT("BoundingBox"));
 	BoundingBox->SetupAttachment(StaticMeshComp);
 	BoundingBox->SetBoxExtent(FVector(30.f, 30.f, 30.f));
 	BoundingBox->SetCollisionResponseToAllChannels(ECR_Ignore);
 	BoundingBox->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	BoundingBox->SetCanEverAffectNavigation(false);
 
 	InteractBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractBox"));
 	InteractBox->SetupAttachment(StaticMeshComp);
 	InteractBox->SetBoxExtent(FVector(150.f, 150.f, 150.f));
 	InteractBox->SetCollisionProfileName(TEXT("Trigger"));
+	InteractBox->SetCanEverAffectNavigation(false);
 }
 
 void ADropItem::OnConstruction(const FTransform& Transform)

@@ -121,9 +121,11 @@ private:
 	float ExploreScanTimer = 0.0f;
 	float ExploreWanderTimer = 0.0f;
 	TWeakObjectPtr<AActor> CurrentExploreTargetItem;
+	int32 ExploreMoveFailCount = 0;
+	// 경로 탐색이 반복 실패해 포기한 아이템들 - 이번 탐색 세션 동안은 재선택하지 않는다.
+	TArray<TWeakObjectPtr<AActor>> UnreachableExploreItems;
 
 	float MoveRequestTimer = 0.0f;
-	FVector LastMoveRequestLocation = FVector::ZeroVector;
 
 	void BuildBehaviorTree();
 	AAIController* GetAIController();
@@ -142,6 +144,8 @@ private:
 	AActor* FindNearestDropItem(float SearchRadius) const;
 	void TryPickupItem(ADropItem* Item);
 
-	void RequestMoveToActor(AActor* Target, float AcceptRadius);
+	// 경로 탐색이 명시적으로 실패(EPathFollowingRequestResult::Failed)하면 true를 반환한다.
+	// (쓰로틀로 요청 자체를 건너뛴 경우는 실패로 치지 않는다.)
+	bool RequestMoveToActor(AActor* Target, float AcceptRadius);
 	void RequestMoveToLocation(const FVector& Location, float AcceptRadius);
 };
