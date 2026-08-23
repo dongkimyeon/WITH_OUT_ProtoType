@@ -115,7 +115,20 @@ void UCompanionBrainComponent::TrimHistory()
 	const int32 MaxEntries = FMath::Max(0, MaxHistoryTurns) * 2;
 	while (ConversationHistory.Num() > MaxEntries && ConversationHistory.Num() >= 2)
 	{
+		// 버려지는 두 턴(user+model)을 그냥 지우지 않고 압축해 MemorySummary에 남긴다 -
+		// 이게 BuildSystemInstruction()이 읽는 "장기 기억"의 실제 내용이 된다.
+		for (int32 Index = 0; Index < 2; ++Index)
+		{
+			const FCompanionChatTurn& Turn = ConversationHistory[Index];
+			MemorySummary += FString::Printf(TEXT("- %s: %s\n"), *Turn.Role, *Turn.Text.Left(80));
+		}
+
 		ConversationHistory.RemoveAt(0, 2);
+	}
+
+	if (MemorySummary.Len() > MaxMemorySummaryLength)
+	{
+		MemorySummary = MemorySummary.Right(MaxMemorySummaryLength);
 	}
 }
 

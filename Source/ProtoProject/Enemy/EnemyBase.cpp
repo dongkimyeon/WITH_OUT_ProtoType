@@ -9,6 +9,10 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Perception/AIPerceptionStimuliSourceComponent.h"
 #include "Perception/AISense_Sight.h"
+#include "../PlayerContent/Item/ItemDataBase.h"
+#include "../PlayerContent/Item/DropItem.h"
+#include "../Companion/CompanionNPC.h"
+#include "../Companion/CompanionCombatComponent.h"
 
 using FEnemyBTNode = TBTNode<AEnemyBase>;
 using FEnemySelectorNode = TBTSelectorNode<AEnemyBase>;
@@ -23,11 +27,6 @@ AEnemyBase::AEnemyBase()
 
     AIControllerClass = AAIController::StaticClass();
     AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
-
-    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
-    {
-        Movement->MaxWalkSpeed = 300.0f;
-    }
 
     if (UCapsuleComponent* Capsule = GetCapsuleComponent())
     {
@@ -51,6 +50,12 @@ void AEnemyBase::BeginPlay()
     Super::BeginPlay();
 
     CurrentHealth = MaxHealth;
+
+    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+    {
+        Movement->MaxWalkSpeed = MoveSpeed;
+    }
+
     BuildBehaviorTree();
 
     if (PerceptionStimuliSource)
@@ -120,6 +125,9 @@ void AEnemyBase::Attack()
 
     LastAttackTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastAttackTime;
     PrintBehaviorDebug(FString::Printf(TEXT("Enemy BT: Attack / Damage %.1f"), AttackDamage), FColor::Red);
+
+    // 플레이어/컴패니언에게 실제 데미지를 주는 부분은 공격 애니메이션(몽타주 히트 타이밍)과
+    // 함께 나중에 연동 예정이라 이번 범위에서는 뺀다. 타겟팅/사거리 진입까지만 동작한다.
 }
 
 void AEnemyBase::MoveToTarget()
@@ -166,7 +174,45 @@ void AEnemyBase::Die()
         AIController->StopMovement();
     }
 
+    SpawnLoot();
+
     PrintBehaviorDebug(TEXT("Enemy BT: Die"), FColor::Silver);
+}
+
+void AEnemyBase::SpawnLoot()
+{
+    if (LootTable.Num() == 0 || FMath::FRand() > LootDropChance)
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    UItemDataBase* ChosenItem = LootTable[FMath::RandRange(0, LootTable.Num() - 1)];
+    if (!ChosenItem)
+    {
+        return;
+    }
+
+    FTransform SpawnTransform = GetActorTransform();
+    SpawnTransform.SetLocation(SpawnTransform.GetLocation() + FVector(0.f, 0.f, 30.f));
+
+    // ItemData는 OnConstruction이 메시를 붙이는 데 쓰이므로, 스폰 후 대입하면 늦다 -
+    // Deferred 스폰으로 ItemData를 먼저 세팅한 뒤 FinishSpawning에서 OnConstruction이 돌게 한다.
+    ADropItem* Drop = World->SpawnActorDeferred<ADropItem>(ADropItem::StaticClass(), SpawnTransform, nullptr, nullptr,
+        ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (!Drop)
+    {
+        return;
+    }
+
+    Drop->ItemData = ChosenItem;
+    Drop->StackCount = 1;
+    Drop->FinishSpawning(SpawnTransform);
 }
 
 void AEnemyBase::TakeEnemyDamage(float DamageAmount)
@@ -194,6 +240,19 @@ void AEnemyBase::BuildBehaviorTree()
 {
     TSharedPtr<FEnemySelectorNode> Root = MakeShared<FEnemySelectorNode>();
 
+    // Caller 타입 전용: 주변 좀비를 불러모으는 부수효과만 내고 항상 Failed를 반환해
+    // 같은 틱에 아래의 Attack/Move 시퀀스로 자연스럽게 넘어간다.
+    TSharedPtr<FEnemySequenceNode> CallSequence = MakeShared<FEnemySequenceNode>();
+    CallSequence->Children.Add(MakeShared<FEnemyConditionNode>([](AEnemyBase* Enemy)
+    {
+        return IsValid(Enemy) && Enemy->CanCall();
+    }));
+    CallSequence->Children.Add(MakeShared<FEnemyActionNode>([](AEnemyBase* Enemy, float DeltaTime)
+    {
+        Enemy->DoCall();
+        return EEnemyBTResult::Failed;
+    }));
+
     TSharedPtr<FEnemySequenceNode> AttackSequence = MakeShared<FEnemySequenceNode>();
     AttackSequence->Children.Add(MakeShared<FEnemyConditionNode>([](AEnemyBase* Enemy)
     {
@@ -220,6 +279,7 @@ void AEnemyBase::BuildBehaviorTree()
         return EEnemyBTResult::Running;
     }));
 
+    Root->Children.Add(CallSequence);
     Root->Children.Add(AttackSequence);
     Root->Children.Add(MoveSequence);
     Root->Children.Add(MakeShared<FEnemyActionNode>([](AEnemyBase* Enemy, float DeltaTime)
@@ -244,15 +304,120 @@ void AEnemyBase::UpdateTarget()
         return;
     }
 
-    APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-    if (!IsValid(PlayerPawn))
+    // 이미 Caller에게 불려와 강제로 세팅된 타겟이 아직 사거리 안이면 그대로 유지한다.
+    if (IsValid(TargetActor) &&
+        FVector::DistSquared(GetActorLocation(), TargetActor->GetActorLocation()) <= FMath::Square(SightRange))
     {
-        TargetActor = nullptr;
         return;
     }
 
-    const float DistanceSquared = FVector::DistSquared(GetActorLocation(), PlayerPawn->GetActorLocation());
-    TargetActor = DistanceSquared <= FMath::Square(SightRange) ? PlayerPawn : nullptr;
+    const float SightRangeSquared = FMath::Square(SightRange);
+    AActor* BestTarget = nullptr;
+    float BestDistanceSquared = SightRangeSquared;
+
+    if (APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
+    {
+        const float DistanceSquared = FVector::DistSquared(GetActorLocation(), PlayerPawn->GetActorLocation());
+        if (DistanceSquared <= BestDistanceSquared && CanSeeCandidate(PlayerPawn))
+        {
+            BestDistanceSquared = DistanceSquared;
+            BestTarget = PlayerPawn;
+        }
+    }
+
+    TArray<AActor*> Companions;
+    UGameplayStatics::GetAllActorsOfClass(this, ACompanionNPC::StaticClass(), Companions);
+    for (AActor* CompanionActor : Companions)
+    {
+        const ACompanionNPC* Companion = Cast<ACompanionNPC>(CompanionActor);
+        if (!Companion || (Companion->CombatComponent && Companion->CombatComponent->IsDead()))
+        {
+            continue;
+        }
+
+        const float DistanceSquared = FVector::DistSquared(GetActorLocation(), CompanionActor->GetActorLocation());
+        if (DistanceSquared <= BestDistanceSquared && CanSeeCandidate(CompanionActor))
+        {
+            BestDistanceSquared = DistanceSquared;
+            BestTarget = CompanionActor;
+        }
+    }
+
+    TargetActor = BestTarget;
+}
+
+bool AEnemyBase::CanSeeCandidate(const AActor* Candidate) const
+{
+    if (!IsValid(Candidate))
+    {
+        return false;
+    }
+
+    // 시야각: 정면 벡터와 후보 방향 사이 각도가 SightAngle의 절반보다 크면 시야 밖.
+    const FVector ToCandidate = (Candidate->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+    const float DotToCandidate = FVector::DotProduct(GetActorForwardVector(), ToCandidate);
+    const float HalfAngleRad = FMath::DegreesToRadians(SightAngle * 0.5f);
+    if (DotToCandidate < FMath::Cos(HalfAngleRad))
+    {
+        return false;
+    }
+
+    // 장애물 차단(라인오브사이트): 벽 등에 가로막혀 있으면 시야 밖으로 취급한다.
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    const FVector EyeLocation = GetActorLocation() + FVector(0.f, 0.f, 50.f);
+    const FVector CandidateLocation = Candidate->GetActorLocation() + FVector(0.f, 0.f, 50.f);
+
+    FCollisionQueryParams Params(TEXT("EnemySight"), false, this);
+    Params.AddIgnoredActor(Candidate);
+
+    FHitResult Hit;
+    const bool bBlocked = World->LineTraceSingleByChannel(Hit, EyeLocation, CandidateLocation, ECC_Visibility, Params);
+    return !bBlocked;
+}
+
+bool AEnemyBase::CanCall() const
+{
+    if (bIsDead || EnemyType != EEnemyType::Caller || !HasTarget())
+    {
+        return false;
+    }
+
+    const UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    return World->GetTimeSeconds() - LastCallTime >= CallCooldown;
+}
+
+void AEnemyBase::DoCall()
+{
+    LastCallTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastCallTime;
+
+    TArray<AActor*> NearbyEnemies;
+    UGameplayStatics::GetAllActorsOfClass(this, AEnemyBase::StaticClass(), NearbyEnemies);
+
+    for (AActor* Actor : NearbyEnemies)
+    {
+        AEnemyBase* OtherEnemy = Cast<AEnemyBase>(Actor);
+        if (!OtherEnemy || OtherEnemy == this || OtherEnemy->bIsDead || OtherEnemy->HasTarget())
+        {
+            continue;
+        }
+
+        if (FVector::DistSquared(GetActorLocation(), OtherEnemy->GetActorLocation()) <= FMath::Square(CallRadius))
+        {
+            OtherEnemy->TargetActor = TargetActor;
+        }
+    }
+
+    PrintBehaviorDebug(TEXT("Enemy BT: Call nearby zombies"), FColor::Magenta);
 }
 
 void AEnemyBase::PrintBehaviorDebug(const FString& Message, const FColor& Color)

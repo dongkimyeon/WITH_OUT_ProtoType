@@ -42,6 +42,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Brain")
 	FString MemorySaveSlotName = TEXT("CompanionMemory");
 
+	// TrimHistory가 밀어내는 오래된 대화를 요약 문자열에 계속 이어붙이되, 이 길이(문자 수)를
+	// 넘으면 앞부분(더 오래된 요약)부터 잘라내 프롬프트에 끝없이 커지는 걸 방지한다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Brain")
+	int32 MaxMemorySummaryLength = 2000;
+
 	UPROPERTY(BlueprintAssignable, Category = "Companion|Brain")
 	FOnCompanionReplyReady OnReplyReady;
 

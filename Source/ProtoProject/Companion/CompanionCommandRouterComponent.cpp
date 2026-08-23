@@ -57,11 +57,29 @@ void UCompanionCommandRouterComponent::BeginPlay()
 
 ECompanionCommandType UCompanionCommandRouterComponent::MatchKeywordCommand(const FString& Text) const
 {
+	// "가"처럼 1글자 키워드는 부분 문자열로 검사하면 "생각", "가끔"처럼 무관한 단어에도
+	// 걸려 오작동한다 - 공백 기준 토큰과 완전히 일치할 때만 인정한다. 2글자 이상 키워드는
+	// 조사가 붙는 한국어 특성상 기존처럼 부분 일치를 유지한다.
+	TArray<FString> Tokens;
+	Text.ParseIntoArrayWS(Tokens);
+
 	for (const FCompanionKeywordRule& Rule : KeywordRules)
 	{
 		for (const FString& Keyword : Rule.Keywords)
 		{
-			if (!Keyword.IsEmpty() && Text.Contains(Keyword))
+			if (Keyword.IsEmpty())
+			{
+				continue;
+			}
+
+			if (Keyword.Len() <= 1)
+			{
+				if (Tokens.Contains(Keyword))
+				{
+					return Rule.Command;
+				}
+			}
+			else if (Text.Contains(Keyword))
 			{
 				return Rule.Command;
 			}
