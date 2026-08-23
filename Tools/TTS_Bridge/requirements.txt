@@ -1,0 +1,41 @@
+# Packages required to run TTS_Bridge (MeloTTS).
+# torch/torchaudio/torchvision need the CUDA 12.4 build, which isn't on the default
+# PyPI index, so pull it from the extra index below. On a PC without an NVIDIA GPU +
+# recent driver, this torch(cu124) install is pointless - that needs a separate CPU build.
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+torch==2.6.0+cu124
+torchaudio==2.6.0+cu124
+torchvision==0.21.0+cu124
+
+fastapi==0.136.3
+uvicorn==0.49.0
+pydantic==2.13.4
+soundfile==0.14.0
+
+# MeloTTS isn't on PyPI, so install it directly from GitHub (needs git + internet at install time).
+melotts @ git+https://github.com/myshell-ai/MeloTTS.git@209145371cff8fc3bd60d7be902ea69cbdb7965a
+
+librosa==0.9.1
+numpy==1.26.4
+transformers==4.27.4
+tokenizers==0.13.3
+huggingface_hub==0.36.2
+safetensors==0.7.0
+cn2an==0.5.22
+eunjeon==0.4.0
+g2pkk==0.1.2
+jamo==0.4.1
+pykakasi==2.2.1
+mecab-python3==1.0.9
+unidic-lite==1.0.8
+gruut==2.2.3
+inflect==7.0.0
+num2words==0.5.12
+pypinyin==0.50.0
+jieba==0.42.1
+langid==1.1.6
+cached_path==1.8.10
+loguru==0.7.2
+tqdm==4.68.1
+packaging

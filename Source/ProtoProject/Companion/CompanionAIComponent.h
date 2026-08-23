@@ -36,10 +36,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
 	float MoveRequestInterval = 0.25f;
 
-	// 적을 시야에 두면(Perception) 자동으로 교전 상태로 전환할지 여부. Stop 명령은 이 값과 무관하게
-	// bCombatSuppressed를 세워 강제로 교전을 억제한다.
+	// 적을 시야에 두면(Perception) 자동으로 교전 상태로 전환할지 여부. 기본값 false: 플레이어가
+	// "싸워"/CommandEngage()로 명령하기 전까지는 적을 발견해도 공격하지 않는다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
-	bool bAutoEngageEnabled = true;
+	bool bAutoEngageEnabled = false;
 
 	UFUNCTION(BlueprintCallable, Category = "Companion|AI")
 	void CommandFollow();
