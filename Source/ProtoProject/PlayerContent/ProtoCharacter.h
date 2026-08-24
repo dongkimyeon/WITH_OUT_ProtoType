@@ -16,7 +16,7 @@ class UQuickSlotComponent;
 class URadialQuickSlotWidget;
 class UConsumableItemData;
 class AWeaponBase;
-class AStorageContainer;
+class AItemContainerBase;
 class UPlayerDefalutUI;
 class UContainerScreenWidget;
 class UAnimMontage;
@@ -170,7 +170,18 @@ private:
     void TalkToCompanionPressed(const FInputActionValue& Value);
     void TalkToCompanionReleased(const FInputActionValue& Value);
 
-    // 월드에서 동료 NPC를 찾아 캐시해둔다 (없으면 매번 재탐색).
+    // 이 캐릭터가 로컬로 스폰하는 동료 NPC 클래스. BP_ProtoCharacter 디테일 패널에서 BP_CompanionNPC를
+    // 직접 지정해야 한다(생성자에서 자동으로 못 채움 - ProtoCharacter.cpp의 관련 주석 참고).
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Companion", meta = (AllowPrivateAccess = "true"))
+    TSubclassOf<ACompanionNPC> CompanionClass;
+
+    // 스폰 시 플레이어 뒤쪽으로 이 거리만큼 떨어진 위치에 동료를 놓는다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Companion", meta = (AllowPrivateAccess = "true"))
+    float CompanionSpawnDistance = 200.0f;
+
+    void SpawnCompanion();
+
+    // 이 캐릭터가 스폰한 동료 NPC(레벨마다 BeginPlay에서 새로 스폰됨).
     UPROPERTY()
     ACompanionNPC* CachedCompanionNPC = nullptr;
     ACompanionNPC* GetCompanionNPC();
@@ -454,7 +465,7 @@ public:
     void OnInteractableEnter(AActor* Actor);
     void OnInteractableExit(AActor* Actor);
 
-    void OpenContainerScreen(AStorageContainer* Container);
+    void OpenContainerScreen(AItemContainerBase* Container);
     void OpenLevelChangeScreen(ALevelChanger* Changer);
 
     UInventoryGridComponent* GetInventoryComponent() const { return InventoryComponent; }

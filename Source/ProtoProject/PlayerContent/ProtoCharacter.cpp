@@ -16,7 +16,7 @@
 #include "ContainerScreenWidget.h"
 #include "Item/ItemDataBase.h"
 #include "Item/WeaponItemData.h"
-#include "Item/StorageContainer.h"
+#include "Item/ItemContainerBase.h"
 #include "PlayerDefalutUI.h"
 #include "PlayerStatusComponent.h"
 #include "InputCoreTypes.h"
@@ -37,7 +37,6 @@
 #include "../Network/ProtoNetClientSubsystem.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
-#include "Kismet/GameplayStatics.h"
 #include "../Companion/CompanionNPC.h"
 #include "../Companion/CompanionListenComponent.h"
 
@@ -81,6 +80,11 @@ AProtoCharacter::AProtoCharacter()
         RemotePistolClass = RemotePistolClassFinder.Class;
     }
 
+    // CompanionClass는 FClassFinder로 자동 채우지 않는다 - BP_CompanionNPC가 쓰는 애니메이션
+    // 블루프린트(ABP_Unarmed_Test)가 BP_ProtoCharacter를 다시 참조하고 있어서, 여기서 동기 로드를
+    // 걸면 BP_ProtoCharacter 생성 중에 자기 자신을 기다리는 순환 참조로 로딩이 멈춘다
+    // (LoadingIsStuck 크래시). 대신 BP_ProtoCharacter 디테일 패널에서 Companion > CompanionClass에
+    // BP_CompanionNPC를 직접 지정해야 한다.
 }
 
 void AProtoCharacter::Tick(float DeltaTime)
@@ -220,6 +224,8 @@ void AProtoCharacter::BeginPlay()
         {
             InventoryComponent->OnInventoryChanged.AddDynamic(this, &AProtoCharacter::HandleInventoryChanged);
         }
+
+        SpawnCompanion();
     }
 
     if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -512,11 +518,26 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
 
 ACompanionNPC* AProtoCharacter::GetCompanionNPC()
 {
-    if (!IsValid(CachedCompanionNPC))
-    {
-        CachedCompanionNPC = Cast<ACompanionNPC>(UGameplayStatics::GetActorOfClass(GetWorld(), ACompanionNPC::StaticClass()));
-    }
     return CachedCompanionNPC;
+}
+
+void AProtoCharacter::SpawnCompanion()
+{
+    if (!CompanionClass || !GetWorld())
+    {
+        return;
+    }
+
+    const FVector SpawnLocation = GetActorLocation() - GetActorForwardVector() * CompanionSpawnDistance;
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+    CachedCompanionNPC = GetWorld()->SpawnActor<ACompanionNPC>(CompanionClass, SpawnLocation, GetActorRotation(), SpawnParams);
+    if (CachedCompanionNPC)
+    {
+        CachedCompanionNPC->SetOwningPlayer(this);
+    }
 }
 
 void AProtoCharacter::TalkToCompanionPressed(const FInputActionValue& Value)
@@ -568,7 +589,7 @@ void AProtoCharacter::OnInteractableExit(AActor* Actor)
     if (bIsLevelChangeOpened) CloseLevelChangeScreen();
 }
 
-void AProtoCharacter::OpenContainerScreen(AStorageContainer* Container)
+void AProtoCharacter::OpenContainerScreen(AItemContainerBase* Container)
 {
     if (!ContainerWidgetClass) return;
 

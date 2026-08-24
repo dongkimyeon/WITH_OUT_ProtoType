@@ -61,6 +61,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Companion")
 	TObjectPtr<UInventoryGridComponent> InventoryComponent;
 
+	// 스폰한 쪽(AProtoCharacter)이 스폰 직후 호출해, 이 동료가 누구를 따라다닐지 명시적으로 지정한다.
+	UFUNCTION(BlueprintCallable, Category = "Companion")
+	void SetOwningPlayer(APawn* Player);
+
 protected:
 	virtual void BeginPlay() override;
+
+private:
+	UFUNCTION()
+	void HandleInventoryChanged();
 };

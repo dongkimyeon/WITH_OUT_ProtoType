@@ -2,6 +2,8 @@
 
 #include "CompanionCombatComponent.h"
 #include "../PlayerContent/weapon/WeaponBase.h"
+#include "../PlayerContent/Inventory/InventoryGridComponent.h"
+#include "../PlayerContent/Item/WeaponItemData.h"
 #include "GameFramework/Character.h"
 #include "Components/SkeletalMeshComponent.h"
 
@@ -26,10 +28,43 @@ void UCompanionCombatComponent::BeginPlay()
 	Super::BeginPlay();
 
 	CurrentHealth = MaxHealth;
+}
 
-	if (!WeaponClass)
+void UCompanionCombatComponent::EquipWeaponFromInventory(UInventoryGridComponent* Inventory)
+{
+	if (!Inventory)
 	{
 		return;
+	}
+
+	const FInventoryItemInstance* WeaponEntry = Inventory->Items.FindByPredicate(
+		[](const FInventoryItemInstance& Item) { return Item.ItemData && Item.ItemData->IsA<UWeaponItemData>(); });
+
+	if (!WeaponEntry)
+	{
+		if (EquippedWeapon)
+		{
+			EquippedWeapon->Destroy();
+			EquippedWeapon = nullptr;
+		}
+		return;
+	}
+
+	const UWeaponItemData* WeaponData = Cast<UWeaponItemData>(WeaponEntry->ItemData);
+	if (!WeaponData || !WeaponData->WeaponActorClass)
+	{
+		return;
+	}
+
+	if (EquippedWeapon && EquippedWeapon->GetClass() == WeaponData->WeaponActorClass)
+	{
+		return;
+	}
+
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Destroy();
+		EquippedWeapon = nullptr;
 	}
 
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
@@ -48,7 +83,7 @@ void UCompanionCombatComponent::BeginPlay()
 	SpawnParams.Owner = OwnerCharacter;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	EquippedWeapon = World->SpawnActor<AWeaponBase>(WeaponClass, OwnerCharacter->GetActorTransform(), SpawnParams);
+	EquippedWeapon = World->SpawnActor<AWeaponBase>(WeaponData->WeaponActorClass, OwnerCharacter->GetActorTransform(), SpawnParams);
 	if (!EquippedWeapon)
 	{
 		return;

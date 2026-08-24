@@ -48,6 +48,11 @@ UCompanionAIComponent::UCompanionAIComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
+void UCompanionAIComponent::SetFollowTarget(APawn* Player)
+{
+	CachedPlayerPawn = Player;
+}
+
 void UCompanionAIComponent::BeginPlay()
 {
 	Super::BeginPlay();

@@ -41,6 +41,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
 	bool bAutoEngageEnabled = false;
 
+	// 이 동료가 따라다닐 플레이어를 명시적으로 지정한다. 스폰한 쪽(AProtoCharacter)이 스폰 직후
+	// 호출하며, 호출되지 않으면 BeginPlay가 기존처럼 UGameplayStatics::GetPlayerPawn(0)으로 폴백한다.
+	UFUNCTION(BlueprintCallable, Category = "Companion|AI")
+	void SetFollowTarget(APawn* Player);
+
 	UFUNCTION(BlueprintCallable, Category = "Companion|AI")
 	void CommandFollow();
 

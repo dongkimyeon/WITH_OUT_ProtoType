@@ -20,32 +20,17 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/TitleLevel/WBP_TitleLevelWidget.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/TitleLevel/WBP_TitleLevelWidget.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_StorageContainer.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_StorageContainer.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Maps/L_SafePlace.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_SafePlace.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Maps/L_TitleLevel.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_TitleLevel.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Props/Wooden_Stairs.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Props/Wooden_Stairs.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Unique/Diorama_Water.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Unique/Diorama_Water.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProtoProject.uproject" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.uproject" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBridgeSubsystem.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBridgeSubsystem.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoConnectPrompt.cpp" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoConnectPrompt.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Modular/Blueprints/Wall_Door_Windows_8m.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Modular/Blueprints/Wall_Door_Windows_8m.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/StorageContainer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/StorageContainer.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/StorageContainer.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/StorageContainer.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.vsconfig" beforeDir="false" afterPath="$PROJECT_DIR$/.vsconfig" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Automation_ProtoProject.slnx" beforeDir="false" afterPath="$PROJECT_DIR$/Automation_ProtoProject.slnx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/Enemy/AM_FemaleZombie.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/Enemy/AM_FemaleZombie.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ZombieFemale/Asset/Animations/ANMS_ZombieFemaleWalk01Forward.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ZombieFemale/Asset/Animations/ANMS_ZombieFemaleWalk01Forward.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProtoProject.sln.DotSettings.user" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.sln.DotSettings.user" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProtoProject.slnx" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.slnx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/LevelChange/LevelChangeSelectWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/LevelChange/LevelChangeSelectWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -56,7 +41,7 @@
     <option name="firstShow" value="false" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="12444" />
+    <option name="cachedIndexableFilesCount" value="12446" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -360,6 +345,7 @@
       <workItem from="1787504726237" duration="1627000" />
       <workItem from="1787507160913" duration="635000" />
       <workItem from="1787561977371" duration="2236000" />
+      <workItem from="1787567214341" duration="1515000" />
     </task>
     <servers />
   </component>

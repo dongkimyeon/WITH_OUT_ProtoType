@@ -47,4 +47,22 @@ void ACompanionNPC::BeginPlay()
 	// 대화 응답(순수 텍스트)은 곧바로 TTS로. 액션(Function Calling)은 Router가 받아 AIComponent에 배선.
 	BrainComponent->OnReplyReady.AddDynamic(SpeechComponent, &UCompanionSpeechComponent::Speak);
 	BrainComponent->OnActionRequested.AddDynamic(CommandRouterComponent, &UCompanionCommandRouterComponent::HandleActionRequested);
+
+	// 무기는 인벤토리 내용에 따라 결정된다(있으면 장착, 없으면 맨손) - 스폰 시점 1회 + 이후 인벤토리가
+	// 바뀔 때마다(탐색으로 줍거나 버릴 때) 재평가.
+	CombatComponent->EquipWeaponFromInventory(InventoryComponent);
+	InventoryComponent->OnInventoryChanged.AddDynamic(this, &ACompanionNPC::HandleInventoryChanged);
+}
+
+void ACompanionNPC::HandleInventoryChanged()
+{
+	CombatComponent->EquipWeaponFromInventory(InventoryComponent);
+}
+
+void ACompanionNPC::SetOwningPlayer(APawn* Player)
+{
+	if (AIComponent)
+	{
+		AIComponent->SetFollowTarget(Player);
+	}
 }

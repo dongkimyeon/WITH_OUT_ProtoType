@@ -7,6 +7,7 @@
 #include "CompanionCombatComponent.generated.h"
 
 class AWeaponBase;
+class UInventoryGridComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCompanionDied, AActor*, Companion);
 
@@ -20,9 +21,6 @@ class PROTOPROJECT_API UCompanionCombatComponent : public UActorComponent
 
 public:
 	UCompanionCombatComponent();
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
-	TSubclassOf<AWeaponBase> WeaponClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
 	FName WeaponSocketName = TEXT("WeaponSocket");
@@ -58,6 +56,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Companion|Combat")
 	void TakeCompanionDamage(float DamageAmount);
+
+	// 인벤토리에 무기 아이템(UWeaponItemData)이 있으면 그걸 장착하고, 없으면 맨손으로 만든다.
+	// 이미 같은 무기를 들고 있으면 아무것도 하지 않는다(재스폰 깜빡임 방지). 인벤토리가 바뀔 때마다
+	// 호출되므로 여러 번 불려도 안전해야 한다.
+	UFUNCTION(BlueprintCallable, Category = "Companion|Combat")
+	void EquipWeaponFromInventory(UInventoryGridComponent* Inventory);
 
 	UFUNCTION(BlueprintPure, Category = "Companion|Combat")
 	AWeaponBase* GetEquippedWeapon() const { return EquippedWeapon; }
