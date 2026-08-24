@@ -20,17 +20,7 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Modular/Blueprints/Wall_Door_Windows_8m.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Modular/Blueprints/Wall_Door_Windows_8m.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionNPC.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/StorageContainer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/StorageContainer.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/StorageContainer.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/StorageContainer.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/BP_LevelChanger.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/BP_LevelChanger.uasset" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -345,7 +335,8 @@
       <workItem from="1787504726237" duration="1627000" />
       <workItem from="1787507160913" duration="635000" />
       <workItem from="1787561977371" duration="2236000" />
-      <workItem from="1787567214341" duration="1515000" />
+      <workItem from="1787567214341" duration="1916000" />
+      <workItem from="1787582752343" duration="1695000" />
     </task>
     <servers />
   </component>
