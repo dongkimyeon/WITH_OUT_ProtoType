@@ -138,11 +138,6 @@ bool AEnemyBase::CanAttack() const
 
 void AEnemyBase::Attack()
 {
-    if (AAIController* AIController = Cast<AAIController>(GetController()))
-    {
-        AIController->StopMovement();
-    }
-
     if (bIsAttacking)
     {
         return;
@@ -160,9 +155,15 @@ void AEnemyBase::Attack()
     if (AttackMontage)
     {
         bIsAttacking = PlayAnimMontage(AttackMontage) > 0.0f;
+        if (bIsAttacking)
+        {
+            if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+            {
+                Movement->MaxWalkSpeed = AttackMoveSpeed;
+            }
+        }
     }
 }
-
 void AEnemyBase::HandleAttackMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
 {
     static const FName BeginAttackNotifyName(TEXT("BeginAttack"));
@@ -182,6 +183,11 @@ void AEnemyBase::HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupt
 {
     if (!AttackMontage || Montage == AttackMontage)
     {
+        bIsAttacking = false;
+        if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+        {
+            Movement->MaxWalkSpeed = MoveSpeed;
+        }
         EndAttackHitWindow();
     }
 }
@@ -244,16 +250,7 @@ void AEnemyBase::OnAttackBoxBeginOverlap(UPrimitiveComponent* OverlappedComponen
 }
 void AEnemyBase::MoveToTarget()
 {
-    if (bIsAttacking)
-    {
-        if (AAIController* AIController = Cast<AAIController>(GetController()))
-        {
-            AIController->StopMovement();
-        }
-        return;
-    }
-
-    if (!HasTarget())
+if (!HasTarget())
     {
         return;
     }
@@ -295,9 +292,34 @@ void AEnemyBase::Die()
     if (AAIController* AIController = Cast<AAIController>(GetController()))
     {
         AIController->StopMovement();
+        AIController->UnPossess();
+    }
+
+    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    {
+        Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
+    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+    {
+        Movement->DisableMovement();
+        Movement->StopMovementImmediately();
+    }
+
+    if (USkeletalMeshComponent* MeshComponent = GetMesh())
+    {
+        MeshComponent->SetCollisionProfileName(TEXT("Ragdoll"));
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MeshComponent->SetSimulatePhysics(bEnableRagdollOnDeath);
+        MeshComponent->WakeAllRigidBodies();
     }
 
     SpawnLoot();
+
+    if (RagdollLifeSpan > 0.0f)
+    {
+        SetLifeSpan(RagdollLifeSpan);
+    }
 
     PrintBehaviorDebug(TEXT("Enemy BT: Die"), FColor::Silver);
 }
@@ -561,6 +583,9 @@ void AEnemyBase::PrintBehaviorDebug(const FString& Message, const FColor& Color)
 
     UKismetSystemLibrary::PrintString(this, Message, true, false, Color, DebugPrintInterval);
 }
+
+
+
 
 
 

@@ -98,6 +98,9 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
     TObjectPtr<UAnimMontage> AttackMontage;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat", meta = (ClampMin = "0.0"))
+    float AttackMoveSpeed = 80.0f;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Combat")
     TObjectPtr<UBoxComponent> LeftHandAttackBox;
 
@@ -144,6 +147,12 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Loot", meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float LootDropChance = 1.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Death")
+    bool bEnableRagdollOnDeath = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Death", meta = (ClampMin = "0.0"))
+    float RagdollLifeSpan = 8.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Debug")
     bool bEnableBehaviorDebug = true;
 
@@ -181,6 +190,8 @@ private:
     FString LastBehaviorDebugMessage;
     TSet<TWeakObjectPtr<AActor>> DamagedActorsThisSwing;
 };
+
+
 
 
 
