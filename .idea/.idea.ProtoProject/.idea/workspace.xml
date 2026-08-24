@@ -37,6 +37,15 @@
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.vsconfig" beforeDir="false" afterPath="$PROJECT_DIR$/.vsconfig" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Automation_ProtoProject.slnx" beforeDir="false" afterPath="$PROJECT_DIR$/Automation_ProtoProject.slnx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/Enemy/AM_FemaleZombie.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/Enemy/AM_FemaleZombie.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ZombieFemale/Asset/Animations/ANMS_ZombieFemaleWalk01Forward.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ZombieFemale/Asset/Animations/ANMS_ZombieFemaleWalk01Forward.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProtoProject.sln.DotSettings.user" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.sln.DotSettings.user" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProtoProject.slnx" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.slnx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Enemy/EnemyBase.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/LevelChange/LevelChangeSelectWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/LevelChange/LevelChangeSelectWidget.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

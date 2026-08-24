@@ -3,9 +3,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "../AI/SimpleBehaviorTree.h"
+
+struct FBranchingPointNotifyPayload;
 #include "EnemyBase.generated.h"
 
 class UAIPerceptionStimuliSourceComponent;
+class UAnimMontage;
+class UBoxComponent;
 class UItemDataBase;
 
 UENUM(BlueprintType)
@@ -64,6 +68,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy|Call")
     virtual void DoCall();
 
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Combat")
+    void BeginAttackHitWindow();
+
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Combat")
+    void EndAttackHitWindow();
+
 protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|AI")
     TObjectPtr<UAIPerceptionStimuliSourceComponent> PerceptionStimuliSource;
@@ -85,8 +95,20 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
     float AttackCooldown = 1.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    TObjectPtr<UAnimMontage> AttackMontage;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Combat")
+    TObjectPtr<UBoxComponent> LeftHandAttackBox;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat")
+    FVector LeftHandAttackBoxExtent = FVector(18.0f, 18.0f, 18.0f);
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Combat")
     float LastAttackTime = -999.0f;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Combat")
+    bool bIsAttacking = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|AI")
     float SightRange = 1200.0f;
@@ -142,10 +164,24 @@ protected:
     // 거리(SightRange)는 이미 통과했다고 가정하고, 시야각 + 장애물 차단(라인오브사이트)만 검사한다.
     bool CanSeeCandidate(const AActor* Candidate) const;
 
+    UFUNCTION()
+    void OnAttackBoxBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+    UFUNCTION()
+    void HandleAttackMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
+
+    UFUNCTION()
+    void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
 private:
     TSharedPtr<TBTNode<AEnemyBase>> BehaviorTreeRoot;
     float DebugPrintTimer = 0.0f;
     float MoveRequestTimer = 0.0f;
     float LastCallTime = -999.0f;
     FString LastBehaviorDebugMessage;
+    TSet<TWeakObjectPtr<AActor>> DamagedActorsThisSwing;
 };
+
+
+
+
