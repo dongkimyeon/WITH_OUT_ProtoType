@@ -67,6 +67,7 @@ void AEnemyBase::BeginPlay()
     if (UCharacterMovementComponent* Movement = GetCharacterMovement())
     {
         Movement->MaxWalkSpeed = MoveSpeed;
+        DefaultMaxAcceleration = Movement->MaxAcceleration;
     }
 
     BuildBehaviorTree();
@@ -155,13 +156,7 @@ void AEnemyBase::Attack()
     if (AttackMontage)
     {
         bIsAttacking = PlayAnimMontage(AttackMontage) > 0.0f;
-        if (bIsAttacking)
-        {
-            if (UCharacterMovementComponent* Movement = GetCharacterMovement())
-            {
-                Movement->MaxWalkSpeed = AttackMoveSpeed;
-            }
-        }
+
     }
 }
 void AEnemyBase::HandleAttackMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
@@ -184,10 +179,6 @@ void AEnemyBase::HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupt
     if (!AttackMontage || Montage == AttackMontage)
     {
         bIsAttacking = false;
-        if (UCharacterMovementComponent* Movement = GetCharacterMovement())
-        {
-            Movement->MaxWalkSpeed = MoveSpeed;
-        }
         EndAttackHitWindow();
     }
 }
@@ -198,6 +189,12 @@ void AEnemyBase::BeginAttackHitWindow()
     if (!LeftHandAttackBox || bIsDead)
     {
         return;
+    }
+
+    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+    {
+        Movement->MaxWalkSpeed = AttackMoveSpeed;
+        Movement->MaxAcceleration = AttackAcceleration;
     }
 
     LeftHandAttackBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -213,6 +210,16 @@ void AEnemyBase::EndAttackHitWindow()
 
     LeftHandAttackBox->SetGenerateOverlapEvents(false);
     LeftHandAttackBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    if (!bIsDead)
+    {
+        if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+        {
+            Movement->MaxWalkSpeed = MoveSpeed;
+            Movement->MaxAcceleration = DefaultMaxAcceleration;
+        }
+    }
+
     DamagedActorsThisSwing.Reset();
 }
 
@@ -261,7 +268,7 @@ if (!HasTarget())
 
         if (AAIController* AIController = Cast<AAIController>(GetController()))
         {
-            AIController->MoveToActor(TargetActor, MoveAcceptanceRadius, true, true, true, nullptr, true);
+            AIController->MoveToActor(TargetActor, MoveAcceptanceRadius, false, true, true, nullptr, true);
         }
         else
         {

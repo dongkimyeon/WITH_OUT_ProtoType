@@ -101,6 +101,9 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat", meta = (ClampMin = "0.0"))
     float AttackMoveSpeed = 80.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat", meta = (ClampMin = "0.0"))
+    float AttackAcceleration = 4096.0f;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Combat")
     TObjectPtr<UBoxComponent> LeftHandAttackBox;
 
@@ -187,6 +190,7 @@ private:
     float DebugPrintTimer = 0.0f;
     float MoveRequestTimer = 0.0f;
     float LastCallTime = -999.0f;
+    float DefaultMaxAcceleration = 2048.0f;
     FString LastBehaviorDebugMessage;
     TSet<TWeakObjectPtr<AActor>> DamagedActorsThisSwing;
 };
