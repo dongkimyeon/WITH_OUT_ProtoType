@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Interfaces/IHttpRequest.h"
 #include "ProtoProject/Network/ProtoNetClientSubsystem.h"
 #include "TitleLevelWidget.generated.h"
 
@@ -32,9 +33,14 @@ protected:
 	
 	UPROPERTY(meta = (BindWidgetOptional))
 	UEditableText* IP_Input_field;
+	
+	
+	UPROPERTY(meta = (BindWidgetOptional))
+	UEditableText* API_Input_field;
+
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LevelChange")
-	TSoftObjectPtr<UWorld> TestLevel;
+	TSoftObjectPtr<UWorld> SafePlaceLevel;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, category = Test)
 	FString FID;
@@ -44,6 +50,9 @@ protected:
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, category = Test)
 	FString FIP;
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, category = Test)
+    FString FAPI;
 	
 	
 	UFUNCTION()
@@ -59,4 +68,15 @@ protected:
 	void HandleLoginFailed(EProtoLoginFailReason Reason, const FString& Message);
 
 	UProtoNetClientSubsystem* GetNetClient() const;
+
+private:
+	// true면 검증 통과 후 ConnectAndRegister, false면 ConnectAndLogin을 호출한다.
+	bool bPendingRegister = false;
+
+	// FAPI가 비어있으면 검증 없이 바로 ProceedWithConnect. 비어있지 않으면 Gemini
+	// ListModels 엔드포인트로 가벼운 GET을 날려 키가 실제로 유효한지 확인한 뒤에만
+	// 서버 로그인/회원가입으로 진행한다 (레벨 전환은 그 로그인 성공에 달려있으므로).
+	void ValidateApiKeyThenConnect();
+	void HandleApiKeyValidationResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
+	void ProceedWithConnect();
 };

@@ -181,7 +181,7 @@ void AProtoCharacter::BeginPlay()
     }
 
     /*-------------------
-     네트워킹: 서버 접속 프롬프트 표시 + 저장된 진행 상황 복원 구독 (로컬 플레이어만)
+     네트워킹: 저장된 진행 상황 복원 구독 (로컬 플레이어만)
     -------------------*/
     if (IsLocallyControlled())
     {
@@ -191,7 +191,6 @@ void AProtoCharacter::BeginPlay()
             {
                 NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
                 NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
-                NetClient->ShowConnectPrompt();
 
                 // Login via TitleLevel completes (S2C_LoginSuccess arrives,
                 // OnProgressRestored/OnInventoryRestored fire) before this

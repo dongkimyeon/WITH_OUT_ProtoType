@@ -13,7 +13,6 @@ class FRunnableThread;
 class FProtoNetReceiveWorker;
 class AProtoRemotePlayer;
 class AProtoCharacter;
-class SProtoConnectPrompt;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnPacketReceived, const TArray<uint8>&, PacketBytes);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProtoOnConnected);
@@ -109,11 +108,6 @@ public:
 	// same machine (127.0.0.1:7777).
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool Connect(const FString& ServerIp = TEXT("127.0.0.1"), int32 ServerPort = 7777);
-
-	// Shows an on-screen "enter server IP" prompt and connects + logs in once
-	// submitted. No-op if already connected or already shown.
-	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	void ShowConnectPrompt();
 
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	void Disconnect();
@@ -323,14 +317,6 @@ private:
 	TSubclassOf<AProtoCharacter> RemoteCharacterClass;
 
 	/*-------------------
-	 접속 프롬프트
-	-------------------*/
-	void HandleConnectPromptSubmitted(const FString& ServerIp, const FString& Username, const FString& Password);
-	void HideConnectPrompt();
-
-	TSharedPtr<SProtoConnectPrompt> ConnectPromptWidget;
-
-	/*-------------------
 	 멤버 변수
 	-------------------*/
 	FSocket* Socket = nullptr;
@@ -340,16 +326,9 @@ private:
 	uint32 NextSeq = 1;
 	uint32 LocalPlayerId = 0;
 
-	// Set on a successful Connect()/account login; ShowConnectPrompt()
-	// prefills these so an unexpected disconnect's reconnect prompt just
-	// needs Enter (+ retyping the password, which is never remembered).
+	// Set on a successful Connect()/account login.
 	FString LastServerIp;
 	FString LastUsername;
-
-	// True while we're waiting on S2C_LoginSuccess/S2C_LoginFail for an
-	// account login submitted via the connect prompt, so HandleIncomingPacket
-	// knows whether to update/hide the prompt on those replies.
-	bool bAwaitingAccountLoginReply = false;
 
 	// See ConsumePendingProgressRestore/ConsumePendingInventoryRestore above.
 	// Set on every S2C_LoginSuccess (alongside the broadcasts), cleared by

@@ -20,9 +20,23 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Config/DefaultGame.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Config/DefaultGame.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Tools/TTS_Bridge/start_tts_server.bat" beforeDir="false" afterPath="$PROJECT_DIR$/Tools/TTS_Bridge/start_tts_server.bat" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Blueprint/TitleLevel/WBP_TitleLevelWidget.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/TitleLevel/WBP_TitleLevelWidget.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_StorageContainer.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_StorageContainer.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Maps/L_SafePlace.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_SafePlace.umap" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Maps/L_TitleLevel.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_TitleLevel.umap" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Props/Wooden_Stairs.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Props/Wooden_Stairs.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Unique/Diorama_Water.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Unique/Diorama_Water.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ProtoProject.uproject" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.uproject" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBridgeSubsystem.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBridgeSubsystem.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoConnectPrompt.cpp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoConnectPrompt.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Network/ProtoNetClientSubsystem.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/TitleLevel/TitleLevelWidget.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -74,60 +88,60 @@
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
       <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0007528175701665" />
-      <entry key="S2" value="1.3507764752345162" />
-      <entry key="S5" value="2.7602415990868305" />
-      <entry key="S10" value="4.722293480357444" />
-      <entry key="S30" value="9.969656127240492" />
-      <entry key="S60" value="14.905677616365733" />
-      <entry key="M2" value="20.44190884941212" />
-      <entry key="M5" value="27.35117724001089" />
-      <entry key="M10" value="31.529610502085433" />
-      <entry key="M15" value="33.935910217323055" />
-      <entry key="M30" value="46.34690078833982" />
-      <entry key="H1" value="89.54863982711753" />
-      <entry key="H2" value="179.18353930131696" />
-      <entry key="H4" value="305.16813194286954" />
-      <entry key="D1" value="551.6458494502676" />
-      <entry key="W1" value="620.4274359080454" />
+      <entry key="MS500" value="1.0000000000046705" />
+      <entry key="S2" value="1.0027196387939492" />
+      <entry key="S5" value="1.2219009566915249" />
+      <entry key="S10" value="2.376632660409075" />
+      <entry key="S30" value="8.514579358310455" />
+      <entry key="S60" value="15.291224744739607" />
+      <entry key="M2" value="23.02892727675967" />
+      <entry key="M5" value="32.40368938645784" />
+      <entry key="M10" value="37.825682397400186" />
+      <entry key="M15" value="40.71526348519321" />
+      <entry key="M30" value="53.53441249768529" />
+      <entry key="H1" value="96.79578825747781" />
+      <entry key="H2" value="186.447726575281" />
+      <entry key="H4" value="312.5475649004673" />
+      <entry key="D1" value="559.4600014898691" />
+      <entry key="W1" value="628.3975996528042" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="8.690524745930561E-119" />
-      <entry key="MS500" value="2.445116142655295E-24" />
-      <entry key="S2" value="1.4798084907102673E-6" />
-      <entry key="S5" value="0.006904076172109913" />
-      <entry key="S10" value="0.1491337416508205" />
-      <entry key="S30" value="1.7007719082237989" />
-      <entry key="S60" value="3.487764488952325" />
-      <entry key="M2" value="5.397612110233954" />
-      <entry key="M5" value="8.094687270072571" />
-      <entry key="M10" value="10.144636658413596" />
-      <entry key="M15" value="11.296704027895773" />
-      <entry key="M30" value="14.989020754870417" />
-      <entry key="H1" value="25.42321486800778" />
-      <entry key="H2" value="48.04595479395491" />
-      <entry key="H4" value="83.63238002242275" />
-      <entry key="D1" value="159.8395348858743" />
-      <entry key="W1" value="181.9349849432406" />
+      <entry key="MS100" value="3.7592768153246314E-244" />
+      <entry key="MS500" value="2.0678124890327506E-49" />
+      <entry key="S2" value="7.980101773752641E-13" />
+      <entry key="S5" value="2.1469737787808034E-5" />
+      <entry key="S10" value="0.008316421589327144" />
+      <entry key="S30" value="0.6497798930736235" />
+      <entry key="S60" value="2.155793949667226" />
+      <entry key="M2" value="4.243573416355949" />
+      <entry key="M5" value="7.352111661075682" />
+      <entry key="M10" value="9.66813056136662" />
+      <entry key="M15" value="10.940128511392578" />
+      <entry key="M30" value="14.75056302487312" />
+      <entry key="H1" value="25.220177351670802" />
+      <entry key="H2" value="47.853715409457436" />
+      <entry key="H4" value="83.4648992046473" />
+      <entry key="D1" value="159.78614164954757" />
+      <entry key="W1" value="181.92630169133926" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.361714975111264E-8" />
-      <entry key="MS500" value="0.027171840989220982" />
-      <entry key="S2" value="0.6796976159849374" />
-      <entry key="S5" value="2.1848469571760973" />
-      <entry key="S10" value="4.279701560224287" />
-      <entry key="S30" value="11.171468244489708" />
-      <entry key="S60" value="18.02100559098156" />
-      <entry key="M2" value="25.586208619320324" />
-      <entry key="M5" value="35.30854409463654" />
-      <entry key="M10" value="41.593482008870154" />
-      <entry key="M15" value="45.17451111608564" />
-      <entry key="M30" value="61.30027762306411" />
-      <entry key="H1" value="114.94474201493172" />
-      <entry key="H2" value="227.20619708523876" />
-      <entry key="H4" value="388.78163916586544" />
-      <entry key="D1" value="711.4797907204382" />
-      <entry key="W1" value="802.3615227624836" />
+      <entry key="MS100" value="2.923531993698558E-4" />
+      <entry key="MS500" value="0.1964181291693335" />
+      <entry key="S2" value="0.6673024166555966" />
+      <entry key="S5" value="1.015121108218451" />
+      <entry key="S10" value="2.1053994566933723" />
+      <entry key="S30" value="8.736259307068226" />
+      <entry key="S60" value="17.054354321695932" />
+      <entry key="M2" value="26.977787099497295" />
+      <entry key="M5" value="39.58886880225987" />
+      <entry key="M10" value="47.39502179882463" />
+      <entry key="M15" value="51.584413530473114" />
+      <entry key="M30" value="68.24246151432158" />
+      <entry key="H1" value="121.98533007706813" />
+      <entry key="H2" value="234.27636327147945" />
+      <entry key="H4" value="395.9926903310796" />
+      <entry key="D1" value="719.2403947485409" />
+      <entry key="W1" value="810.3229809160707" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -336,6 +350,7 @@
       <workItem from="1787408694571" duration="3891000" />
       <workItem from="1787504726237" duration="1627000" />
       <workItem from="1787507160913" duration="635000" />
+      <workItem from="1787561977371" duration="2236000" />
     </task>
     <servers />
   </component>

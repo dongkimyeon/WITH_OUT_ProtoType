@@ -1,7 +1,6 @@
 #include "ProtoNetClientSubsystem.h"
 #include "ProtoNetReceiveWorker.h"
 #include "ProtoRemotePlayer.h"
-#include "ProtoConnectPrompt.h"
 #include "../PlayerContent/ProtoCharacter.h"
 
 #include "Sockets.h"
@@ -44,106 +43,6 @@ UProtoNetClientSubsystem::UProtoNetClientSubsystem(FVTableHelper& Helper)
 void UProtoNetClientSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
-}
-
-/*-------------------
- 접속 프롬프트 UI
--------------------*/
-void UProtoNetClientSubsystem::ShowConnectPrompt()
-{
-	if (ConnectPromptWidget.IsValid() || IsConnected())
-		return;
-		
-		
-	FString DefaultIp = LastServerIp;
-	if (DefaultIp.IsEmpty())
-	{
-		FParse::Value(FCommandLine::Get(), TEXT("ServerIP="), DefaultIp);
-	}
-
-	SAssignNew(ConnectPromptWidget, SProtoConnectPrompt)
-		.InitialServerIp(DefaultIp)
-		.InitialUsername(LastUsername)
-		.OnConnectRequested(FProtoOnConnectRequested::CreateUObject(this, &UProtoNetClientSubsystem::HandleConnectPromptSubmitted));
-
-	if (GEngine && GEngine->GameViewport)
-	{
-		GEngine->GameViewport->AddViewportWidgetContent(ConnectPromptWidget.ToSharedRef());
-	}
-
-	if (const UWorld* World = GetWorld())
-	{
-		if (APlayerController* PC = World->GetFirstPlayerController())
-		{
-			PC->SetShowMouseCursor(true);
-			FInputModeUIOnly InputMode;
-			InputMode.SetWidgetToFocus(ConnectPromptWidget);
-			PC->SetInputMode(InputMode);
-		}
-	}
-}
-
-void UProtoNetClientSubsystem::HandleConnectPromptSubmitted(const FString& ServerIp, const FString& Username, const FString& Password)
-{
-	const FString Trimmed = ServerIp.TrimStartAndEnd();
-
-	// Empty or "0" means "skip connecting" - just play offline/local.
-	if (Trimmed.IsEmpty() || Trimmed == TEXT("0"))
-	{
-		HideConnectPrompt();
-		return;
-	}
-
-	if (ConnectPromptWidget.IsValid())
-		ConnectPromptWidget->SetStatusText(FText::FromString(TEXT("접속 중...")));
-
-	// FSocket::Connect() is blocking, so an unreachable IP will briefly
-	// freeze the game here rather than failing instantly.
-	if (Connect(Trimmed))
-	{
-		const FString TrimmedUsername = Username.TrimStartAndEnd();
-		if (TrimmedUsername.IsEmpty())
-		{
-			// No account entered: same as before this feature existed --
-			// log in anonymously (no DB persistence) and close the prompt.
-			SendLoginTest(TEXT("guest"), TEXT("1.0"));
-			HideConnectPrompt();
-		}
-		else
-		{
-			LastUsername = TrimmedUsername;
-			bAwaitingAccountLoginReply = true;
-			SendAccountLogin(TrimmedUsername, Password);
-			// Keep the prompt up with a status message until
-			// S2C_LoginSuccess/S2C_LoginFail arrives (see HandleIncomingPacket)
-			// -- a wrong password needs to be retry-able, not silently eaten.
-			if (ConnectPromptWidget.IsValid())
-				ConnectPromptWidget->SetStatusText(FText::FromString(TEXT("로그인 중...")));
-		}
-	}
-	else if (ConnectPromptWidget.IsValid())
-	{
-		ConnectPromptWidget->SetStatusText(FText::FromString(TEXT("접속 실패. IP를 확인하고 다시 시도하세요.")));
-	}
-}
-
-void UProtoNetClientSubsystem::HideConnectPrompt()
-{
-	if (ConnectPromptWidget.IsValid())
-	{
-		if (GEngine && GEngine->GameViewport)
-			GEngine->GameViewport->RemoveViewportWidgetContent(ConnectPromptWidget.ToSharedRef());
-		ConnectPromptWidget.Reset();
-	}
-
-	if (const UWorld* World = GetWorld())
-	{
-		if (APlayerController* PC = World->GetFirstPlayerController())
-		{
-			PC->SetShowMouseCursor(false);
-			PC->SetInputMode(FInputModeGameOnly());
-		}
-	}
 }
 
 /*-------------------
@@ -647,12 +546,6 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					OnInventoryRestored.Broadcast(InventoryItems);
 				}
 
-				if (bAwaitingAccountLoginReply)
-				{
-					bAwaitingAccountLoginReply = false;
-					HideConnectPrompt();
-				}
-
 				OnLoginSucceeded.Broadcast(static_cast<int32>(LocalPlayerId), Success->has_saved_progress());
 			}
 			break;
@@ -662,20 +555,6 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			{
 				const FString Message = Fail->message() ? UTF8_TO_TCHAR(Fail->message()->c_str()) : FString();
 				UE_LOG(LogProtoNet, Warning, TEXT("Login failed: %s"), *Message);
-
-				if (bAwaitingAccountLoginReply)
-				{
-					bAwaitingAccountLoginReply = false;
-
-					Disconnect();
-					ShowConnectPrompt();
-					if (ConnectPromptWidget.IsValid())
-					{
-						ConnectPromptWidget->SetStatusText(Message.IsEmpty()
-							? FText::FromString(TEXT("로그인 실패. 다시 시도하세요."))
-							: FText::FromString(Message));
-					}
-				}
 
 				OnLoginFailed.Broadcast(static_cast<EProtoLoginFailReason>(Fail->reason()), Message);
 			}
@@ -999,10 +878,6 @@ void UProtoNetClientSubsystem::Tick(float DeltaTime)
 		UE_LOG(LogProtoNet, Warning, TEXT("Disconnected: %s"), *Reason);
 		Disconnect();
 		OnDisconnected.Broadcast(Reason);
-
-		// Unexpected disconnect (peer closed, framing error, ...) -- offer a
-		// reconnect right away instead of leaving the player stuck with no UI.
-		ShowConnectPrompt();
 	}
 
 	TickRemotePlayers(DeltaTime);

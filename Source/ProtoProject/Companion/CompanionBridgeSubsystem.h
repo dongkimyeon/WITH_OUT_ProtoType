@@ -15,6 +15,11 @@ class PROTOPROJECT_API UCompanionBridgeSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	// 타이틀 화면에서 입력받아 저장해두는 Gemini API 키. GameInstance가 레벨 전환 후에도
+	// 유지되므로, CompanionBrainComponent가 BeginPlay에서 이 값을 우선적으로 읽어간다.
+	UPROPERTY(BlueprintReadOnly, Category = "Companion|Bridge")
+	FString RuntimeGeminiApiKey;
+
 	UPROPERTY(EditAnywhere, Config, Category = "Companion|Bridge")
 	bool bAutoLaunchEnabled = true;
 

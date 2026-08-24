@@ -11,9 +11,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCompanionReplyReady, const FString&, ReplyText);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnCompanionActionRequested, const FString&, ActionName, const FString&, ActionArg);
 
-// 플레이어 발화 텍스트를 받아 Gemini API를 직접 호출하고, 답변 텍스트(대화) 또는
-// Function Calling 액션을 돌려준다. 세션 내 대화 이력(슬라이딩 윈도우)과 게임 재시작 후에도
-// 유지되는 로컬 SaveGame 장기 기억을 함께 관리한다.
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class PROTOPROJECT_API UCompanionBrainComponent : public UActorComponent
 {
@@ -22,7 +20,6 @@ class PROTOPROJECT_API UCompanionBrainComponent : public UActorComponent
 public:
 	UCompanionBrainComponent();
 
-	// 비워두면 BeginPlay에서 환경변수 GEMINI_API_KEY 값을 읽어온다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Brain")
 	FString GeminiApiKey;
 
@@ -35,15 +32,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Brain")
 	FString FallbackReply = TEXT("응, 알겠어.");
 
-	// 세션 내 유지할 최대 대화 턴 수(1턴 = user+model 한 쌍). 초과분은 오래된 것부터 버린다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Brain")
 	int32 MaxHistoryTurns = 20;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Brain")
 	FString MemorySaveSlotName = TEXT("CompanionMemory");
 
-	// TrimHistory가 밀어내는 오래된 대화를 요약 문자열에 계속 이어붙이되, 이 길이(문자 수)를
-	// 넘으면 앞부분(더 오래된 요약)부터 잘라내 프롬프트에 끝없이 커지는 걸 방지한다.
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Brain")
 	int32 MaxMemorySummaryLength = 2000;
 
@@ -56,12 +51,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Companion|Brain")
 	void RequestReply(const FString& UserText);
 
-	// 비전 폴백 전용: 텍스트와 함께 그 순간의 화면 캡처(PNG 바이트)를 같이 보낸다.
 	UFUNCTION(BlueprintCallable, Category = "Companion|Brain")
 	void RequestReplyWithImage(const FString& UserText, const TArray<uint8>& ImageBytes);
 
-	// 플레이어가 한동안 말이 없을 때 짧은 혼잣말을 유도한다(CommandRouter의 침묵 타이머가 호출).
-	// Function Calling 도구를 붙이지 않아 실행 명령으로 오인되어 엉뚱한 행동이 트리거될 위험이 없다.
 	UFUNCTION(BlueprintCallable, Category = "Companion|Brain")
 	void RequestAmbientLine();
 

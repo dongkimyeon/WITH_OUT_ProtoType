@@ -13,6 +13,8 @@
 #include "HAL/PlatformMisc.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/Base64.h"
+#include "Engine/GameInstance.h"
+#include "CompanionBridgeSubsystem.h"
 
 UCompanionBrainComponent::UCompanionBrainComponent()
 {
@@ -53,6 +55,17 @@ UCompanionBrainComponent::UCompanionBrainComponent()
 void UCompanionBrainComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (GeminiApiKey.IsEmpty())
+	{
+		if (UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+		{
+			if (UCompanionBridgeSubsystem* Bridge = GI->GetSubsystem<UCompanionBridgeSubsystem>())
+			{
+				GeminiApiKey = Bridge->RuntimeGeminiApiKey;
+			}
+		}
+	}
 
 	if (GeminiApiKey.IsEmpty())
 	{
