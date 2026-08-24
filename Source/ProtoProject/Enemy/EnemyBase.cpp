@@ -1,7 +1,9 @@
 #include "EnemyBase.h"
 
 #include "AIController.h"
+#include "Animation/AnimInstance.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/BoxComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -11,6 +13,8 @@
 #include "Perception/AISense_Sight.h"
 #include "../PlayerContent/Item/ItemDataBase.h"
 #include "../PlayerContent/Item/DropItem.h"
+#include "../PlayerContent/ProtoCharacter.h"
+#include "../PlayerContent/PlayerStatusComponent.h"
 #include "../Companion/CompanionNPC.h"
 #include "../Companion/CompanionCombatComponent.h"
 
@@ -43,6 +47,15 @@ AEnemyBase::AEnemyBase()
     }
 
     PerceptionStimuliSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(TEXT("PerceptionStimuliSource"));
+
+    LeftHandAttackBox = CreateDefaultSubobject<UBoxComponent>(TEXT("LeftHandAttackBox"));
+    LeftHandAttackBox->SetupAttachment(GetMesh(), TEXT("hand_l"));
+    LeftHandAttackBox->SetBoxExtent(LeftHandAttackBoxExtent);
+    LeftHandAttackBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    LeftHandAttackBox->SetCollisionObjectType(ECC_WorldDynamic);
+    LeftHandAttackBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+    LeftHandAttackBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+    LeftHandAttackBox->SetGenerateOverlapEvents(false);
 }
 
 void AEnemyBase::BeginPlay()
@@ -58,10 +71,23 @@ void AEnemyBase::BeginPlay()
 
     BuildBehaviorTree();
 
+    if (LeftHandAttackBox)
+    {
+        LeftHandAttackBox->SetBoxExtent(LeftHandAttackBoxExtent);
+        LeftHandAttackBox->OnComponentBeginOverlap.AddDynamic(this, &AEnemyBase::OnAttackBoxBeginOverlap);
+        EndAttackHitWindow();
+    }
+
     if (PerceptionStimuliSource)
     {
         PerceptionStimuliSource->RegisterForSense(UAISense_Sight::StaticClass());
         PerceptionStimuliSource->RegisterWithPerceptionSystem();
+    }
+
+    if (UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
+    {
+        AnimInstance->OnPlayMontageNotifyBegin.AddUniqueDynamic(this, &AEnemyBase::HandleAttackMontageNotifyBegin);
+        AnimInstance->OnMontageEnded.AddUniqueDynamic(this, &AEnemyBase::HandleAttackMontageEnded);
     }
 }
 
@@ -117,6 +143,11 @@ void AEnemyBase::Attack()
         AIController->StopMovement();
     }
 
+    if (bIsAttacking)
+    {
+        return;
+    }
+
     if (!CanAttack())
     {
         PrintBehaviorDebug(TEXT("Enemy BT: Attack Cooldown"), FColor::Orange);
@@ -126,12 +157,102 @@ void AEnemyBase::Attack()
     LastAttackTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastAttackTime;
     PrintBehaviorDebug(FString::Printf(TEXT("Enemy BT: Attack / Damage %.1f"), AttackDamage), FColor::Red);
 
-    // 플레이어/컴패니언에게 실제 데미지를 주는 부분은 공격 애니메이션(몽타주 히트 타이밍)과
-    // 함께 나중에 연동 예정이라 이번 범위에서는 뺀다. 타겟팅/사거리 진입까지만 동작한다.
+    if (AttackMontage)
+    {
+        bIsAttacking = PlayAnimMontage(AttackMontage) > 0.0f;
+    }
 }
 
+void AEnemyBase::HandleAttackMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
+{
+    static const FName BeginAttackNotifyName(TEXT("BeginAttack"));
+    static const FName EndAttackNotifyName(TEXT("EndAttack"));
+
+    if (NotifyName == BeginAttackNotifyName)
+    {
+        BeginAttackHitWindow();
+    }
+    else if (NotifyName == EndAttackNotifyName)
+    {
+        EndAttackHitWindow();
+    }
+}
+
+void AEnemyBase::HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    if (!AttackMontage || Montage == AttackMontage)
+    {
+        EndAttackHitWindow();
+    }
+}
+void AEnemyBase::BeginAttackHitWindow()
+{
+    DamagedActorsThisSwing.Reset();
+
+    if (!LeftHandAttackBox || bIsDead)
+    {
+        return;
+    }
+
+    LeftHandAttackBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    LeftHandAttackBox->SetGenerateOverlapEvents(true);
+}
+
+void AEnemyBase::EndAttackHitWindow()
+{
+    if (!LeftHandAttackBox)
+    {
+        return;
+    }
+
+    LeftHandAttackBox->SetGenerateOverlapEvents(false);
+    LeftHandAttackBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    DamagedActorsThisSwing.Reset();
+}
+
+void AEnemyBase::OnAttackBoxBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+    if (!OtherActor || OtherActor == this || bIsDead || DamagedActorsThisSwing.Contains(OtherActor))
+    {
+        return;
+    }
+
+    bool bAppliedDamage = false;
+
+    if (AProtoCharacter* PlayerCharacter = Cast<AProtoCharacter>(OtherActor))
+    {
+        if (UPlayerStatusComponent* StatusComponent = PlayerCharacter->GetStatusComponent())
+        {
+            StatusComponent->SetHealth(StatusComponent->GetHealth() - AttackDamage);
+            bAppliedDamage = true;
+        }
+    }
+    else if (ACompanionNPC* Companion = Cast<ACompanionNPC>(OtherActor))
+    {
+        if (Companion->CombatComponent)
+        {
+            Companion->CombatComponent->TakeCompanionDamage(AttackDamage);
+            bAppliedDamage = true;
+        }
+    }
+
+    if (bAppliedDamage)
+    {
+        DamagedActorsThisSwing.Add(OtherActor);
+        PrintBehaviorDebug(FString::Printf(TEXT("Enemy BT: Melee Hit %s / Damage %.1f"), *OtherActor->GetName(), AttackDamage), FColor::Red);
+    }
+}
 void AEnemyBase::MoveToTarget()
 {
+    if (bIsAttacking)
+    {
+        if (AAIController* AIController = Cast<AAIController>(GetController()))
+        {
+            AIController->StopMovement();
+        }
+        return;
+    }
+
     if (!HasTarget())
     {
         return;
@@ -168,6 +289,8 @@ void AEnemyBase::Die()
     }
 
     bIsDead = true;
+    bIsAttacking = false;
+    EndAttackHitWindow();
 
     if (AAIController* AIController = Cast<AAIController>(GetController()))
     {
@@ -438,6 +561,11 @@ void AEnemyBase::PrintBehaviorDebug(const FString& Message, const FColor& Color)
 
     UKismetSystemLibrary::PrintString(this, Message, true, false, Color, DebugPrintInterval);
 }
+
+
+
+
+
 
 
 
