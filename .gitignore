@@ -81,5 +81,7 @@ Protocol/generated/
 Tools/nvigi_pack_1_6_0/
 
 # Whisper 모델 가중치(수백 MB, download.bat로 재생성 가능) - STT_Bridge.exe 실행에 필요하지만
-# 리포에는 안 올린다.
-Tools/STT_Bridge/data/
+# 리포에는 안 올린다. download.bat 스크립트 자체는 예외로 포함.
+Tools/STT_Bridge/data/**
+!Tools/STT_Bridge/data/**/
+!Tools/STT_Bridge/data/**/download.bat
