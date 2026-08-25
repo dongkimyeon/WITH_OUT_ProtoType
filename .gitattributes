@@ -24,6 +24,10 @@
 # Archives
 *.zip -text
 *.rar -text
+
+# STT_Bridge 빌드 산출물 (exe/dll)
+Tools/STT_Bridge/*.dll filter=lfs diff=lfs merge=lfs -text
+Tools/STT_Bridge/STT_Bridge.exe filter=lfs diff=lfs merge=lfs -text
 Content/CitySampleVehicles/vehicle10_Bus/Texture/T_vehBus_vehicle10_AORM.uasset filter=lfs diff=lfs merge=lfs -text
 Content/Scene_Junkyard/Assets/MS/3D/Ind_Fac_Container_Drum_Metal_Worn_01/SM_Ind_Fac_Container_Drum_Metal_Worn_01.uasset filter=lfs diff=lfs merge=lfs -text
 Content/Scene_Junkyard/Assets/MS/3D/Ind_Fac_Container_Drum_Plastic_Worn_01/SM_Ind_Fac_Container_Drum_Plastic_Worn_01.uasset filter=lfs diff=lfs merge=lfs -text
