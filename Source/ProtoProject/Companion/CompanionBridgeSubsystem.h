@@ -36,6 +36,11 @@ private:
 	FProcHandle SttProcHandle;
 	FProcHandle TtsProcHandle;
 
+	// Windows Job Object 핸들(KILL_ON_JOB_CLOSE). 에디터/게임이 크래시 등으로 Deinitialize()
+	// 없이 죽어도, 프로세스가 종료되는 순간 OS가 여기 묶인 STT/TTS 자식 프로세스를 자동으로
+	// 정리해줘서 좀비 cmd.exe/서버가 안 남는다. Windows 외 플랫폼에서는 항상 nullptr.
+	void* JobObjectHandle = nullptr;
+
 	bool IsPortOpen(int32 Port) const;
 	void LaunchSttBridgeIfNeeded();
 	void LaunchTtsBridgeIfNeeded();

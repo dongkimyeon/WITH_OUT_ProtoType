@@ -98,6 +98,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	float GetEffectiveFollowDistance() const;
 
+	// 전투 중 제자리에 서 있지 않고 이 시간마다 좌우 스트레이프 방향을 새로 고른다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	float StrafeInterval = 1.5f;
+
+	// 스트레이프 시 좌우로 벌리는 거리.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	float StrafeDistance = 400.0f;
+
+	// 적과 이 거리보다 가까워지면 스트레이프 대신 뒤로 물러나 사거리를 벌린다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	float MinAttackDistance = 600.0f;
+
+	// 전투 중이어도 플레이어에게서 이 거리 이상은 벗어나지 않는다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	float MaxCombatDistanceFromPlayer = 1500.0f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -132,12 +148,24 @@ private:
 
 	float MoveRequestTimer = 0.0f;
 
+	float StrafeTimer = 0.0f;
+	float StrafeDirection = 1.0f;
+	bool bCombatRotationActive = false;
+
 	void BuildBehaviorTree();
 	AAIController* GetAIController();
 
 	bool HasEnemyTarget() const;
 	AActor* GetCurrentEnemyTarget() const;
 	bool IsEnemyInAttackRangeWithLineOfSight() const;
+
+	// 전투 중엔 이동 방향이 아니라 적을 향하도록 회전 방식을 바꾼다(스트레이프 중에도 조준 유지).
+	// 전투가 끝나면 원래(이동 방향으로 회전)로 되돌린다.
+	void SetCombatRotationEnabled(bool bEnabled);
+
+	// 적 기준 현재 거리를 사거리 안쪽으로 유지하면서 좌우로 벌린 목표 지점을 계산한다.
+	// 그 지점이 플레이어에게서 MaxCombatDistanceFromPlayer보다 멀면 플레이어 쪽으로 당겨온다.
+	FVector ComputeCombatMoveLocation(AActor* Enemy) const;
 
 	EBTNodeResult DoAttack(float DeltaTime);
 	EBTNodeResult DoMoveToEnemy(float DeltaTime);

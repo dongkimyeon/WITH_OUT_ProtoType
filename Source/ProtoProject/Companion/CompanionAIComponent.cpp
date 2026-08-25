@@ -6,6 +6,7 @@
 #include "AIController.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "NavigationSystem.h"
@@ -105,6 +106,16 @@ void UCompanionAIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	else if (!bEnemyVisible)
 	{
 		bCombatEngaged = false;
+	}
+
+	AActor* CombatEnemy = bCombatEngaged ? GetCurrentEnemyTarget() : nullptr;
+	SetCombatRotationEnabled(CombatEnemy != nullptr);
+	if (CombatEnemy)
+	{
+		if (AAIController* AIController = GetAIController())
+		{
+			AIController->SetFocalPoint(CombatEnemy->GetActorLocation());
+		}
 	}
 
 	if (BehaviorTreeRoot.IsValid())
@@ -268,12 +279,95 @@ bool UCompanionAIComponent::IsEnemyInAttackRangeWithLineOfSight() const
 	return true;
 }
 
-EBTNodeResult UCompanionAIComponent::DoAttack(float DeltaTime)
+void UCompanionAIComponent::SetCombatRotationEnabled(bool bEnabled)
 {
+	if (bCombatRotationActive == bEnabled)
+	{
+		return;
+	}
+	bCombatRotationActive = bEnabled;
+
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (!OwnerCharacter)
+	{
+		return;
+	}
+
+	if (UCharacterMovementComponent* MovementComponent = OwnerCharacter->GetCharacterMovement())
+	{
+		MovementComponent->bOrientRotationToMovement = !bEnabled;
+	}
+	OwnerCharacter->bUseControllerRotationYaw = bEnabled;
+
 	if (AAIController* AIController = GetAIController())
 	{
-		AIController->StopMovement();
+		if (!bEnabled)
+		{
+			AIController->ClearFocus(EAIFocusPriority::Gameplay);
+		}
 	}
+}
+
+FVector UCompanionAIComponent::ComputeCombatMoveLocation(AActor* Enemy) const
+{
+	const AActor* Owner = GetOwner();
+	const FVector EnemyLocation = Enemy->GetActorLocation();
+	const FVector OwnerLocation = Owner->GetActorLocation();
+
+	FVector AwayFromEnemy = OwnerLocation - EnemyLocation;
+	AwayFromEnemy.Z = 0.0f;
+	float CurrentDistance = AwayFromEnemy.Size();
+	if (CurrentDistance < KINDA_SMALL_NUMBER)
+	{
+		AwayFromEnemy = FVector::ForwardVector;
+		CurrentDistance = 0.0f;
+	}
+	else
+	{
+		AwayFromEnemy /= CurrentDistance;
+	}
+
+	const float EffectiveAttackRange = CombatComponent.IsValid() ? CombatComponent->GetEffectiveAttackRange() : MinAttackDistance;
+	const float MaxOrbitDistance = FMath::Max(MinAttackDistance, EffectiveAttackRange * 0.85f);
+
+	// 너무 가까우면 사거리를 벌리는 쪽으로, 아니면 지금 거리를 유지한 채(사거리 안에서) 좌우로만 움직인다.
+	const float DesiredDistance = CurrentDistance < MinAttackDistance
+		? MaxOrbitDistance
+		: FMath::Clamp(CurrentDistance, MinAttackDistance, MaxOrbitDistance);
+
+	const FVector RightVector = FVector::CrossProduct(FVector::UpVector, AwayFromEnemy).GetSafeNormal();
+	FVector DesiredLocation = EnemyLocation + AwayFromEnemy * DesiredDistance + RightVector * StrafeDirection * StrafeDistance;
+
+	if (CachedPlayerPawn.IsValid())
+	{
+		const FVector PlayerLocation = CachedPlayerPawn->GetActorLocation();
+		const float DistanceFromPlayer = FVector::Dist(DesiredLocation, PlayerLocation);
+		if (DistanceFromPlayer > MaxCombatDistanceFromPlayer)
+		{
+			const FVector TowardPlayer = (PlayerLocation - DesiredLocation).GetSafeNormal();
+			DesiredLocation += TowardPlayer * (DistanceFromPlayer - MaxCombatDistanceFromPlayer);
+		}
+	}
+
+	return DesiredLocation;
+}
+
+EBTNodeResult UCompanionAIComponent::DoAttack(float DeltaTime)
+{
+	AActor* Enemy = GetCurrentEnemyTarget();
+	if (!Enemy)
+	{
+		return EBTNodeResult::Running;
+	}
+
+	StrafeTimer -= DeltaTime;
+	if (StrafeTimer <= 0.0f)
+	{
+		StrafeTimer = StrafeInterval;
+		StrafeDirection = FMath::RandBool() ? 1.0f : -1.0f;
+	}
+
+	RequestMoveToLocation(ComputeCombatMoveLocation(Enemy), MoveAcceptanceRadius);
 
 	if (CombatComponent.IsValid())
 	{
@@ -291,7 +385,13 @@ EBTNodeResult UCompanionAIComponent::DoMoveToEnemy(float DeltaTime)
 		return EBTNodeResult::Running;
 	}
 
-	RequestMoveToActor(Enemy, MoveAcceptanceRadius);
+	// 총기를 쓰므로 근접까지 붙지 않는다 - 사거리 안쪽까지만 다가가고, 그 안에서 사선이 확보되는 즉시
+	// (매 틱 IsEnemyInAttackRangeWithLineOfSight로 체크) DoAttack으로 전환돼 그 자리에서 사격한다.
+	const float AcceptRadius = CombatComponent.IsValid()
+		? FMath::Max(MoveAcceptanceRadius, CombatComponent->GetEffectiveAttackRange() * 0.85f)
+		: MoveAcceptanceRadius;
+
+	RequestMoveToActor(Enemy, AcceptRadius);
 	return EBTNodeResult::Running;
 }
 
@@ -640,8 +740,9 @@ void UCompanionAIComponent::BuildBehaviorTree()
 	TSharedPtr<FCompanionSequenceNode> AttackSequence = MakeShared<FCompanionSequenceNode>();
 	AttackSequence->Children.Add(MakeShared<FCompanionConditionNode>([](UCompanionAIComponent* AI)
 	{
-		return IsValid(AI) && AI->IsEnemyInAttackRangeWithLineOfSight()
-			&& AI->CombatComponent.IsValid() && AI->CombatComponent->CanAttack();
+		// CanAttack()(쿨다운) 여부는 DoAttack 안에서 발사만 걸러낸다 - 쿨다운 중에도 사거리+사선만
+		// 확보돼 있으면 계속 이 노드에 머물러 스트레이프 움직임이 끊기지 않게 한다.
+		return IsValid(AI) && AI->IsEnemyInAttackRangeWithLineOfSight();
 	}));
 	AttackSequence->Children.Add(MakeShared<FCompanionActionNode>([](UCompanionAIComponent* AI, float DeltaTime)
 	{

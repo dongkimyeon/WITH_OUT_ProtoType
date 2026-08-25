@@ -8,6 +8,42 @@
 #include "IPAddress.h"
 #include "Sockets.h"
 
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <Windows.h>
+#include "Windows/HideWindowsPlatformTypes.h"
+
+// 에디터/게임이 크래시 등으로 비정상 종료돼도 자식 프로세스가 좀비로 남지 않도록, 이 Job에
+// 묶인 프로세스는 Job 핸들이 닫히는 순간(=우리 프로세스가 사라지는 순간 포함) OS가 강제 종료한다.
+static void* CreateKillOnCloseJobObject()
+{
+	HANDLE Job = CreateJobObjectW(nullptr, nullptr);
+	if (!Job)
+	{
+		return nullptr;
+	}
+
+	JOBOBJECT_EXTENDED_LIMIT_INFORMATION Info = {};
+	Info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+	if (!SetInformationJobObject(Job, JobObjectExtendedLimitInformation, &Info, sizeof(Info)))
+	{
+		CloseHandle(Job);
+		return nullptr;
+	}
+	return Job;
+}
+
+static void AssignProcessToKillOnCloseJob(void* JobObjectHandle, const FProcHandle& ProcHandle)
+{
+	if (JobObjectHandle && ProcHandle.IsValid())
+	{
+		// TTS_Bridge는 cmd.exe를 거쳐 python.exe를 띄우는데, CREATE_BREAKAWAY_FROM_JOB을 안 썼으므로
+		// cmd.exe만 Job에 붙여도 그 자식(python.exe)까지 자동으로 같은 Job에 포함된다.
+		AssignProcessToJobObject(static_cast<HANDLE>(JobObjectHandle), ProcHandle.Get());
+	}
+}
+#endif
+
 void UCompanionBridgeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -16,6 +52,10 @@ void UCompanionBridgeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		return;
 	}
+
+#if PLATFORM_WINDOWS
+	JobObjectHandle = CreateKillOnCloseJobObject();
+#endif
 
 	LaunchSttBridgeIfNeeded();
 	LaunchTtsBridgeIfNeeded();
@@ -37,6 +77,16 @@ void UCompanionBridgeSubsystem::Deinitialize()
 		FPlatformProcess::TerminateProc(TtsProcHandle, true);
 	}
 	TtsProcHandle.Reset();
+
+#if PLATFORM_WINDOWS
+	if (JobObjectHandle)
+	{
+		// Job 핸들을 닫는 순간 KILL_ON_JOB_CLOSE로 인해 혹시 남아있는 자식(예: cmd.exe가
+		// 남기고 간 손자 프로세스)까지 OS가 정리한다. 위에서 이미 TerminateProc했어도 안전망으로 둔다.
+		CloseHandle(static_cast<HANDLE>(JobObjectHandle));
+		JobObjectHandle = nullptr;
+	}
+#endif
 
 	Super::Deinitialize();
 }
@@ -77,7 +127,10 @@ void UCompanionBridgeSubsystem::LaunchSttBridgeIfNeeded()
 		return;
 	}
 
-	const FString ExePath = FPaths::ProjectDir() / TEXT("Tools/STT_Bridge/STT_Bridge.exe");
+	// FPaths::ProjectDir()는 에디터에서 절대경로가 아니라 엔진 바이너리 기준 상대경로를 반환한다.
+	// STT_Bridge.exe 직접 실행은 상대경로라도 별문제 없지만, TTS_Bridge 쪽은 cmd.exe에 작업
+	// 디렉터리(lpCurrentDirectory)로 상대경로를 넘기면 제대로 안 먹어서 절대경로로 변환해둔다.
+	const FString ExePath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Tools/STT_Bridge/STT_Bridge.exe"));
 	if (!FPaths::FileExists(ExePath))
 	{
 		UE_LOG(LogCompanionAI, Warning, TEXT("[Bridge] STT_Bridge.exe를 찾을 수 없음: %s"), *ExePath);
@@ -89,6 +142,9 @@ void UCompanionBridgeSubsystem::LaunchSttBridgeIfNeeded()
 
 	if (SttProcHandle.IsValid())
 	{
+#if PLATFORM_WINDOWS
+		AssignProcessToKillOnCloseJob(JobObjectHandle, SttProcHandle);
+#endif
 		UE_LOG(LogCompanionAI, Log, TEXT("[Bridge] STT_Bridge 자동 실행: %s"), *ExePath);
 	}
 	else
@@ -105,7 +161,7 @@ void UCompanionBridgeSubsystem::LaunchTtsBridgeIfNeeded()
 		return;
 	}
 
-	const FString BatPath = FPaths::ProjectDir() / TEXT("Tools/TTS_Bridge/start_tts_server.bat");
+	const FString BatPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Tools/TTS_Bridge/start_tts_server.bat"));
 	if (!FPaths::FileExists(BatPath))
 	{
 		UE_LOG(LogCompanionAI, Warning, TEXT("[Bridge] start_tts_server.bat를 찾을 수 없음: %s"), *BatPath);
@@ -119,6 +175,9 @@ void UCompanionBridgeSubsystem::LaunchTtsBridgeIfNeeded()
 
 	if (TtsProcHandle.IsValid())
 	{
+#if PLATFORM_WINDOWS
+		AssignProcessToKillOnCloseJob(JobObjectHandle, TtsProcHandle);
+#endif
 		UE_LOG(LogCompanionAI, Log, TEXT("[Bridge] TTS_Bridge 자동 실행: %s"), *BatPath);
 	}
 	else

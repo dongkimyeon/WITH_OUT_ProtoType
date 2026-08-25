@@ -32,6 +32,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Companion|Speech")
 	FOnCompanionSpeechFinished OnSpeechFinished;
 
+	// 지금 말하는 중이면 큐에 쌓아두고, 끝난 뒤 순서대로 재생한다(겹쳐 말하거나 끊기지 않게).
 	UFUNCTION(BlueprintCallable, Category = "Companion|Speech")
 	void Speak(const FString& Text);
 
@@ -39,5 +40,11 @@ private:
 	UPROPERTY()
 	TObjectPtr<UAudioComponent> AudioComponent;
 
+	bool bIsSpeaking = false;
+	TArray<FString> PendingLines;
+	FTimerHandle PlaybackFinishedTimerHandle;
+
+	void StartSpeaking(const FString& Text);
+	void FinishSpeaking();
 	void HandleTtsResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
 };

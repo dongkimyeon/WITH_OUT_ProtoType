@@ -35,6 +35,16 @@ if errorlevel 1 (
     exit /b 1
 )
 
+python -m unidic download
+
+if errorlevel 1 (
+    echo.
+    echo [TTS_Bridge] unidic dictionary download FAILED - see the error above.
+    echo [TTS_Bridge] MeCab will fail to initialize without it. Re-run this script.
+    pause
+    exit /b 1
+)
+
 echo.
 echo [TTS_Bridge] Setup complete. You can now run start_tts_server.bat.
 pause

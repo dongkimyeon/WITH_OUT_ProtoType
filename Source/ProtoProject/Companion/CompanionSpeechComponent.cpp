@@ -11,6 +11,8 @@
 #include "Components/AudioComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Actor.h"
+#include "TimerManager.h"
+#include "Engine/World.h"
 
 UCompanionSpeechComponent::UCompanionSpeechComponent()
 {
@@ -23,6 +25,19 @@ void UCompanionSpeechComponent::Speak(const FString& Text)
 	{
 		return;
 	}
+
+	if (bIsSpeaking)
+	{
+		PendingLines.Add(Text);
+		return;
+	}
+
+	StartSpeaking(Text);
+}
+
+void UCompanionSpeechComponent::StartSpeaking(const FString& Text)
+{
+	bIsSpeaking = true;
 
 	TSharedRef<FJsonObject> RootObject = MakeShared<FJsonObject>();
 	RootObject->SetStringField(TEXT("text"), Text);
@@ -47,7 +62,7 @@ void UCompanionSpeechComponent::HandleTtsResponse(FHttpRequestPtr Request, FHttp
 	if (!bWasSuccessful || !Response.IsValid() || Response->GetResponseCode() != 200)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("CompanionSpeechComponent: TTS 서버 응답 실패"));
-		OnSpeechFinished.Broadcast();
+		FinishSpeaking();
 		return;
 	}
 
@@ -56,7 +71,7 @@ void UCompanionSpeechComponent::HandleTtsResponse(FHttpRequestPtr Request, FHttp
 	if (!CompanionAudioUtils::ParseWavPCM(Response->GetContent(), PCMData, SampleRate, NumChannels, BitsPerSample) || BitsPerSample != 16)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("CompanionSpeechComponent: WAV 파싱 실패 (BitsPerSample=%d)"), BitsPerSample);
-		OnSpeechFinished.Broadcast();
+		FinishSpeaking();
 		return;
 	}
 
@@ -76,5 +91,28 @@ void UCompanionSpeechComponent::HandleTtsResponse(FHttpRequestPtr Request, FHttp
 		UGameplayStatics::SpawnSoundAttached(SoundWave, Owner->GetRootComponent());
 	}
 
+	// 재생 시간만큼 기다렸다가 끝난 걸로 처리한다 - 그래야 다음 대사(예: "적 발견!")가
+	// 지금 말하는 걸 끊거나 겹치지 않고 끝난 뒤에 이어서 나온다.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(PlaybackFinishedTimerHandle, this,
+			&UCompanionSpeechComponent::FinishSpeaking, FMath::Max(SoundWave->Duration, 0.01f), false);
+	}
+	else
+	{
+		FinishSpeaking();
+	}
+}
+
+void UCompanionSpeechComponent::FinishSpeaking()
+{
+	bIsSpeaking = false;
 	OnSpeechFinished.Broadcast();
+
+	if (PendingLines.Num() > 0)
+	{
+		const FString NextText = PendingLines[0];
+		PendingLines.RemoveAt(0);
+		StartSpeaking(NextText);
+	}
 }
