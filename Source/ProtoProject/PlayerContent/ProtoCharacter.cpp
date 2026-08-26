@@ -39,6 +39,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "../Companion/CompanionNPC.h"
 #include "../Companion/CompanionAIComponent.h"
+#include "../Companion/CompanionCombatComponent.h"
 #include "../Companion/CompanionListenComponent.h"
 
 AProtoCharacter::AProtoCharacter()
@@ -327,10 +328,10 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Released, this, &AProtoCharacter::StopAim);
 
-    PlayerInputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &AProtoCharacter::DebugDecreaseHealth);
-    PlayerInputComponent->BindKey(EKeys::Eight, IE_Pressed, this, &AProtoCharacter::DebugDecreaseHunger);
-    PlayerInputComponent->BindKey(EKeys::Nine, IE_Pressed, this, &AProtoCharacter::DebugDecreaseThirst);
-    PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::DebugIncreaseInfection);
+    PlayerInputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionEquipWeapon1);
+    PlayerInputComponent->BindKey(EKeys::Eight, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionEquipWeapon2);
+    PlayerInputComponent->BindKey(EKeys::Nine, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionHolsterWeapon);
+    PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionJump);
     PlayerInputComponent->BindKey(EKeys::Hyphen, IE_Pressed, this, &AProtoCharacter::DebugDecreaseStamina);
     PlayerInputComponent->BindKey(EKeys::Five, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionEngage);
     PlayerInputComponent->BindKey(EKeys::Six, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionExplore);
@@ -372,6 +373,65 @@ void AProtoCharacter::DebugCommandCompanionExplore()
     if (GEngine)
     {
         GEngine->AddOnScreenDebugMessage(93001, 2.0f, FColor::Green, TEXT("Companion command: Explore"));
+    }
+}
+void AProtoCharacter::DebugCommandCompanionEquipWeapon1()
+{
+    ACompanionNPC* Companion = GetCompanionNPC();
+    const bool bSucceeded = Companion && Companion->CombatComponent && Companion->CombatComponent->EquipWeaponFromInventoryIndex(Companion->InventoryComponent, 0);
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93003, 2.0f, bSucceeded ? FColor::Green : FColor::Red,
+            bSucceeded ? TEXT("Companion equip weapon 1") : TEXT("Companion equip weapon 1 failed"));
+    }
+}
+
+void AProtoCharacter::DebugCommandCompanionEquipWeapon2()
+{
+    ACompanionNPC* Companion = GetCompanionNPC();
+    const bool bSucceeded = Companion && Companion->CombatComponent && Companion->CombatComponent->EquipWeaponFromInventoryIndex(Companion->InventoryComponent, 1);
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93004, 2.0f, bSucceeded ? FColor::Green : FColor::Red,
+            bSucceeded ? TEXT("Companion equip weapon 2") : TEXT("Companion equip weapon 2 failed"));
+    }
+}
+
+void AProtoCharacter::DebugCommandCompanionHolsterWeapon()
+{
+    ACompanionNPC* Companion = GetCompanionNPC();
+    if (!Companion || !Companion->CombatComponent)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(93005, 2.0f, FColor::Red, TEXT("Companion holster failed"));
+        }
+        return;
+    }
+
+    Companion->CombatComponent->HolsterWeapon();
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93005, 2.0f, FColor::Green, TEXT("Companion holster weapon"));
+    }
+}
+
+void AProtoCharacter::DebugCommandCompanionJump()
+{
+    ACompanionNPC* Companion = GetCompanionNPC();
+    if (!Companion)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(93006, 2.0f, FColor::Red, TEXT("Companion jump failed"));
+        }
+        return;
+    }
+
+    Companion->Jump();
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93006, 2.0f, FColor::Green, TEXT("Companion jump"));
     }
 }
 void AProtoCharacter::DebugDecreaseHealth()

@@ -148,6 +148,31 @@ bool UCompanionAIComponent::IsAimingRequested() const
 		&& CombatComponent.IsValid()
 		&& CombatComponent->GetEquippedWeapon() != nullptr;
 }
+bool UCompanionAIComponent::ShouldSprintWhileFollowing() const
+{
+	const AActor* Owner = GetOwner();
+	const APawn* Player = CachedPlayerPawn.Get();
+	if (!bFollowEnabled || bHasCommandedDestination || bCombatEngaged || bExploring || !Owner || !Player)
+	{
+		bFollowSprintActive = false;
+		return false;
+	}
+
+	const float DistanceSquared = FVector::DistSquared(Owner->GetActorLocation(), Player->GetActorLocation());
+	const float StartDistance = FMath::Max(FollowSprintDistance, FollowSprintStopDistance);
+	const float StopDistance = FMath::Min(FollowSprintDistance, FollowSprintStopDistance);
+
+	if (DistanceSquared >= FMath::Square(StartDistance))
+	{
+		bFollowSprintActive = true;
+	}
+	else if (DistanceSquared <= FMath::Square(StopDistance))
+	{
+		bFollowSprintActive = false;
+	}
+
+	return bFollowSprintActive;
+}
 float UCompanionAIComponent::GetEffectiveFollowDistance() const
 {
 	const float Override = CVarCompanionFollowDistance.GetValueOnGameThread();
@@ -808,3 +833,4 @@ void UCompanionAIComponent::BuildBehaviorTree()
 
 	BehaviorTreeRoot = Root;
 }
+

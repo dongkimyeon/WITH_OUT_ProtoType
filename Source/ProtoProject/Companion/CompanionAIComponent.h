@@ -31,6 +31,12 @@ public:
 	float MinFollowDistance = 150.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
+	float FollowSprintDistance = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
+	float FollowSprintStopDistance = 30.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
 	float MoveAcceptanceRadius = 120.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
@@ -72,6 +78,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	bool IsAimingRequested() const;
+
+	UFUNCTION(BlueprintPure, Category = "Companion|AI")
+	bool ShouldSprintWhileFollowing() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Explore")
 	float ExploreDuration = 30.0f;
@@ -137,6 +146,7 @@ private:
 	bool bCombatSuppressed = false;
 	bool bAimingRequested = false;
 	bool bExploring = false;
+	mutable bool bFollowSprintActive = false;
 
 	FVector CommandedLocation = FVector::ZeroVector;
 	TWeakObjectPtr<AActor> CommandedTargetActor;
@@ -186,3 +196,4 @@ private:
 	bool RequestMoveToActor(AActor* Target, float AcceptRadius);
 	void RequestMoveToLocation(const FVector& Location, float AcceptRadius);
 };
+

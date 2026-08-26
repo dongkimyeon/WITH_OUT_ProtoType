@@ -211,6 +211,10 @@ private:
 
     void DebugCommandCompanionEngage();
     void DebugCommandCompanionExplore();
+    void DebugCommandCompanionEquipWeapon1();
+    void DebugCommandCompanionEquipWeapon2();
+    void DebugCommandCompanionHolsterWeapon();
+    void DebugCommandCompanionJump();
     void DebugDecreaseHealth();
     void DebugDecreaseHunger();
     void DebugDecreaseThirst();

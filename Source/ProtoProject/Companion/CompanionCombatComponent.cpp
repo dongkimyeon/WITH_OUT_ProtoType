@@ -8,6 +8,9 @@
 #include "GameFramework/Character.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
@@ -22,7 +25,13 @@ namespace
 
 UCompanionCombatComponent::UCompanionCombatComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
+
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> UpperBodyMontageFinder(TEXT("/Game/Blueprint/AM_Player_Upper.AM_Player_Upper"));
+	if (UpperBodyMontageFinder.Succeeded())
+	{
+		CompanionUpperBodyMontage = UpperBodyMontageFinder.Object;
+	}
 }
 
 void UCompanionCombatComponent::BeginPlay()
@@ -30,37 +39,85 @@ void UCompanionCombatComponent::BeginPlay()
 	Super::BeginPlay();
 
 	CurrentHealth = MaxHealth;
+
+	if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
+	{
+		if (USkeletalMeshComponent* CharacterMesh = OwnerCharacter->GetMesh())
+		{
+			if (UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance())
+			{
+				AnimInstance->OnPlayMontageNotifyBegin.AddUniqueDynamic(this, &UCompanionCombatComponent::HandleMontageNotifyBegin);
+				AnimInstance->OnMontageEnded.AddUniqueDynamic(this, &UCompanionCombatComponent::HandleMontageEnded);
+			}
+		}
+	}
 }
 
 void UCompanionCombatComponent::EquipWeaponFromInventory(UInventoryGridComponent* Inventory)
 {
-	if (!Inventory)
+	EquipWeaponFromInventoryIndex(Inventory, 0);
+}
+
+bool UCompanionCombatComponent::EquipWeaponFromInventoryIndex(UInventoryGridComponent* Inventory, int32 WeaponIndex)
+{
+	if (!Inventory || WeaponIndex < 0)
 	{
-		return;
+		return false;
 	}
 
-	const FInventoryItemInstance* WeaponEntry = Inventory->Items.FindByPredicate(
-		[](const FInventoryItemInstance& Item) { return Item.ItemData && Item.ItemData->IsA<UWeaponItemData>(); });
-
-	if (!WeaponEntry)
+	int32 CurrentWeaponIndex = 0;
+	for (const FInventoryItemInstance& Item : Inventory->Items)
 	{
-		if (EquippedWeapon)
+		const UWeaponItemData* WeaponData = Cast<UWeaponItemData>(Item.ItemData);
+		if (!WeaponData)
 		{
-			EquippedWeapon->Destroy();
-			EquippedWeapon = nullptr;
+			continue;
 		}
-		return;
+
+		if (CurrentWeaponIndex == WeaponIndex)
+		{
+			if (!WeaponData->WeaponActorClass)
+			{
+				return false;
+			}
+
+			const AWeaponBase* WeaponDefault = WeaponData->WeaponActorClass->GetDefaultObject<AWeaponBase>();
+			const EWeaponType TargetWeaponType = WeaponDefault ? WeaponDefault->WeaponType : EWeaponType::None;
+			if (EquippedWeapon && EquippedWeapon->GetClass() == WeaponData->WeaponActorClass)
+			{
+				return true;
+			}
+
+			StartWeaponSwap(TargetWeaponType, WeaponData->WeaponActorClass);
+			return true;
+		}
+
+		++CurrentWeaponIndex;
 	}
 
-	const UWeaponItemData* WeaponData = Cast<UWeaponItemData>(WeaponEntry->ItemData);
-	if (!WeaponData || !WeaponData->WeaponActorClass)
+	return false;
+}
+
+void UCompanionCombatComponent::HolsterWeapon()
+{
+	if (!EquippedWeapon || bIsSwappingWeapon)
 	{
 		return;
 	}
 
-	if (EquippedWeapon && EquippedWeapon->GetClass() == WeaponData->WeaponActorClass)
+	StartWeaponSwap(EWeaponType::None, nullptr);
+}
+
+bool UCompanionCombatComponent::SpawnAndAttachWeapon(TSubclassOf<AWeaponBase> WeaponClass)
+{
+	if (!WeaponClass)
 	{
-		return;
+		return false;
+	}
+
+	if (EquippedWeapon && EquippedWeapon->GetClass() == WeaponClass)
+	{
+		return true;
 	}
 
 	if (EquippedWeapon)
@@ -72,23 +129,23 @@ void UCompanionCombatComponent::EquipWeaponFromInventory(UInventoryGridComponent
 	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
 	if (!OwnerCharacter || !OwnerCharacter->GetMesh())
 	{
-		return;
+		return false;
 	}
 
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		return;
+		return false;
 	}
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = OwnerCharacter;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	EquippedWeapon = World->SpawnActor<AWeaponBase>(WeaponData->WeaponActorClass, OwnerCharacter->GetActorTransform(), SpawnParams);
+	EquippedWeapon = World->SpawnActor<AWeaponBase>(WeaponClass, OwnerCharacter->GetActorTransform(), SpawnParams);
 	if (!EquippedWeapon)
 	{
-		return;
+		return false;
 	}
 
 	EquippedWeapon->SetOwner(OwnerCharacter);
@@ -103,8 +160,133 @@ void UCompanionCombatComponent::EquipWeaponFromInventory(UInventoryGridComponent
 			true);
 		EquippedWeapon->AttachToComponent(OwnerCharacter->GetMesh(), AttachRules, WeaponSocketName);
 	}
+
+	return true;
+}
+void UCompanionCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (!bIsSwappingWeapon)
+	{
+		return;
+	}
+
+	SwapRemainingTime = FMath::Max(0.0f, SwapRemainingTime - DeltaTime);
+	if (SwapRemainingTime <= 0.0f)
+	{
+		FinishWeaponSwap();
+	}
 }
 
+bool UCompanionCombatComponent::ShouldUseLeftHandIK() const
+{
+	return IsValid(EquippedWeapon) && !bIsSwappingWeapon && !bIsReloadingWeapon;
+}
+
+void UCompanionCombatComponent::StartWeaponSwap(EWeaponType TargetWeaponType, TSubclassOf<AWeaponBase> TargetWeaponClass)
+{
+	if (bIsDead || bIsSwappingWeapon || bIsReloadingWeapon)
+	{
+		return;
+	}
+
+	const EWeaponType PreviousWeaponType = EquippedWeapon ? EquippedWeapon->WeaponType : EWeaponType::None;
+	if (TargetWeaponType != EWeaponType::None && !TargetWeaponClass)
+	{
+		return;
+	}
+
+	SwapFromWeaponType = PreviousWeaponType;
+	PendingWeaponType = TargetWeaponType;
+	PendingWeaponClass = TargetWeaponClass;
+	bPendingHolster = TargetWeaponType == EWeaponType::None;
+	bIsSwappingWeapon = true;
+
+	const AWeaponBase* TargetDefault = TargetWeaponClass ? TargetWeaponClass->GetDefaultObject<AWeaponBase>() : nullptr;
+	const float SwapTime = bPendingHolster
+		? (EquippedWeapon ? EquippedWeapon->UnequipSwapTime : 0.0f)
+		: (TargetDefault ? TargetDefault->EquipSwapTime : 0.0f);
+	SwapRemainingTime = FMath::Max(0.0f, SwapTime);
+
+	UAnimMontage* DrawMontage = CompanionUpperBodyMontage ? CompanionUpperBodyMontage : WeaponSwapMontage;
+	UAnimMontage* HolsterMontage = WeaponSwapMontage ? WeaponSwapMontage : CompanionUpperBodyMontage;
+	if (bPendingHolster)
+	{
+		if (PreviousWeaponType == EWeaponType::Rifle)
+		{
+			PlayCompanionMontage(HolsterMontage, RifleToHandSectionName);
+		}
+		else if (PreviousWeaponType == EWeaponType::Pistol)
+		{
+			PlayCompanionMontage(HolsterMontage, PistolToHandSectionName);
+		}
+	}
+	else if (TargetWeaponType == EWeaponType::Rifle)
+	{
+		PlayCompanionMontage(DrawMontage, HandToRifleSectionName);
+	}
+	else if (TargetWeaponType == EWeaponType::Pistol)
+	{
+		PlayCompanionMontage(DrawMontage, HandToPistolSectionName);
+	}
+
+	if (SwapRemainingTime <= 0.0f)
+	{
+		FinishWeaponSwap();
+	}
+}
+
+void UCompanionCombatComponent::FinishWeaponSwap()
+{
+	if (bPendingHolster)
+	{
+		if (EquippedWeapon)
+		{
+			EquippedWeapon->Destroy();
+			EquippedWeapon = nullptr;
+		}
+	}
+	else
+	{
+		SpawnAndAttachWeapon(PendingWeaponClass);
+	}
+
+	PendingWeaponClass = nullptr;
+	PendingWeaponType = EWeaponType::None;
+	SwapFromWeaponType = EWeaponType::None;
+	SwapRemainingTime = 0.0f;
+	bPendingHolster = false;
+	bIsSwappingWeapon = false;
+}
+
+float UCompanionCombatComponent::PlayCompanionMontage(UAnimMontage* Montage, FName SectionName)
+{
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (!OwnerCharacter || !Montage)
+	{
+		return 0.0f;
+	}
+
+	return OwnerCharacter->PlayAnimMontage(Montage, 1.0f, SectionName);
+}
+FVector UCompanionCombatComponent::GetLeftHandJointTargetForEquippedWeapon() const
+{
+	if (!EquippedWeapon)
+	{
+		return FVector(1000.0f, -2000.0f, 0.0f);
+	}
+
+	switch (EquippedWeapon->WeaponType)
+	{
+	case EWeaponType::Pistol:
+		return CompanionPistolLeftHandJointTarget;
+	case EWeaponType::Rifle:
+		return CompanionRifleLeftHandJointTarget;
+	default:
+		return EquippedWeapon->LeftHandJointTarget;
+	}
+}
 bool UCompanionCombatComponent::CanAttack() const
 {
 	const UWorld* World = GetWorld();
@@ -164,6 +346,12 @@ float UCompanionCombatComponent::GetEffectiveAttackRange() const
 
 void UCompanionCombatComponent::FireWeapon()
 {
+	if (EquippedWeapon && !EquippedWeapon->CanFire() && EquippedWeapon->CanReload() && !bIsReloadingWeapon && !bIsSwappingWeapon)
+	{
+		ReloadWeapon();
+		return;
+	}
+
 	if (!CanAttack())
 	{
 		return;
@@ -171,6 +359,84 @@ void UCompanionCombatComponent::FireWeapon()
 
 	LastAttackTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastAttackTime;
 	EquippedWeapon->Fire();
+}
+
+void UCompanionCombatComponent::ReloadWeapon()
+{
+	if (bIsDead || bIsReloadingWeapon || bIsSwappingWeapon || !EquippedWeapon || !EquippedWeapon->CanReload())
+	{
+		return;
+	}
+
+	bIsReloadingWeapon = true;
+
+	const FName ReloadSectionName = EquippedWeapon->WeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
+	const float MontageLength = PlayCompanionMontage(CompanionUpperBodyMontage, ReloadSectionName);
+	if (MontageLength <= 0.0f)
+	{
+		EquippedWeapon->ReloadMagazine();
+		bIsReloadingWeapon = false;
+	}
+}
+
+void UCompanionCombatComponent::HandleMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
+{
+	if (!EquippedWeapon)
+	{
+		return;
+	}
+
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	USkeletalMeshComponent* CharacterMesh = OwnerCharacter ? OwnerCharacter->GetMesh() : nullptr;
+
+	static const FName AmmoAttachNotifyName(TEXT("AmmoAttach"));
+	static const FName AmmoDetachNotifyName(TEXT("AmmoDetach"));
+	static const FName NewAmmoNotifyName(TEXT("NewAmmo"));
+	static const FName NewAmmoAttachNotifyName(TEXT("NewAmmoAttach"));
+	static const FName NewAmmoDetachNotifyName(TEXT("NewAmmoDetach"));
+
+	if (NotifyName == AmmoAttachNotifyName)
+	{
+		EquippedWeapon->ReloadAmmoAttach(CharacterMesh);
+	}
+	else if (NotifyName == AmmoDetachNotifyName)
+	{
+		EquippedWeapon->ReloadAmmoDetach();
+	}
+	else if (NotifyName == NewAmmoNotifyName)
+	{
+		EquippedWeapon->ReloadNewAmmo(CharacterMesh);
+	}
+	else if (NotifyName == NewAmmoAttachNotifyName)
+	{
+		if (EquippedWeapon->WeaponType == EWeaponType::Pistol)
+		{
+			EquippedWeapon->ReloadNewAmmo(CharacterMesh);
+		}
+		else
+		{
+			EquippedWeapon->ReloadNewAmmoAttach();
+		}
+	}
+	else if (NotifyName == NewAmmoDetachNotifyName)
+	{
+		EquippedWeapon->ReloadNewAmmoAttach();
+	}
+}
+
+void UCompanionCombatComponent::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (Montage != CompanionUpperBodyMontage || !bIsReloadingWeapon)
+	{
+		return;
+	}
+
+	if (!bInterrupted && EquippedWeapon)
+	{
+		EquippedWeapon->ReloadMagazine();
+	}
+
+	bIsReloadingWeapon = false;
 }
 
 void UCompanionCombatComponent::TakeCompanionDamage(float DamageAmount)
@@ -197,3 +463,9 @@ void UCompanionCombatComponent::Die()
 	bIsDead = true;
 	OnCompanionDied.Broadcast(GetOwner());
 }
+
+
+
+
+
+

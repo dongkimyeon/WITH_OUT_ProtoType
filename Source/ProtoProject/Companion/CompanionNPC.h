@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "../PlayerContent/ProtoCharacter.h"
 #include "CompanionNPC.generated.h"
 
 class UCompanionListenComponent;
@@ -16,6 +17,7 @@ class UCompanionCommandRouterComponent;
 class UCompanionReportComponent;
 class USceneCaptureComponent2D;
 class UInventoryGridComponent;
+class AWeaponBase;
 
 // STT(로컬 브릿지) -> Gemini LLM -> TTS(로컬 서버)로 음성 대화하고, AIController 기반 커스텀 BT로
 // 플레이어를 따라다니거나 명령에 따라 이동/전투하는 동료 NPC.
@@ -65,8 +67,36 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Companion")
 	void SetOwningPlayer(APawn* Player);
 
+	// Player ABP와 같은 이름으로 노출하는 동료 애니메이션용 상태값.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	bool bIsSprint = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	bool bHasWeapon = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	FTransform LeftHandTransform = FTransform::Identity;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	FVector Joint = FVector(1000.0f, -2000.0f, 0.0f);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	EWeaponType CurrentWeaponType = EWeaponType::None;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	bool bIsAiming = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	float AimPitch = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	bool SwappingAlpha = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
+	bool bIsReloading = false;
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 
 private:
 	UFUNCTION()

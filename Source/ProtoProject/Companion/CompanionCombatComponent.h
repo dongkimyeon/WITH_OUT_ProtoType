@@ -4,12 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "../PlayerContent/ProtoCharacter.h"
 #include "CompanionCombatComponent.generated.h"
 
 class AWeaponBase;
 class UInventoryGridComponent;
+class UAnimMontage;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCompanionDied, AActor*, Companion);
+
+struct FBranchingPointNotifyPayload;
 
 // 동료 NPC의 무기 장착/발사와 자신의 체력을 담당한다. 데미지 적용 자체는 AWeaponBase::Fire()가
 // 히트한 AEnemyBase에 직접 TakeEnemyDamage를 호출하므로(AK47.cpp/Pistol.cpp), 여기서는
@@ -37,6 +41,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
 	float AttackCooldown = 0.8f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	FVector CompanionRifleLeftHandJointTarget = FVector(1000.0f, -2000.0f, 0.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	FVector CompanionPistolLeftHandJointTarget = FVector(20.0f, 1.0f, -1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	UAnimMontage* WeaponSwapMontage = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	UAnimMontage* CompanionUpperBodyMontage = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	FName RifleToHandSectionName = TEXT("rifletohand");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	FName HandToRifleSectionName = TEXT("handtorifle");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	FName PistolToHandSectionName = TEXT("pistoltohand");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	FName HandToPistolSectionName = TEXT("handtopistol");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	FName RifleReloadSectionName = TEXT("RifleReload");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Animation")
+	FName PistolReloadSectionName = TEXT("pistolreload");
 	UPROPERTY(BlueprintAssignable, Category = "Companion|Combat")
 	FOnCompanionDied OnCompanionDied;
 
@@ -63,11 +96,33 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Companion|Combat")
 	void EquipWeaponFromInventory(UInventoryGridComponent* Inventory);
 
+	UFUNCTION(BlueprintCallable, Category = "Companion|Combat")
+	bool EquipWeaponFromInventoryIndex(UInventoryGridComponent* Inventory, int32 WeaponIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Companion|Combat")
+	void HolsterWeapon();
+
+	UFUNCTION(BlueprintCallable, Category = "Companion|Combat")
+	void ReloadWeapon();
+
+	UFUNCTION(BlueprintPure, Category = "Companion|Animation")
+	bool IsSwappingWeapon() const { return bIsSwappingWeapon; }
+
+	UFUNCTION(BlueprintPure, Category = "Companion|Animation")
+	bool IsReloadingWeapon() const { return bIsReloadingWeapon; }
+
+	UFUNCTION(BlueprintPure, Category = "Companion|Animation")
+	bool ShouldUseLeftHandIK() const;
+
 	UFUNCTION(BlueprintPure, Category = "Companion|Combat")
 	AWeaponBase* GetEquippedWeapon() const { return EquippedWeapon; }
 
+	UFUNCTION(BlueprintPure, Category = "Companion|Animation")
+	FVector GetLeftHandJointTargetForEquippedWeapon() const;
+
 protected:
 	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
 	UPROPERTY()
@@ -75,6 +130,29 @@ private:
 
 	float LastAttackTime = -999.0f;
 	bool bIsDead = false;
+	bool bIsSwappingWeapon = false;
+	bool bIsReloadingWeapon = false;
+	float SwapRemainingTime = 0.0f;
+	EWeaponType SwapFromWeaponType = EWeaponType::None;
+	EWeaponType PendingWeaponType = EWeaponType::None;
+	TSubclassOf<AWeaponBase> PendingWeaponClass;
+	bool bPendingHolster = false;
+
+	bool SpawnAndAttachWeapon(TSubclassOf<AWeaponBase> WeaponClass);
+	void StartWeaponSwap(EWeaponType TargetWeaponType, TSubclassOf<AWeaponBase> TargetWeaponClass);
+	void FinishWeaponSwap();
+	float PlayCompanionMontage(UAnimMontage* Montage, FName SectionName);
+
+	UFUNCTION()
+	void HandleMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
+
+	UFUNCTION()
+	void HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 	void Die();
 };
+
+
+
+
+

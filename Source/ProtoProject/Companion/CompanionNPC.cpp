@@ -46,11 +46,12 @@ void ACompanionNPC::Tick(float DeltaSeconds)
 	AWeaponBase* EquippedWeapon = CombatComponent ? CombatComponent->GetEquippedWeapon() : nullptr;
 	bHasWeapon = IsValid(EquippedWeapon);
 	CurrentWeaponType = bHasWeapon ? EquippedWeapon->WeaponType : EWeaponType::None;
-	Joint = bHasWeapon ? EquippedWeapon->LeftHandJointTarget : FVector(1000.0f, -2000.0f, 0.0f);
+	Joint = bHasWeapon && CombatComponent ? CombatComponent->GetLeftHandJointTargetForEquippedWeapon() : FVector(1000.0f, -2000.0f, 0.0f);
 
+	bIsReloading = CombatComponent && CombatComponent->IsReloadingWeapon();
+	SwappingAlpha = bHasWeapon && CombatComponent && CombatComponent->ShouldUseLeftHandIK();
 	bIsAiming = bHasWeapon && AIComponent && AIComponent->IsAimingRequested();
-	SwappingAlpha = bHasWeapon && !bIsReloading;
-	bIsSprint = false;
+	bIsSprint = AIComponent && AIComponent->ShouldSprintWhileFollowing();
 
 	if (Controller)
 	{
@@ -111,3 +112,5 @@ void ACompanionNPC::SetOwningPlayer(APawn* Player)
 		AIComponent->SetFollowTarget(Player);
 	}
 }
+
+
