@@ -1,11 +1,13 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "CompanionCombatComponent.h"
+#include "CompanionNPC.h"
 #include "../PlayerContent/weapon/WeaponBase.h"
 #include "../PlayerContent/Inventory/InventoryGridComponent.h"
 #include "../PlayerContent/Item/WeaponItemData.h"
 #include "GameFramework/Character.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/Engine.h"
 
 namespace
 {
@@ -105,20 +107,55 @@ void UCompanionCombatComponent::EquipWeaponFromInventory(UInventoryGridComponent
 
 bool UCompanionCombatComponent::CanAttack() const
 {
-	if (bIsDead || !EquippedWeapon)
-	{
-		return false;
-	}
-
 	const UWorld* World = GetWorld();
-	if (!World)
+	const ACompanionNPC* CompanionOwner = Cast<ACompanionNPC>(GetOwner());
+
+	const bool bHasEquippedWeapon = IsValid(EquippedWeapon);
+	const bool bWeaponCanFire = bHasEquippedWeapon && EquippedWeapon->CanFire();
+	const bool bOwnerValid = IsValid(CompanionOwner);
+	const bool bOwnerHasWeapon = bOwnerValid && CompanionOwner->bHasWeapon;
+	const bool bWeaponTypeValid = bOwnerValid && CompanionOwner->CurrentWeaponType != EWeaponType::None;
+	const bool bWeaponInHand = bOwnerValid && CompanionOwner->SwappingAlpha;
+	const bool bAiming = bOwnerValid && CompanionOwner->bIsAiming;
+	const bool bNotReloading = bOwnerValid && !CompanionOwner->bIsReloading;
+	const bool bCooldownReady = World && World->GetTimeSeconds() - LastAttackTime >= AttackCooldown;
+	const bool bCanAttack = !bIsDead
+		&& bHasEquippedWeapon
+		&& bWeaponCanFire
+		&& bOwnerValid
+		&& bOwnerHasWeapon
+		&& bWeaponTypeValid
+		&& bWeaponInHand
+		&& bAiming
+		&& bNotReloading
+		&& bCooldownReady;
+
+#if !(UE_BUILD_SHIPPING)
+	if (GEngine)
 	{
-		return false;
+		const float RemainingCooldown = World ? FMath::Max(0.0f, AttackCooldown - (World->GetTimeSeconds() - LastAttackTime)) : AttackCooldown;
+		const int32 WeaponTypeValue = bOwnerValid ? static_cast<int32>(CompanionOwner->CurrentWeaponType) : -1;
+		const FString DebugText = FString::Printf(
+			TEXT("Companion CanAttack: %s\nDead:%s Equipped:%s WeaponCanFire:%s Owner:%s HasWeapon:%s WeaponType:%d ValidType:%s InHand(SwappingAlpha):%s Aiming:%s NotReloading:%s Cooldown:%s(%.2f)"),
+			bCanAttack ? TEXT("TRUE") : TEXT("FALSE"),
+			bIsDead ? TEXT("TRUE") : TEXT("FALSE"),
+			bHasEquippedWeapon ? TEXT("TRUE") : TEXT("FALSE"),
+			bWeaponCanFire ? TEXT("TRUE") : TEXT("FALSE"),
+			bOwnerValid ? TEXT("TRUE") : TEXT("FALSE"),
+			bOwnerHasWeapon ? TEXT("TRUE") : TEXT("FALSE"),
+			WeaponTypeValue,
+			bWeaponTypeValid ? TEXT("TRUE") : TEXT("FALSE"),
+			bWeaponInHand ? TEXT("TRUE") : TEXT("FALSE"),
+			bAiming ? TEXT("TRUE") : TEXT("FALSE"),
+			bNotReloading ? TEXT("TRUE") : TEXT("FALSE"),
+			bCooldownReady ? TEXT("TRUE") : TEXT("FALSE"),
+			RemainingCooldown);
+		GEngine->AddOnScreenDebugMessage(92010, 0.0f, bCanAttack ? FColor::Green : FColor::Red, DebugText);
 	}
+#endif
 
-	return World->GetTimeSeconds() - LastAttackTime >= AttackCooldown;
+	return bCanAttack;
 }
-
 float UCompanionCombatComponent::GetEffectiveAttackRange() const
 {
 	const float Override = CVarCompanionAttackRange.GetValueOnGameThread();

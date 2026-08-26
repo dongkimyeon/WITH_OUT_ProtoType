@@ -197,6 +197,8 @@ private:
     void FireWeapon();
     void ApplyWeaponRecoil();
     void ReloadWeapon();
+    void BeginConsumableAnimationState();
+    void EndConsumableAnimationState();
 
     UFUNCTION()
     void HandleMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
@@ -207,6 +209,8 @@ private:
     void AttachCurrentWeaponToSocket(FName SocketName);
     AWeaponBase* GetWeaponByType(EWeaponType WeaponType) const;
 
+    void DebugCommandCompanionEngage();
+    void DebugCommandCompanionExplore();
     void DebugDecreaseHealth();
     void DebugDecreaseHunger();
     void DebugDecreaseThirst();
@@ -224,6 +228,12 @@ private:
     // OverTime 회복이 진행 중인 동안에는 (같은 아이템이라도) 다른 소비 아이템 사용을 막는다.
     bool bOverTimeEffectActive = false;
 
+    bool bIsUsingConsumable = false;
+    bool bSavedConsumableSwappingAlpha = false;
+    bool bHiddenConsumableWeaponWasHidden = false;
+
+    UPROPERTY()
+    AWeaponBase* HiddenConsumableWeapon = nullptr;
     float StaminaRegenTimer = 0.0f;
     bool bStaminaDepleted = false;
 

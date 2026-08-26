@@ -70,6 +70,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	bool IsCombatEngaged() const { return bCombatEngaged; }
 
+	UFUNCTION(BlueprintPure, Category = "Companion|AI")
+	bool IsAimingRequested() const;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Explore")
 	float ExploreDuration = 30.0f;
 
@@ -132,6 +135,7 @@ private:
 	bool bCommandedDestinationIsActor = false;
 	bool bCombatEngaged = false;
 	bool bCombatSuppressed = false;
+	bool bAimingRequested = false;
 	bool bExploring = false;
 
 	FVector CommandedLocation = FVector::ZeroVector;

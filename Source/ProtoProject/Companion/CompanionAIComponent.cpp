@@ -142,6 +142,12 @@ void UCompanionAIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	}
 }
 
+bool UCompanionAIComponent::IsAimingRequested() const
+{
+	return bAimingRequested
+		&& CombatComponent.IsValid()
+		&& CombatComponent->GetEquippedWeapon() != nullptr;
+}
 float UCompanionAIComponent::GetEffectiveFollowDistance() const
 {
 	const float Override = CVarCompanionFollowDistance.GetValueOnGameThread();
@@ -150,6 +156,7 @@ float UCompanionAIComponent::GetEffectiveFollowDistance() const
 
 void UCompanionAIComponent::CommandFollow()
 {
+	bAimingRequested = false;
 	bFollowEnabled = true;
 	bHasCommandedDestination = false;
 	bCombatSuppressed = false;
@@ -158,6 +165,7 @@ void UCompanionAIComponent::CommandFollow()
 
 void UCompanionAIComponent::CommandStop()
 {
+	bAimingRequested = false;
 	bFollowEnabled = false;
 	bHasCommandedDestination = false;
 	bCombatEngaged = false;
@@ -172,6 +180,7 @@ void UCompanionAIComponent::CommandStop()
 
 void UCompanionAIComponent::CommandMoveToLocation(const FVector& Location)
 {
+	bAimingRequested = false;
 	FVector ProjectedLocation = Location;
 	if (UWorld* World = GetWorld())
 	{
@@ -195,6 +204,7 @@ void UCompanionAIComponent::CommandMoveToLocation(const FVector& Location)
 
 void UCompanionAIComponent::CommandMoveToActor(AActor* TargetActor)
 {
+	bAimingRequested = false;
 	if (!TargetActor)
 	{
 		return;
@@ -209,6 +219,7 @@ void UCompanionAIComponent::CommandMoveToActor(AActor* TargetActor)
 
 void UCompanionAIComponent::CommandEngage()
 {
+	bAimingRequested = CombatComponent.IsValid() && CombatComponent->GetEquippedWeapon() != nullptr;
 	bCombatSuppressed = false;
 	bCombatEngaged = true;
 	bExploring = false;
@@ -216,6 +227,7 @@ void UCompanionAIComponent::CommandEngage()
 
 void UCompanionAIComponent::CommandExplore()
 {
+	bAimingRequested = false;
 	bExploring = true;
 	bHasCommandedDestination = false;
 	bCombatSuppressed = false;

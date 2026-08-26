@@ -12,9 +12,11 @@
 #include "AIController.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "../PlayerContent/Inventory/InventoryGridComponent.h"
+#include "../PlayerContent/weapon/WeaponBase.h"
 
 ACompanionNPC::ACompanionNPC()
 {
+	PrimaryActorTick.bCanEverTick = true;
 	AIControllerClass = AAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
@@ -37,6 +39,49 @@ ACompanionNPC::ACompanionNPC()
 	InventoryComponent = CreateDefaultSubobject<UInventoryGridComponent>(TEXT("InventoryComponent"));
 }
 
+void ACompanionNPC::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	AWeaponBase* EquippedWeapon = CombatComponent ? CombatComponent->GetEquippedWeapon() : nullptr;
+	bHasWeapon = IsValid(EquippedWeapon);
+	CurrentWeaponType = bHasWeapon ? EquippedWeapon->WeaponType : EWeaponType::None;
+	Joint = bHasWeapon ? EquippedWeapon->LeftHandJointTarget : FVector(1000.0f, -2000.0f, 0.0f);
+
+	bIsAiming = bHasWeapon && AIComponent && AIComponent->IsAimingRequested();
+	SwappingAlpha = bHasWeapon && !bIsReloading;
+	bIsSprint = false;
+
+	if (Controller)
+	{
+		const float NormalizedPitch = FRotator::NormalizeAxis(Controller->GetControlRotation().Pitch);
+		AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
+	}
+	else
+	{
+		AimPitch = 0.0f;
+	}
+
+	if (bHasWeapon && SwappingAlpha && GetMesh())
+	{
+		static const FName RightHandBoneName(TEXT("hand_r"));
+
+		FTransform LeftHandSocketTransform;
+		if (EquippedWeapon->GetLeftHandSocketTransform(LeftHandSocketTransform))
+		{
+			FVector OutPosition;
+			FRotator OutRotation;
+			GetMesh()->TransformToBoneSpace(
+				RightHandBoneName,
+				LeftHandSocketTransform.GetLocation(),
+				LeftHandSocketTransform.Rotator(),
+				OutPosition,
+				OutRotation);
+
+			LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
+		}
+	}
+}
 void ACompanionNPC::BeginPlay()
 {
 	Super::BeginPlay();

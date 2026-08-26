@@ -38,6 +38,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "../Companion/CompanionNPC.h"
+#include "../Companion/CompanionAIComponent.h"
 #include "../Companion/CompanionListenComponent.h"
 
 AProtoCharacter::AProtoCharacter()
@@ -129,6 +130,19 @@ void AProtoCharacter::Tick(float DeltaTime)
 
             }
         }
+#if !(UE_BUILD_SHIPPING)
+    if (IsLocallyControlled() && GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(
+            91002,
+            0.0f,
+            FColor::Cyan,
+            FString::Printf(TEXT("SwappingAlpha: %s | Swapping: %.2f | WeaponType: %d"),
+                SwappingAlpha ? TEXT("TRUE") : TEXT("FALSE"),
+                Swapping,
+                static_cast<int32>(CurrentWeaponType)));
+    }
+#endif
     UpdateStamina(DeltaTime);
 
     /*-------------------
@@ -318,8 +332,48 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::Nine, IE_Pressed, this, &AProtoCharacter::DebugDecreaseThirst);
     PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::DebugIncreaseInfection);
     PlayerInputComponent->BindKey(EKeys::Hyphen, IE_Pressed, this, &AProtoCharacter::DebugDecreaseStamina);
+    PlayerInputComponent->BindKey(EKeys::Five, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionEngage);
+    PlayerInputComponent->BindKey(EKeys::Six, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionExplore);
 }
 
+void AProtoCharacter::DebugCommandCompanionEngage()
+{
+    ACompanionNPC* Companion = GetCompanionNPC();
+    if (!Companion || !Companion->AIComponent)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(93002, 2.0f, FColor::Red, TEXT("Companion engage failed: no companion or AI component"));
+        }
+        return;
+    }
+
+    Companion->AIComponent->CommandEngage();
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93002, 2.0f, FColor::Green, TEXT("Companion command: Engage"));
+    }
+}
+void AProtoCharacter::DebugCommandCompanionExplore()
+{
+    ACompanionNPC* Companion = GetCompanionNPC();
+    if (!Companion || !Companion->AIComponent)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(93001, 2.0f, FColor::Red, TEXT("Companion explore failed: no companion or AI component"));
+        }
+        return;
+    }
+
+    Companion->AIComponent->CommandExplore();
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93001, 2.0f, FColor::Green, TEXT("Companion command: Explore"));
+    }
+}
 void AProtoCharacter::DebugDecreaseHealth()
 {
     if (StatusComponent) StatusComponent->SetHealth(StatusComponent->GetHealth() - 5.0f);
@@ -1177,20 +1231,27 @@ void AProtoCharacter::HandleMontageNotifyBegin(FName NotifyName, const FBranchin
 }
 void AProtoCharacter::HandleMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-    if (Montage != RifleReloadMontage || !bIsReloading)
+    if (Montage != RifleReloadMontage)
     {
         return;
     }
 
-    if (!bInterrupted && CurrentWeapon)
+    if (bIsReloading)
     {
-        CurrentWeapon->ReloadMagazine();
+        if (!bInterrupted && CurrentWeapon)
+        {
+            CurrentWeapon->ReloadMagazine();
+        }
+
+        bIsReloading = false;
+        SwappingAlpha = CurrentWeapon && CurrentWeaponType != EWeaponType::None && Swapping <= 0.0f;
     }
 
-    bIsReloading = false;
-    SwappingAlpha = true;
+    if (bIsUsingConsumable)
+    {
+        EndConsumableAnimationState();
+    }
 }
-
 void AProtoCharacter::ReloadWeapon()
 {
     if (Swapping > 0.0f || !CurrentWeapon || !CurrentWeapon->CanReload())
@@ -1691,9 +1752,46 @@ void AProtoCharacter::ReloadNewAmmoAttach()
     }
 }
 
+void AProtoCharacter::BeginConsumableAnimationState()
+{
+    bIsUsingConsumable = true;
+    bSavedConsumableSwappingAlpha = SwappingAlpha;
+    HiddenConsumableWeapon = CurrentWeapon;
+    bHiddenConsumableWeaponWasHidden = HiddenConsumableWeapon ? HiddenConsumableWeapon->IsHidden() : false;
+
+    SwappingAlpha = false;
+
+    if (HiddenConsumableWeapon)
+    {
+        HiddenConsumableWeapon->SetActorHiddenInGame(true);
+    }
+}
+
+void AProtoCharacter::EndConsumableAnimationState()
+{
+    if (HiddenConsumableWeapon)
+    {
+        HiddenConsumableWeapon->SetActorHiddenInGame(bHiddenConsumableWeaponWasHidden);
+    }
+
+    HiddenConsumableWeapon = nullptr;
+    bHiddenConsumableWeaponWasHidden = false;
+    bIsUsingConsumable = false;
+
+    SwappingAlpha = bSavedConsumableSwappingAlpha
+        && CurrentWeapon
+        && CurrentWeaponType != EWeaponType::None
+        && Swapping <= 0.0f
+        && !bIsReloading;
+}
 bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
 {
     if (!ConsumableData || !StatusComponent) return false;
+
+    if (bIsUsingConsumable || bIsReloading || Swapping > 0.0f)
+    {
+        return false;
+    }
 
     // OverTime 효과가 이미 진행 중이면 사용 불가
     if (bOverTimeEffectActive)
@@ -1741,7 +1839,12 @@ bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
 
         if (ConsumableSectionName != NAME_None)
         {
-            PlayAnimMontage(RifleReloadMontage, 1.0f, ConsumableSectionName);
+            BeginConsumableAnimationState();
+            const float MontageLength = PlayAnimMontage(RifleReloadMontage, 1.0f, ConsumableSectionName);
+            if (MontageLength <= 0.0f)
+            {
+                EndConsumableAnimationState();
+            }
         }
     }
 
