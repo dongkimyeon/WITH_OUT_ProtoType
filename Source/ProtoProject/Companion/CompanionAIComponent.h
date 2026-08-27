@@ -79,6 +79,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	bool IsAimingRequested() const;
 
+	UFUNCTION(BlueprintCallable, Category = "Companion|AI")
+	void ClearAimingRequest();
+
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	bool ShouldSprintWhileFollowing() const;
 
@@ -196,4 +199,5 @@ private:
 	bool RequestMoveToActor(AActor* Target, float AcceptRadius);
 	void RequestMoveToLocation(const FVector& Location, float AcceptRadius);
 };
+
 

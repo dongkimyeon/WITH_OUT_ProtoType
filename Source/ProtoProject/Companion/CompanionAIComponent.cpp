@@ -148,6 +148,11 @@ bool UCompanionAIComponent::IsAimingRequested() const
 		&& CombatComponent.IsValid()
 		&& CombatComponent->GetEquippedWeapon() != nullptr;
 }
+void UCompanionAIComponent::ClearAimingRequest()
+{
+	bAimingRequested = false;
+}
+
 bool UCompanionAIComponent::ShouldSprintWhileFollowing() const
 {
 	const AActor* Owner = GetOwner();
@@ -833,4 +838,5 @@ void UCompanionAIComponent::BuildBehaviorTree()
 
 	BehaviorTreeRoot = Root;
 }
+
 

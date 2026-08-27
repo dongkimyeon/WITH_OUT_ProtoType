@@ -30,6 +30,9 @@ public:
 	FName WeaponSocketName = TEXT("WeaponSocket");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	FName PistolWeaponSocketName = TEXT("PistolSocket");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
 	float MaxHealth = 100.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Combat")
@@ -151,6 +154,7 @@ private:
 
 	void Die();
 };
+
 
 
 

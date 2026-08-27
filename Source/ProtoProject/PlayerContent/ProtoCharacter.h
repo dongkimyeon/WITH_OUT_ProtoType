@@ -215,6 +215,7 @@ private:
     void DebugCommandCompanionEquipWeapon2();
     void DebugCommandCompanionHolsterWeapon();
     void DebugCommandCompanionJump();
+    void DebugCommandCompanionReload();
     void DebugDecreaseHealth();
     void DebugDecreaseHunger();
     void DebugDecreaseThirst();
@@ -506,4 +507,5 @@ public:
 private:
     bool bIsInvetoryOpened = false;
 };
+
 

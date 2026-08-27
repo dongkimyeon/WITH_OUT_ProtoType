@@ -333,6 +333,7 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::Nine, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionHolsterWeapon);
     PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionJump);
     PlayerInputComponent->BindKey(EKeys::Hyphen, IE_Pressed, this, &AProtoCharacter::DebugDecreaseStamina);
+    PlayerInputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionReload);
     PlayerInputComponent->BindKey(EKeys::Five, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionEngage);
     PlayerInputComponent->BindKey(EKeys::Six, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionExplore);
 }
@@ -432,6 +433,25 @@ void AProtoCharacter::DebugCommandCompanionJump()
     if (GEngine)
     {
         GEngine->AddOnScreenDebugMessage(93006, 2.0f, FColor::Green, TEXT("Companion jump"));
+    }
+}
+
+void AProtoCharacter::DebugCommandCompanionReload()
+{
+    ACompanionNPC* Companion = GetCompanionNPC();
+    if (!Companion || !Companion->CombatComponent)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(93007, 2.0f, FColor::Red, TEXT("Companion reload failed"));
+        }
+        return;
+    }
+
+    Companion->CombatComponent->ReloadWeapon();
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93007, 2.0f, FColor::Green, TEXT("Companion reload"));
     }
 }
 void AProtoCharacter::DebugDecreaseHealth()
@@ -2074,5 +2094,6 @@ void AProtoCharacter::OnQuickSlotKeyReleased()
         QuickSlotComponent->UseQuickSlot(QuickSlotComponent->LastUsedSlotIndex, this);
     }
 }
+
 
 

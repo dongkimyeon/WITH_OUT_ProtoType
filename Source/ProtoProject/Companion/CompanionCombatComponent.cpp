@@ -2,6 +2,7 @@
 
 #include "CompanionCombatComponent.h"
 #include "CompanionNPC.h"
+#include "CompanionAIComponent.h"
 #include "../PlayerContent/weapon/WeaponBase.h"
 #include "../PlayerContent/Inventory/InventoryGridComponent.h"
 #include "../PlayerContent/Item/WeaponItemData.h"
@@ -151,14 +152,15 @@ bool UCompanionCombatComponent::SpawnAndAttachWeapon(TSubclassOf<AWeaponBase> We
 	EquippedWeapon->SetOwner(OwnerCharacter);
 	EquippedWeapon->SetActorEnableCollision(false);
 
-	if (OwnerCharacter->GetMesh()->DoesSocketExist(WeaponSocketName))
+	const FName AttachSocketName = EquippedWeapon->WeaponType == EWeaponType::Pistol ? PistolWeaponSocketName : WeaponSocketName;
+	if (OwnerCharacter->GetMesh()->DoesSocketExist(AttachSocketName))
 	{
 		const FAttachmentTransformRules AttachRules(
 			EAttachmentRule::SnapToTarget,
 			EAttachmentRule::SnapToTarget,
 			EAttachmentRule::KeepRelative,
 			true);
-		EquippedWeapon->AttachToComponent(OwnerCharacter->GetMesh(), AttachRules, WeaponSocketName);
+		EquippedWeapon->AttachToComponent(OwnerCharacter->GetMesh(), AttachRules, AttachSocketName);
 	}
 
 	return true;
@@ -368,6 +370,14 @@ void UCompanionCombatComponent::ReloadWeapon()
 		return;
 	}
 
+	if (ACompanionNPC* CompanionOwner = Cast<ACompanionNPC>(GetOwner()))
+	{
+		if (CompanionOwner->AIComponent)
+		{
+			CompanionOwner->AIComponent->ClearAimingRequest();
+		}
+	}
+
 	bIsReloadingWeapon = true;
 
 	const FName ReloadSectionName = EquippedWeapon->WeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
@@ -463,6 +473,9 @@ void UCompanionCombatComponent::Die()
 	bIsDead = true;
 	OnCompanionDied.Broadcast(GetOwner());
 }
+
+
+
 
 
 
