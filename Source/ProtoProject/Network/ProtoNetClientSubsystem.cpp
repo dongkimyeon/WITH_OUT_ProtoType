@@ -534,14 +534,14 @@ bool UProtoNetClientSubsystem::SendEnemyDamage(int32 EnemyId, float Damage)
 	return SendPacketBytes(Bytes);
 }
 
-bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange)
+bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange, float AttackDamage, float AttackCooldown)
 {
 	if (!IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
-	auto Req = ProtoType::Net::CreateC2S_EnemyRegister(Fbb, static_cast<uint32_t>(EnemyId), &PositionVec, Health, MaxHealth, MoveSpeed, AttackRange);
+	auto Req = ProtoType::Net::CreateC2S_EnemyRegister(Fbb, static_cast<uint32_t>(EnemyId), &PositionVec, Health, MaxHealth, MoveSpeed, AttackRange, AttackDamage, AttackCooldown);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_EnemyRegister, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
@@ -829,6 +829,16 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			if (const auto* Damage = Packet->payload_as_S2C_EnemyDamage())
 			{
 				OnEnemyDamage.Broadcast(static_cast<int32>(Damage->enemy_id()), Damage->damage());
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_EnemyAttackResult:
+			// Unicast by the server specifically to the target -- no
+			// target_player_id filter needed, receiving this at all means
+			// it's for this client's own local player.
+			if (const auto* Attack = Packet->payload_as_S2C_EnemyAttackResult())
+			{
+				OnEnemyAttackPlayer.Broadcast(static_cast<int32>(Attack->enemy_id()), Attack->damage());
 			}
 			break;
 

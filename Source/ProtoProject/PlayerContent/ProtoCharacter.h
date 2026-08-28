@@ -388,6 +388,14 @@ public:
     UFUNCTION()
     void HandleInventoryChanged();
 
+    // Bound (locally-controlled instance only, in BeginPlay) to
+    // UProtoNetClientSubsystem::OnEnemyAttackPlayer -- a server-driven
+    // (Multi map) zombie's own melee timing landed on this player. The
+    // server decided if/when/how much (see S2C_EnemyAttackResult's schema
+    // comment); this just applies it, same as the old local overlap path did.
+    UFUNCTION()
+    void HandleEnemyAttackPlayer(int32 EnemyId, float Damage);
+
     // Finds a UItemDataBase asset by its own object name (e.g.
     // "DA_Item_AK47") via the Asset Registry -- not by ItemId, which isn't
     // guaranteed to be filled in (see inventory.fbs's item_id comment).

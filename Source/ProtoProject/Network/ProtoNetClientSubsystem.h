@@ -106,6 +106,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnEnemyOwnerLeft, int32, Enemy
 // client's local trace landed on it.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnEnemyDamage, int32, EnemyId, float, Damage);
 
+// Fired on S2C_EnemyAttackResult -- a SERVER-DRIVEN enemy_id (see
+// SendEnemyRegister) landed a melee hit on the LOCAL player. Unicast by the
+// server, so every receipt of this is meant for this client -- see that
+// message's schema comment for the trust model (server decides if/when/how
+// much, this client applies it to its own health).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnEnemyAttackPlayer, int32, EnemyId, float, Damage);
+
 // Client-side counterpart to the WOP_SERVER RIO echo server: a plain TCP
 // connection speaking the same Protocol (FlatBuffers, size-prefixed "PTPK").
 // A GameInstanceSubsystem so it's reachable from Blueprint anywhere.
@@ -322,9 +329,12 @@ public:
 	// SendEnemyClaimRequest, this doesn't ask permission: the SERVER drives
 	// this enemy's AI from here on (see C2S_EnemyRegister's schema comment),
 	// and the caller should switch straight to mirroring OnEnemyState
-	// without waiting for a reply.
+	// without waiting for a reply. AttackDamage/AttackCooldown are reported
+	// too (not just move/range) so the server's own melee timing matches
+	// this enemy's actual Blueprint-configured stats instead of a hardcoded
+	// guess -- see OnEnemyAttackPlayer for the other half of this.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange);
+	bool SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange, float AttackDamage, float AttackCooldown);
 
 	/*-------------------
 	 상태 조회 / 델리게이트
@@ -365,6 +375,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnEnemyDamage OnEnemyDamage;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnEnemyAttackPlayer OnEnemyAttackPlayer;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnLoginSucceeded OnLoginSucceeded;

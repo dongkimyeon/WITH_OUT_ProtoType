@@ -210,6 +210,7 @@ void AProtoCharacter::BeginPlay()
             {
                 NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
                 NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
+                NetClient->OnEnemyAttackPlayer.AddDynamic(this, &AProtoCharacter::HandleEnemyAttackPlayer);
 
                 // Login via TitleLevel completes (S2C_LoginSuccess arrives,
                 // OnProgressRestored/OnInventoryRestored fire) before this
@@ -1641,6 +1642,14 @@ void AProtoCharacter::HandleInventoryChanged()
     }
 
     NetClient->SendSaveInventory(BuildInventorySnapshot());
+}
+
+void AProtoCharacter::HandleEnemyAttackPlayer(int32 EnemyId, float Damage)
+{
+    if (StatusComponent)
+    {
+        StatusComponent->SetHealth(StatusComponent->GetHealth() - Damage);
+    }
 }
 
 TArray<FProtoInventoryItemEntry> AProtoCharacter::BuildInventorySnapshot() const

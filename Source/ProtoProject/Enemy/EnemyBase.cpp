@@ -109,7 +109,7 @@ void AEnemyBase::BeginPlay()
                 // "granted/denied" round-trip to wait for, this client just
                 // switches straight to mirroring whatever S2C_EnemyState
                 // reports, same as a denied claim used to do.
-                NetClient->SendEnemyRegister(GetEnemyId(), GetActorLocation(), CurrentHealth, MaxHealth, MoveSpeed, AttackRange);
+                NetClient->SendEnemyRegister(GetEnemyId(), GetActorLocation(), CurrentHealth, MaxHealth, MoveSpeed, AttackRange, AttackDamage, AttackCooldown);
                 bIsNetworkOwner = false;
             }
             else
@@ -284,6 +284,19 @@ void AEnemyBase::OnAttackBoxBeginOverlap(UPrimitiveComponent* OverlappedComponen
 {
     if (!OtherActor || OtherActor == this || bIsDead || DamagedActorsThisSwing.Contains(OtherActor))
     {
+        return;
+    }
+
+    if (!bIsNetworkOwner)
+    {
+        // Not locally driving this enemy -- its attack box never actually
+        // gets positioned by a real attack montage on this copy (Tick()
+        // skips the whole local BT/Attack() path), so this should never
+        // fire in practice. Explicit guard anyway: for a server-driven
+        // (Multi map) enemy, player damage comes exclusively through the
+        // server's own S2C_EnemyAttackResult now (see
+        // AProtoCharacter::HandleEnemyAttackPlayer), never straight from a
+        // local overlap this client isn't the authority for.
         return;
     }
 
