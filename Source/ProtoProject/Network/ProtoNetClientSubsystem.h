@@ -13,6 +13,7 @@ class FRunnableThread;
 class FProtoNetReceiveWorker;
 class AProtoRemotePlayer;
 class AProtoCharacter;
+class ACompanionNPC;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnPacketReceived, const TArray<uint8>&, PacketBytes);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProtoOnConnected);
@@ -284,6 +285,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendCompanionMoveInput(FVector Position, FRotator Look);
 
+	// Called once by the LOCAL player's own AProtoCharacter::SpawnCompanion()
+	// right after it spawns its companion, so remote companion puppets (see
+	// UpdateRemoteCompanion) can reuse the SAME already-safely-loaded
+	// BP_CompanionNPC class -- deliberately NOT resolved here via
+	// ConstructorHelpers::FClassFinder the way RemoteCharacterClass is:
+	// BP_CompanionNPC's AnimBP references BP_ProtoCharacter right back, and a
+	// synchronous load at the wrong moment during startup previously
+	// deadlocked ("LoadingIsStuck" -- see AProtoCharacter's constructor
+	// comment). Until the first local companion spawns, RemoteCompanionClass
+	// stays null and remote companions fall back to the AProtoRemotePlayer
+	// placeholder.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	void SetRemoteCompanionClass(TSubclassOf<ACompanionNPC> InClass) { RemoteCompanionClass = InClass; }
+
 	// Sent once, right after BeginPlay, by every placed AEnemyBase -- "I'm
 	// ready to drive this enemy's AI if nobody already is." See
 	// OnEnemyClaimResult for the answer.
@@ -395,18 +410,22 @@ private:
 	// Disconnect() does.
 	void RemoveAllRemotePlayers();
 
-	// Spawns/updates a lightweight placeholder for another player's AI
-	// companion. Shares RemotePlayers/RemoteTargetLocation/
-	// RemoteTargetRotation with real players -- keyed by -(int32)OwnerId so
-	// the two id spaces can never collide (real player ids are always
-	// positive) -- so TickRemotePlayers() above needs no changes: it
-	// already snaps any non-AProtoCharacter actor to its target every
-	// frame, which is exactly what this placeholder needs. Always spawns
-	// AProtoRemotePlayer for now rather than a real ACompanionNPC: this is
-	// someone ELSE's companion, and spinning up a full copy of its AI/
-	// speech/LLM pipeline here would be both wasteful and wrong (nothing
-	// should be feeding it commands but its own owner). Swapping this for
-	// a proper skinned companion mesh is a follow-up.
+	// Spawns/updates a visual mirror of another player's AI companion.
+	// Shares RemotePlayers/RemoteTargetLocation/RemoteTargetRotation with
+	// real players -- keyed by -(int32)OwnerId so the two id spaces can
+	// never collide (real player ids are always positive). Spawns a REAL
+	// ACompanionNPC (via RemoteCompanionClass, i.e. BP_CompanionNPC) marked
+	// with MarkAsRemotePuppet() -- see that function's comment -- so it
+	// shows the actual companion mesh and walks there through
+	// CharacterMovementComponent (TickRemotePlayers()'s Cast<ACharacter>
+	// branch smooths it the same way it does real players) without ever
+	// running its own mic/LLM/AI/combat pipeline: this is someone ELSE's
+	// companion, and spinning that up here would be both wasteful and
+	// wrong (nothing should be feeding it commands but its own owner).
+	// Falls back to the plain AProtoRemotePlayer placeholder if
+	// RemoteCompanionClass hasn't been set yet (see SetRemoteCompanionClass).
+	// Known gap: only position/facing are synced, not weapon/aim state, so
+	// a remote companion's puppet always renders unarmed.
 	void UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation);
 
 	// Despawns a remote companion placeholder and clears its tracking
@@ -422,6 +441,10 @@ private:
 	// Same Blueprint the local player uses, so remote players look real.
 	// Falls back to the AProtoRemotePlayer placeholder if it fails to load.
 	TSubclassOf<AProtoCharacter> RemoteCharacterClass;
+
+	// See SetRemoteCompanionClass. Null until the local player's own
+	// companion has spawned at least once this session.
+	TSubclassOf<ACompanionNPC> RemoteCompanionClass;
 
 	/*-------------------
 	 멤버 변수

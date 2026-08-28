@@ -2,6 +2,7 @@
 #include "ProtoNetReceiveWorker.h"
 #include "ProtoRemotePlayer.h"
 #include "../PlayerContent/ProtoCharacter.h"
+#include "../Companion/CompanionNPC.h"
 
 #include "Sockets.h"
 #include "SocketSubsystem.h"
@@ -985,14 +986,52 @@ void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVect
 	if (!World)
 		return;
 
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-	if (AProtoRemotePlayer* Placeholder = World->SpawnActor<AProtoRemotePlayer>(Location, Rotation, SpawnParams))
+	AActor* NewRemote = nullptr;
+	if (RemoteCompanionClass)
 	{
-		Placeholder->PlayerId = OwnerId;
-		RemotePlayers.Add(Key, Placeholder);
-		UE_LOG(LogProtoNet, Log, TEXT("Spawned remote companion for owner %u"), OwnerId);
+		// Deferred so MarkAsRemotePuppet() runs before
+		// PostInitializeComponents()/BeginPlay() -- see its declaration for
+		// why that ordering matters (stops the AI controller from ever
+		// auto-possessing, and the mic/LLM/AI/combat pipeline from ever
+		// starting). Same SpawnActorDeferred+FinishSpawning idiom as
+		// AEnemyBase::SpawnLoot().
+		const FTransform SpawnTransform(Rotation, Location);
+		ACompanionNPC* RemoteCompanion = World->SpawnActorDeferred<ACompanionNPC>(RemoteCompanionClass, SpawnTransform,
+			nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (RemoteCompanion)
+		{
+			RemoteCompanion->MarkAsRemotePuppet();
+			RemoteCompanion->FinishSpawning(SpawnTransform);
+
+			// Same bootstrap UpdateRemotePlayer() above needs and why --
+			// a Controller-less Character's CharacterMovementComponent
+			// otherwise stays stuck at MOVE_None forever.
+			if (UCharacterMovementComponent* MovementComponent = RemoteCompanion->GetCharacterMovement())
+			{
+				MovementComponent->bRunPhysicsWithNoController = true;
+				MovementComponent->SetMovementMode(MOVE_Walking);
+			}
+		}
+		NewRemote = RemoteCompanion;
+	}
+
+	if (!NewRemote)
+	{
+		// Fallback placeholder if BP_CompanionNPC hasn't been resolved yet
+		// (see RemoteCompanionClass's declaration).
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (AProtoRemotePlayer* Placeholder = World->SpawnActor<AProtoRemotePlayer>(Location, Rotation, SpawnParams))
+		{
+			Placeholder->PlayerId = OwnerId;
+			NewRemote = Placeholder;
+		}
+	}
+
+	if (NewRemote)
+	{
+		RemotePlayers.Add(Key, NewRemote);
+		UE_LOG(LogProtoNet, Log, TEXT("Spawned remote companion for owner %u (%s)"), OwnerId, *NewRemote->GetClass()->GetName());
 	}
 }
 
@@ -1038,7 +1077,11 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 			continue;
 		const FRotator* TargetRotation = RemoteTargetRotation.Find(Pair.Key);
 
-		if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(RemoteActor))
+		// ACharacter (not just AProtoCharacter) so this also smooths remote
+		// AI companion puppets (see UpdateRemoteCompanion) -- none of the
+		// calls below are AProtoCharacter-specific, they're all plain
+		// ACharacter/APawn API.
+		if (ACharacter* RemoteCharacter = Cast<ACharacter>(RemoteActor))
 		{
 			// Walk toward the target so CharacterMovementComponent produces
 			// real velocity for the walk/run animation blend.

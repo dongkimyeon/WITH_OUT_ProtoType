@@ -104,6 +104,27 @@ void ACompanionNPC::Tick(float DeltaSeconds)
 }
 void ACompanionNPC::BeginPlay()
 {
+	if (bIsRemotePuppet)
+	{
+		// Super::BeginPlay() 전에 파이프라인 컴포넌트를 전부 destroy해서, 그
+		// 컴포넌트들 자신의 BeginPlay()/Tick()조차 절대 돌지 않게 한다 --
+		// Tick()의 나머지 로직은 이 컴포넌트들이 전부 nullptr이어도 이미
+		// null 체크로 안전하게 no-op된다 (bHasWeapon=false 등 기본값으로).
+		if (ListenComponent) { ListenComponent->DestroyComponent(); ListenComponent = nullptr; }
+		if (BrainComponent) { BrainComponent->DestroyComponent(); BrainComponent = nullptr; }
+		if (SpeechComponent) { SpeechComponent->DestroyComponent(); SpeechComponent = nullptr; }
+		if (AIComponent) { AIComponent->DestroyComponent(); AIComponent = nullptr; }
+		if (CombatComponent) { CombatComponent->DestroyComponent(); CombatComponent = nullptr; }
+		if (PerceptionComponent) { PerceptionComponent->DestroyComponent(); PerceptionComponent = nullptr; }
+		if (CommandRouterComponent) { CommandRouterComponent->DestroyComponent(); CommandRouterComponent = nullptr; }
+		if (ReportComponent) { ReportComponent->DestroyComponent(); ReportComponent = nullptr; }
+		if (VisionCaptureComponent) { VisionCaptureComponent->DestroyComponent(); VisionCaptureComponent = nullptr; }
+		if (InventoryComponent) { InventoryComponent->DestroyComponent(); InventoryComponent = nullptr; }
+
+		Super::BeginPlay();
+		return;
+	}
+
 	Super::BeginPlay();
 
 	// 명령/대화 라우팅: 인식된 텍스트는 항상 Router를 먼저 거친다(키워드 즉시 실행 -> Brain 폴백).
@@ -117,6 +138,12 @@ void ACompanionNPC::BeginPlay()
 	// 바뀔 때마다(탐색으로 줍거나 버릴 때) 재평가.
 	CombatComponent->EquipWeaponFromInventory(InventoryComponent);
 	InventoryComponent->OnInventoryChanged.AddDynamic(this, &ACompanionNPC::HandleInventoryChanged);
+}
+
+void ACompanionNPC::MarkAsRemotePuppet()
+{
+	bIsRemotePuppet = true;
+	AutoPossessAI = EAutoPossessAI::Disabled;
 }
 
 void ACompanionNPC::HandleInventoryChanged()

@@ -67,6 +67,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Companion")
 	void SetOwningPlayer(APawn* Player);
 
+	// SpawnActorDeferred 직후, FinishSpawning 전에 호출해야 한다 (see
+	// UProtoNetClientSubsystem::UpdateRemoteCompanion) -- 다른 클라이언트의
+	// 동료를 이 클라이언트에서 시각적으로만 미러링하는 인스턴스로 표시한다.
+	// AutoPossessAI를 여기서 꺼서 AIController가 아예 안 붙게 하고,
+	// BeginPlay()가 마이크/LLM/AI/전투 파이프라인 컴포넌트 전체를 destroy하게
+	// 만든다 -- 이 인형에게 명령을 내리거나 마이크를 켜야 할 주체는 오직 그
+	// 동료의 진짜 주인(다른 클라이언트) 뿐이다.
+	void MarkAsRemotePuppet();
+
+	// true면 이 인스턴스는 원격 동료 시각화용 인형이다 -- MarkAsRemotePuppet 참고.
+	UPROPERTY(BlueprintReadOnly, Category = "Companion")
+	bool bIsRemotePuppet = false;
+
 	// Player ABP와 같은 이름으로 노출하는 동료 애니메이션용 상태값.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
 	bool bIsSprint = false;

@@ -671,6 +671,19 @@ void AProtoCharacter::SpawnCompanion()
     if (CachedCompanionNPC)
     {
         CachedCompanionNPC->SetOwningPlayer(this);
+
+        // Hand the already-safely-loaded BP_CompanionNPC class to the net
+        // subsystem so OTHER clients' companions can be shown as real
+        // ACompanionNPC puppets instead of a placeholder -- see
+        // UProtoNetClientSubsystem::SetRemoteCompanionClass for why this
+        // can't just FClassFinder-load it there directly.
+        if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+        {
+            if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+            {
+                NetClient->SetRemoteCompanionClass(CompanionClass);
+            }
+        }
     }
 }
 
