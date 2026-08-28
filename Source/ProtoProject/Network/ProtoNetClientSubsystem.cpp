@@ -842,6 +842,13 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			}
 			break;
 
+		case ProtoType::Net::Payload::S2C_EnemyAttackBroadcast:
+			if (const auto* AttackBroadcast = Packet->payload_as_S2C_EnemyAttackBroadcast())
+			{
+				OnEnemyAttackBroadcast.Broadcast(static_cast<int32>(AttackBroadcast->enemy_id()));
+			}
+			break;
+
 		case ProtoType::Net::Payload::S2C_CompanionMoveState:
 			if (const auto* State = Packet->payload_as_S2C_CompanionMoveState())
 			{

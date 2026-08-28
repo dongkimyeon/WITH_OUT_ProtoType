@@ -113,6 +113,12 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnEnemyDamage, int32, EnemyId
 // much, this client applies it to its own health).
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnEnemyAttackPlayer, int32, EnemyId, float, Damage);
 
+// Fired on S2C_EnemyAttackBroadcast -- purely visual: a server-driven
+// enemy_id landed a hit (on SOMEONE, not necessarily this client's own
+// player) and every mirrored copy of it should play its attack animation.
+// Broadcast to everyone, unlike OnEnemyAttackPlayer's unicast.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnEnemyAttackBroadcast, int32, EnemyId);
+
 // Client-side counterpart to the WOP_SERVER RIO echo server: a plain TCP
 // connection speaking the same Protocol (FlatBuffers, size-prefixed "PTPK").
 // A GameInstanceSubsystem so it's reachable from Blueprint anywhere.
@@ -378,6 +384,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnEnemyAttackPlayer OnEnemyAttackPlayer;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnEnemyAttackBroadcast OnEnemyAttackBroadcast;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnLoginSucceeded OnLoginSucceeded;

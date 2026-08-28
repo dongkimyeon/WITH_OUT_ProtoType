@@ -204,6 +204,17 @@ private:
     UFUNCTION()
     void HandleEnemyDamage(int32 EnemyId, float Damage);
 
+    // Bound unconditionally (any client with this enemy_id placed, owner
+    // or not) to UProtoNetClientSubsystem::OnEnemyAttackBroadcast -- the
+    // server's EnemyAI landed a hit with this enemy_id, so play the attack
+    // animation here too (visual only; see HandleEnemyAttackPlayer on
+    // AProtoCharacter for the actual damage, which only reaches the
+    // target). Never fires for a claim-owned (Single map) enemy: the
+    // server only ever sends this for enemy ids registered via
+    // C2S_EnemyRegister.
+    UFUNCTION()
+    void HandleEnemyAttackBroadcast(int32 EnemyId);
+
     TSharedPtr<TBTNode<AEnemyBase>> BehaviorTreeRoot;
     float DebugPrintTimer = 0.0f;
     float MoveRequestTimer = 0.0f;

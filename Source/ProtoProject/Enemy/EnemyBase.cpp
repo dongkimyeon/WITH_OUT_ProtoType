@@ -101,6 +101,7 @@ void AEnemyBase::BeginPlay()
         {
             NetClient->OnEnemyState.AddDynamic(this, &AEnemyBase::HandleEnemyState);
             NetClient->OnEnemyDamage.AddDynamic(this, &AEnemyBase::HandleEnemyDamage);
+            NetClient->OnEnemyAttackBroadcast.AddDynamic(this, &AEnemyBase::HandleEnemyAttackBroadcast);
 
             if (NetClient->IsConnected() && NetClient->IsMultiplayerVisualsEnabled())
             {
@@ -553,6 +554,30 @@ void AEnemyBase::HandleEnemyDamage(int32 EnemyId, float Damage)
     }
 
     TakeEnemyDamage(Damage);
+}
+
+void AEnemyBase::HandleEnemyAttackBroadcast(int32 EnemyId)
+{
+    // Every enemy in the level shares this broadcast delegate. bIsNetworkOwner
+    // is redundant in practice (the server only ever sends this for
+    // registered/server-driven enemy ids, which by construction have no
+    // owning client at all -- see the header comment) but kept as cheap
+    // defense-in-depth, same as HandleEnemyState/HandleEnemyDamage's own checks.
+    if (EnemyId != GetEnemyId() || bIsNetworkOwner || bIsDead || bIsAttacking)
+    {
+        return;
+    }
+
+    // Play only -- no CanAttack()/cooldown/target gating here, the server
+    // already decided this swing happens. HandleAttackMontageNotifyBegin/
+    // HandleAttackMontageEnded (bound unconditionally in BeginPlay) drive
+    // bIsAttacking/the hit window exactly as they do for a locally-driven
+    // attack; OnAttackBoxBeginOverlap is a no-op here anyway since
+    // !bIsNetworkOwner, so this is animation-only, never a second source of damage.
+    if (AttackMontage)
+    {
+        bIsAttacking = PlayAnimMontage(AttackMontage) > 0.0f;
+    }
 }
 
 void AEnemyBase::BuildBehaviorTree()
