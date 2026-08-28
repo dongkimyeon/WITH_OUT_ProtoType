@@ -76,6 +76,35 @@ struct FProtoInventoryItemEntry
 // client can't leave stale items behind.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnInventoryRestored, const TArray<FProtoInventoryItemEntry>&, Items);
 
+// Fired whenever the server answers a container loot roll (see
+// SendContainerLootRoll) with the authoritative contents for ContainerId --
+// either this client's own roll (if it was first) or another client's
+// earlier one. AItemContainerBase-derived actors bind this in BeginPlay and
+// filter by their own GetContainerId(), so nothing needs a central registry
+// of which container is waiting for which reply.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnContainerLootState, int32, ContainerId, const TArray<FProtoInventoryItemEntry>&, Items);
+
+// Fired on S2C_EnemyClaimResult, answering a SendEnemyClaimRequest for
+// EnemyId. bGranted true means this client is now the one running that
+// enemy's AI locally and should start calling SendEnemyState for it.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnEnemyClaimResult, int32, EnemyId, bool, bGranted);
+
+// Fired on S2C_EnemyState -- the CURRENT owner's authoritative
+// position/facing/health/dead state for EnemyId. Never fires for an enemy
+// this client itself owns (the server never echoes C2S_EnemyState back to
+// its sender).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FProtoOnEnemyState, int32, EnemyId, FVector, Position, FRotator, Look, float, Health, bool, bIsDead);
+
+// Fired on S2C_EnemyOwnerLeft -- EnemyId's driving session disconnected.
+// The enemy itself still exists; a non-owner should try SendEnemyClaimRequest
+// again so it doesn't stay frozen forever.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnEnemyOwnerLeft, int32, EnemyId);
+
+// Fired on S2C_EnemyDamage -- only ever received by the current owner of
+// EnemyId (see that message's schema comment), relaying a hit some other
+// client's local trace landed on it.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnEnemyDamage, int32, EnemyId, float, Damage);
+
 // Client-side counterpart to the WOP_SERVER RIO echo server: a plain TCP
 // connection speaking the same Protocol (FlatBuffers, size-prefixed "PTPK").
 // A GameInstanceSubsystem so it's reachable from Blueprint anywhere.
@@ -238,6 +267,50 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendSetVisible(bool bVisible);
 
+	// Reports the local roll an AItemContainerBase-derived actor generated
+	// for itself on BeginPlay (see ALootContainer::SeedContents). The
+	// server answers via OnContainerLootState with the authoritative
+	// contents -- either this roll, if it's the first for ContainerId, or
+	// an earlier client's -- so every client agrees on what's in the box.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendContainerLootRoll(int32 ContainerId, const TArray<FProtoInventoryItemEntry>& Items);
+
+	// Reports the local AI companion's position/facing, throttled (same
+	// idea as SendMoveInput), so other clients can mirror it via a
+	// placeholder actor (see UpdateRemoteCompanion). Not gated by
+	// bMultiplayerVisualsEnabled for the SEND direction -- same reasoning
+	// as SendSaveInventory, this is "what my companion is doing" regardless
+	// of whether this client currently wants to see other players.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendCompanionMoveInput(FVector Position, FRotator Look);
+
+	// Sent once, right after BeginPlay, by every placed AEnemyBase -- "I'm
+	// ready to drive this enemy's AI if nobody already is." See
+	// OnEnemyClaimResult for the answer.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendEnemyClaimRequest(int32 EnemyId);
+
+	// Throttled, called only by whichever client owns EnemyId (i.e. only
+	// after OnEnemyClaimResult granted it) -- see C2S_EnemyState's schema
+	// comment.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendEnemyState(int32 EnemyId, FVector Position, FRotator Look, float Health, bool bIsDead);
+
+	// Called by a NON-owning client whose own local hit detection landed a
+	// shot on EnemyId, so the server can relay it to whichever client
+	// actually owns that enemy's health. See C2S_EnemyDamage's schema comment.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendEnemyDamage(int32 EnemyId, float Damage);
+
+	// Sent once, right after BeginPlay, by every placed AEnemyBase that
+	// finds itself in a multiplayer-visible map -- unlike
+	// SendEnemyClaimRequest, this doesn't ask permission: the SERVER drives
+	// this enemy's AI from here on (see C2S_EnemyRegister's schema comment),
+	// and the caller should switch straight to mirroring OnEnemyState
+	// without waiting for a reply.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange);
+
 	/*-------------------
 	 상태 조회 / 델리게이트
 	-------------------*/
@@ -262,6 +335,21 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnInventoryRestored OnInventoryRestored;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnContainerLootState OnContainerLootState;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnEnemyClaimResult OnEnemyClaimResult;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnEnemyState OnEnemyState;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnEnemyOwnerLeft OnEnemyOwnerLeft;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnEnemyDamage OnEnemyDamage;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnLoginSucceeded OnLoginSucceeded;
@@ -306,6 +394,25 @@ private:
 	// SetMultiplayerVisualsEnabled(false) and reuses the same cleanup
 	// Disconnect() does.
 	void RemoveAllRemotePlayers();
+
+	// Spawns/updates a lightweight placeholder for another player's AI
+	// companion. Shares RemotePlayers/RemoteTargetLocation/
+	// RemoteTargetRotation with real players -- keyed by -(int32)OwnerId so
+	// the two id spaces can never collide (real player ids are always
+	// positive) -- so TickRemotePlayers() above needs no changes: it
+	// already snaps any non-AProtoCharacter actor to its target every
+	// frame, which is exactly what this placeholder needs. Always spawns
+	// AProtoRemotePlayer for now rather than a real ACompanionNPC: this is
+	// someone ELSE's companion, and spinning up a full copy of its AI/
+	// speech/LLM pipeline here would be both wasteful and wrong (nothing
+	// should be feeding it commands but its own owner). Swapping this for
+	// a proper skinned companion mesh is a follow-up.
+	void UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation);
+
+	// Despawns a remote companion placeholder and clears its tracking
+	// entries. Also called from RemoveRemotePlayer -- a player's companion
+	// can't outlive them.
+	void RemoveRemoteCompanion(uint32 OwnerId);
 
 	// See SetMultiplayerVisualsEnabled(). Gates both the Send*() helpers
 	// below and the remote-player-affecting cases in HandleIncomingPacket();

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "ItemContainerBase.h"
+#include "../../Network/ProtoNetClientSubsystem.h"
 #include "LootContainer.generated.h"
 
 class UItemDataBase;
@@ -26,8 +27,9 @@ struct FLootTableEntry
 	int32 MaxStackCount = 1;
 };
 
-// 랜덤 확률로 내용물이 채워지는 스테이지 파밍용 루팅 박스. 레벨을 새로 로드할 때마다 다시 리롤된다.
-// (다른 플레이어와 결과를 공유하려면 서버 권위 상태가 필요 - 지금은 클라이언트 로컬 전용.)
+// 랜덤 확률로 내용물이 채워지는 스테이지 파밍용 루팅 박스. 매번 각자 로컬에서 리롤하지만,
+// 서버에 처음 보고된 결과가 권위 있는 정답이 되어 모든 클라이언트에게 재방송되므로
+// (SendContainerLootRoll/OnContainerLootState 참고) 다른 플레이어와 내용물이 항상 일치한다.
 UCLASS()
 class PROTOPROJECT_API ALootContainer : public AItemContainerBase
 {
@@ -41,4 +43,12 @@ public:
 
 protected:
 	virtual void SeedContents() override;
+
+private:
+	// Fired once the server answers this container's loot roll. If another
+	// client's roll got there first, replaces whatever this instance seeded
+	// locally with the authoritative contents; if this instance's own roll
+	// won, it's a same-as-already-shown no-op.
+	UFUNCTION()
+	void HandleContainerLootState(int32 ContainerId, const TArray<FProtoInventoryItemEntry>& Items);
 };

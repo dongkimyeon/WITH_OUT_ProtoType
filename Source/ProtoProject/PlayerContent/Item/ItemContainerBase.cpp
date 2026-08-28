@@ -59,3 +59,8 @@ bool AItemContainerBase::CanInteract_Implementation(AProtoCharacter* InPlayer) c
 {
 	return true;
 }
+
+int32 AItemContainerBase::GetContainerId() const
+{
+	return static_cast<int32>(GetTypeHash(GetName()));
+}

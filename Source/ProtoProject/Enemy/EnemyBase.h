@@ -185,7 +185,25 @@ protected:
     UFUNCTION()
     void HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
+    // Stable id shared across every client's copy of this level, derived
+    // from the placed actor's own in-level name -- same idea as
+    // AItemContainerBase::GetContainerId. Used to key the server-mediated
+    // AI ownership claim (see SendEnemyClaimRequest).
+    int32 GetEnemyId() const;
+
 private:
+    UFUNCTION()
+    void HandleEnemyClaimResult(int32 EnemyId, bool bGranted);
+
+    UFUNCTION()
+    void HandleEnemyState(int32 EnemyId, FVector Position, FRotator Look, float Health, bool bIsDeadState);
+
+    UFUNCTION()
+    void HandleEnemyOwnerLeft(int32 EnemyId);
+
+    UFUNCTION()
+    void HandleEnemyDamage(int32 EnemyId, float Damage);
+
     TSharedPtr<TBTNode<AEnemyBase>> BehaviorTreeRoot;
     float DebugPrintTimer = 0.0f;
     float MoveRequestTimer = 0.0f;
@@ -193,6 +211,18 @@ private:
     float DefaultMaxAcceleration = 2048.0f;
     FString LastBehaviorDebugMessage;
     TSet<TWeakObjectPtr<AActor>> DamagedActorsThisSwing;
+
+    // Whether THIS client's copy is the one actually running the behavior
+    // tree/pathing for this enemy (see HandleEnemyClaimResult). Defaults to
+    // true so offline/not-yet-connected play behaves exactly as before this
+    // feature existed -- it only ever flips to false, and only once a
+    // claim comes back denied (i.e. some other client already owns it).
+    bool bIsNetworkOwner = true;
+
+    // Throttled position/facing/health reporting to the server, same idea
+    // as AProtoCharacter's NetSyncInterval. Only sent while bIsNetworkOwner.
+    float NetSyncTimer = 0.0f;
+    static constexpr float NetSyncInterval = 0.15f;
 };
 
 

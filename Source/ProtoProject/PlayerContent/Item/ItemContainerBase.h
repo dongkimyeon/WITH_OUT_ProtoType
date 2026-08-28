@@ -34,6 +34,15 @@ public:
 	virtual FText GetInteractPrompt_Implementation() const override;
 	virtual bool CanInteract_Implementation(AProtoCharacter* InPlayer) const override;
 
+	// Stable id shared across every client's copy of this level, derived
+	// from the placed actor's own in-level name rather than assigned by the
+	// server -- as long as everyone loaded the same packaged Content, the
+	// same container gets the same id on every machine with no handshake
+	// needed. Used to key the server-authoritative loot roll (see
+	// UProtoNetClientSubsystem::SendContainerLootRoll / OnContainerLootState).
+	UFUNCTION(BlueprintCallable, Category = "Container")
+	int32 GetContainerId() const;
+
 protected:
 	virtual void BeginPlay() override;
 

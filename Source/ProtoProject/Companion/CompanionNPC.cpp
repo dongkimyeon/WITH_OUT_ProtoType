@@ -13,6 +13,7 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "../PlayerContent/Inventory/InventoryGridComponent.h"
 #include "../PlayerContent/weapon/WeaponBase.h"
+#include "../Network/ProtoNetClientSubsystem.h"
 
 ACompanionNPC::ACompanionNPC()
 {
@@ -82,6 +83,24 @@ void ACompanionNPC::Tick(float DeltaSeconds)
 			LeftHandTransform = FTransform(OutRotation, OutPosition, FVector::OneVector);
 		}
 	}
+
+	// 다른 플레이어 화면에도 이 동료가 보이도록, 위치/시선을 주기적으로 서버에 보고한다
+	// (원격 플레이어를 따라다니는 동료는 없으므로 로컬 소유 동료일 때만 보낸다).
+	if (bOwnedByLocalPlayer)
+	{
+		NetSyncTimer -= DeltaSeconds;
+		if (NetSyncTimer <= 0.0f)
+		{
+			NetSyncTimer = NetSyncInterval;
+			if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+			{
+				if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+				{
+					NetClient->SendCompanionMoveInput(GetActorLocation(), GetActorRotation());
+				}
+			}
+		}
+	}
 }
 void ACompanionNPC::BeginPlay()
 {
@@ -111,6 +130,8 @@ void ACompanionNPC::SetOwningPlayer(APawn* Player)
 	{
 		AIComponent->SetFollowTarget(Player);
 	}
+
+	bOwnedByLocalPlayer = Player && Player->IsLocallyControlled();
 }
 
 

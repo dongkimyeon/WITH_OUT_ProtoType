@@ -441,6 +441,114 @@ bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendContainerLootRoll(int32 ContainerId, const TArray<FProtoInventoryItemEntry>& Items)
+{
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+
+	TArray<flatbuffers::Offset<ProtoType::Net::InventoryItemEntry>> ItemOffsets;
+	ItemOffsets.Reserve(Items.Num());
+	for (const FProtoInventoryItemEntry& Item : Items)
+	{
+		auto ItemIdOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Item.ItemId.ToString()));
+		ItemOffsets.Add(ProtoType::Net::CreateInventoryItemEntry(
+			Fbb, ItemIdOffset,
+			static_cast<int16_t>(Item.GridX), static_cast<int16_t>(Item.GridY),
+			Item.bRotated, static_cast<int16_t>(Item.StackCount)));
+	}
+	auto ItemsVector = Fbb.CreateVector(ItemOffsets.GetData(), ItemOffsets.Num());
+
+	auto Req = ProtoType::Net::CreateC2S_ContainerLootRoll(Fbb, static_cast<uint32_t>(ContainerId), ItemsVector);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_ContainerLootRoll, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator Look)
+{
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
+	const ProtoType::Net::Rotator LookRot(Look.Pitch, Look.Yaw, Look.Roll);
+	auto Req = ProtoType::Net::CreateC2S_CompanionMoveInput(Fbb, &PositionVec, &LookRot);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_CompanionMoveInput, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendEnemyClaimRequest(int32 EnemyId)
+{
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto Req = ProtoType::Net::CreateC2S_EnemyClaimRequest(Fbb, static_cast<uint32_t>(EnemyId));
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_EnemyClaimRequest, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendEnemyState(int32 EnemyId, FVector Position, FRotator Look, float Health, bool bIsDead)
+{
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
+	const ProtoType::Net::Rotator LookRot(Look.Pitch, Look.Yaw, Look.Roll);
+	auto Req = ProtoType::Net::CreateC2S_EnemyState(Fbb, static_cast<uint32_t>(EnemyId), &PositionVec, &LookRot, Health, bIsDead);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_EnemyState, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendEnemyDamage(int32 EnemyId, float Damage)
+{
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto Req = ProtoType::Net::CreateC2S_EnemyDamage(Fbb, static_cast<uint32_t>(EnemyId), Damage);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_EnemyDamage, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange)
+{
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
+	auto Req = ProtoType::Net::CreateC2S_EnemyRegister(Fbb, static_cast<uint32_t>(EnemyId), &PositionVec, Health, MaxHealth, MoveSpeed, AttackRange);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_EnemyRegister, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 void UProtoNetClientSubsystem::CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType, const TArray<FProtoInventoryItemEntry>& InventoryItems)
 {
 	bHasPendingProgressRestore = true;
@@ -477,6 +585,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			case ProtoType::Net::Payload::S2C_ItemUseBroadcast:
 			case ProtoType::Net::Payload::S2C_PlayerLeft:
 			case ProtoType::Net::Payload::S2C_AttackResult:
+			case ProtoType::Net::Payload::S2C_CompanionMoveState:
 				return;
 			default:
 				break;
@@ -643,6 +752,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			if (const auto* Left = Packet->payload_as_S2C_PlayerLeft())
 			{
 				RemoveRemotePlayer(Left->player_id());
+				RemoveRemoteCompanion(Left->player_id());
 			}
 			break;
 
@@ -658,6 +768,80 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 							DrawDebugSphere(World, FVector(HitPos->x(), HitPos->y(), HitPos->z()), 20.0f, 8, FColor::Red, false, 1.0f, 0, 2.0f);
 						}
 					}
+				}
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_ContainerLootState:
+			if (const auto* State = Packet->payload_as_S2C_ContainerLootState())
+			{
+				TArray<FProtoInventoryItemEntry> Items;
+				if (const auto* Entries = State->items())
+				{
+					Items.Reserve(Entries->size());
+					for (const auto* Entry : *Entries)
+					{
+						if (!Entry || !Entry->item_id())
+							continue;
+						FProtoInventoryItemEntry ItemEntry;
+						ItemEntry.ItemId = FName(UTF8_TO_TCHAR(Entry->item_id()->c_str()));
+						ItemEntry.GridX = Entry->grid_x();
+						ItemEntry.GridY = Entry->grid_y();
+						ItemEntry.bRotated = Entry->rotated();
+						ItemEntry.StackCount = Entry->stack_count();
+						Items.Add(ItemEntry);
+					}
+				}
+				OnContainerLootState.Broadcast(static_cast<int32>(State->container_id()), Items);
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_EnemyClaimResult:
+			if (const auto* Result = Packet->payload_as_S2C_EnemyClaimResult())
+			{
+				OnEnemyClaimResult.Broadcast(static_cast<int32>(Result->enemy_id()), Result->granted());
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_EnemyState:
+			if (const auto* State = Packet->payload_as_S2C_EnemyState())
+			{
+				const auto* Pos = State->position();
+				const auto* Look = State->look();
+				OnEnemyState.Broadcast(
+					static_cast<int32>(State->enemy_id()),
+					Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
+					Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
+					State->health(),
+					State->is_dead());
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_EnemyOwnerLeft:
+			if (const auto* Left = Packet->payload_as_S2C_EnemyOwnerLeft())
+			{
+				OnEnemyOwnerLeft.Broadcast(static_cast<int32>(Left->enemy_id()));
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_EnemyDamage:
+			if (const auto* Damage = Packet->payload_as_S2C_EnemyDamage())
+			{
+				OnEnemyDamage.Broadcast(static_cast<int32>(Damage->enemy_id()), Damage->damage());
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_CompanionMoveState:
+			if (const auto* State = Packet->payload_as_S2C_CompanionMoveState())
+			{
+				if (State->owner_id() != LocalPlayerId)
+				{
+					const auto* Pos = State->position();
+					const auto* Look = State->look();
+					UpdateRemoteCompanion(
+						State->owner_id(),
+						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
+						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator);
 				}
 			}
 			break;
@@ -779,6 +963,53 @@ void UProtoNetClientSubsystem::RemoveRemotePlayer(uint32 PlayerId)
 	RemoteTargetRotation.Remove(Key);
 
 	UE_LOG(LogProtoNet, Log, TEXT("Removed remote player %u"), PlayerId);
+}
+
+void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation)
+{
+	// See this function's header comment for why negated keys share the
+	// same maps as real remote players instead of a separate set.
+	const int32 Key = -static_cast<int32>(OwnerId);
+
+	RemoteTargetLocation.Add(Key, Location);
+	RemoteTargetRotation.Add(Key, Rotation);
+
+	if (AActor** Existing = RemotePlayers.Find(Key))
+	{
+		if (IsValid(*Existing))
+			return;
+		RemotePlayers.Remove(Key);
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+		return;
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	if (AProtoRemotePlayer* Placeholder = World->SpawnActor<AProtoRemotePlayer>(Location, Rotation, SpawnParams))
+	{
+		Placeholder->PlayerId = OwnerId;
+		RemotePlayers.Add(Key, Placeholder);
+		UE_LOG(LogProtoNet, Log, TEXT("Spawned remote companion for owner %u"), OwnerId);
+	}
+}
+
+void UProtoNetClientSubsystem::RemoveRemoteCompanion(uint32 OwnerId)
+{
+	const int32 Key = -static_cast<int32>(OwnerId);
+
+	if (AActor** Existing = RemotePlayers.Find(Key))
+	{
+		if (IsValid(*Existing))
+		{
+			(*Existing)->Destroy();
+		}
+		RemotePlayers.Remove(Key);
+	}
+	RemoteTargetLocation.Remove(Key);
+	RemoteTargetRotation.Remove(Key);
 }
 
 void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)

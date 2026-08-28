@@ -101,4 +101,15 @@ protected:
 private:
 	UFUNCTION()
 	void HandleInventoryChanged();
+
+	// Throttled position/facing reporting to the server (same idea as
+	// AProtoCharacter's own NetSyncInterval) so other clients can mirror
+	// this companion via a placeholder actor -- see
+	// UProtoNetClientSubsystem::SendCompanionMoveInput/UpdateRemoteCompanion.
+	// Only meaningful, and only sent, when the owning player is the LOCAL
+	// player (see SetOwningPlayer) -- there's no such thing as "someone
+	// else's companion" spawned on this client to report a position for.
+	float NetSyncTimer = 0.0f;
+	static constexpr float NetSyncInterval = 0.1f;
+	bool bOwnedByLocalPlayer = false;
 };

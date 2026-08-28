@@ -17,6 +17,7 @@
 #include "../PlayerContent/PlayerStatusComponent.h"
 #include "../Companion/CompanionNPC.h"
 #include "../Companion/CompanionCombatComponent.h"
+#include "../Network/ProtoNetClientSubsystem.h"
 
 using FEnemyBTNode = TBTNode<AEnemyBase>;
 using FEnemySelectorNode = TBTSelectorNode<AEnemyBase>;
@@ -90,11 +91,54 @@ void AEnemyBase::BeginPlay()
         AnimInstance->OnPlayMontageNotifyBegin.AddUniqueDynamic(this, &AEnemyBase::HandleAttackMontageNotifyBegin);
         AnimInstance->OnMontageEnded.AddUniqueDynamic(this, &AEnemyBase::HandleAttackMontageEnded);
     }
+
+    // 여러 클라이언트가 각자 이 좀비를 따로 시뮬레이션하지 않도록, 서버에 AI 소유권을
+    // 요청한다. 연결 안 된 상태(오프라인 테스트 등)라면 그냥 기존처럼 로컬 AI로 동작한다
+    // (bIsNetworkOwner 기본값이 true인 이유).
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->OnEnemyState.AddDynamic(this, &AEnemyBase::HandleEnemyState);
+            NetClient->OnEnemyDamage.AddDynamic(this, &AEnemyBase::HandleEnemyDamage);
+
+            if (NetClient->IsConnected() && NetClient->IsMultiplayerVisualsEnabled())
+            {
+                // Multi map: the SERVER drives this enemy's AI directly
+                // (see C2S_EnemyRegister's schema comment) -- there's no
+                // "granted/denied" round-trip to wait for, this client just
+                // switches straight to mirroring whatever S2C_EnemyState
+                // reports, same as a denied claim used to do.
+                NetClient->SendEnemyRegister(GetEnemyId(), GetActorLocation(), CurrentHealth, MaxHealth, MoveSpeed, AttackRange);
+                bIsNetworkOwner = false;
+            }
+            else
+            {
+                // Single map / offline / not yet connected: fall back to
+                // the older per-client ownership-claim path unchanged.
+                NetClient->OnEnemyClaimResult.AddDynamic(this, &AEnemyBase::HandleEnemyClaimResult);
+                NetClient->OnEnemyOwnerLeft.AddDynamic(this, &AEnemyBase::HandleEnemyOwnerLeft);
+
+                if (NetClient->IsConnected())
+                {
+                    NetClient->SendEnemyClaimRequest(GetEnemyId());
+                }
+            }
+        }
+    }
 }
 
 void AEnemyBase::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
+    if (!bIsNetworkOwner)
+    {
+        // Another client owns this enemy's AI -- HandleEnemyState applies
+        // its reported position/health/death directly as each update
+        // arrives, so there's no local BT/pathing/targeting to run here.
+        return;
+    }
 
     DebugPrintTimer -= DeltaTime;
     MoveRequestTimer -= DeltaTime;
@@ -103,6 +147,19 @@ void AEnemyBase::Tick(float DeltaTime)
     if (BehaviorTreeRoot.IsValid())
     {
         BehaviorTreeRoot->Tick(this, DeltaTime);
+    }
+
+    NetSyncTimer -= DeltaTime;
+    if (NetSyncTimer <= 0.0f)
+    {
+        NetSyncTimer = NetSyncInterval;
+        if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+        {
+            if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+            {
+                NetClient->SendEnemyState(GetEnemyId(), GetActorLocation(), GetActorRotation(), CurrentHealth, bIsDead);
+            }
+        }
     }
 }
 
@@ -374,6 +431,22 @@ void AEnemyBase::TakeEnemyDamage(float DamageAmount)
         return;
     }
 
+    if (!bIsNetworkOwner)
+    {
+        // Not this enemy's health authority -- relay the hit to whichever
+        // client is, instead of applying it to our own copy (which the
+        // next S2C_EnemyState would just overwrite anyway). See
+        // HandleEnemyDamage on the receiving end.
+        if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+        {
+            if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+            {
+                NetClient->SendEnemyDamage(GetEnemyId(), DamageAmount);
+            }
+        }
+        return;
+    }
+
     CurrentHealth = FMath::Max(0.0f, CurrentHealth - DamageAmount);
     PrintBehaviorDebug(FString::Printf(TEXT("Enemy BT: Hit %.1f / HP %.1f"), DamageAmount, CurrentHealth), FColor::Orange);
 
@@ -386,6 +459,87 @@ void AEnemyBase::TakeEnemyDamage(float DamageAmount)
 void AEnemyBase::OnHit(float DamageAmount)
 {
     TakeEnemyDamage(DamageAmount);
+}
+
+int32 AEnemyBase::GetEnemyId() const
+{
+    return static_cast<int32>(GetTypeHash(GetName()));
+}
+
+void AEnemyBase::HandleEnemyClaimResult(int32 EnemyId, bool bGranted)
+{
+    if (EnemyId != GetEnemyId())
+    {
+        return; // Every enemy in the level shares this broadcast delegate.
+    }
+
+    bIsNetworkOwner = bGranted;
+
+    if (!bGranted)
+    {
+        // Someone else already owns this enemy's AI -- stop ours so it
+        // doesn't fight the network updates HandleEnemyState is about to
+        // start applying. Mirrors what Die() does to movement, minus the
+        // ragdoll/loot side effects (this enemy isn't dead, just not
+        // locally driven anymore).
+        if (AAIController* AIController = Cast<AAIController>(GetController()))
+        {
+            AIController->StopMovement();
+        }
+        if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+        {
+            Movement->DisableMovement();
+        }
+    }
+}
+
+void AEnemyBase::HandleEnemyState(int32 EnemyId, FVector Position, FRotator Look, float Health, bool bIsDeadState)
+{
+    // The server never echoes C2S_EnemyState back to its own sender, so
+    // !bIsNetworkOwner is implied here -- checked anyway as cheap defense
+    // in depth against ever fighting our own local simulation.
+    if (EnemyId != GetEnemyId() || bIsNetworkOwner)
+    {
+        return;
+    }
+
+    SetActorLocationAndRotation(Position, FRotator(0.0f, Look.Yaw, 0.0f));
+    CurrentHealth = Health;
+
+    if (bIsDeadState && !bIsDead)
+    {
+        Die();
+    }
+}
+
+void AEnemyBase::HandleEnemyOwnerLeft(int32 EnemyId)
+{
+    if (EnemyId != GetEnemyId() || bIsNetworkOwner || bIsDead)
+    {
+        return;
+    }
+
+    // Whoever was driving this enemy disconnected -- try to pick it up
+    // ourselves so it doesn't stay frozen in place forever.
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendEnemyClaimRequest(EnemyId);
+        }
+    }
+}
+
+void AEnemyBase::HandleEnemyDamage(int32 EnemyId, float Damage)
+{
+    // The server only ever relays this to the current owner, but check
+    // anyway -- every enemy in the level shares this broadcast delegate.
+    if (EnemyId != GetEnemyId() || !bIsNetworkOwner)
+    {
+        return;
+    }
+
+    TakeEnemyDamage(Damage);
 }
 
 void AEnemyBase::BuildBehaviorTree()
