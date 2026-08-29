@@ -141,6 +141,10 @@ private:
 	TSubclassOf<AWeaponBase> PendingWeaponClass;
 	bool bPendingHolster = false;
 
+	// 장착 무기가 자동사격(bAutomatic)이면 그 무기의 FireRate로 연사 간격을 결정하고(라이플),
+	// 아니면 AttackCooldown 간격으로 한 발씩 끊어 쏜다(피스톨=단발).
+	float GetEffectiveAttackInterval() const;
+
 	bool SpawnAndAttachWeapon(TSubclassOf<AWeaponBase> WeaponClass);
 	void StartWeaponSwap(EWeaponType TargetWeaponType, TSubclassOf<AWeaponBase> TargetWeaponClass);
 	void FinishWeaponSwap();

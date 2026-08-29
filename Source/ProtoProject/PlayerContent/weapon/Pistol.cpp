@@ -14,6 +14,8 @@
 #include "UObject/ConstructorHelpers.h"
 #include "../../Network/ProtoNetClientSubsystem.h"
 #include "../../Enemy/EnemyBase.h"
+#include "../../Companion/CompanionNPC.h"
+#include "../../Companion/CompanionAIComponent.h"
 
 APistol::APistol()
 {
@@ -109,6 +111,16 @@ void APistol::Fire()
     {
         Params.AddIgnoredActor(AttachParent);
     }
+    // 동료가 쏘는 무기는 자신이 지키는 플레이어를 조준 보정/명중 판정 모두에서 무시한다.
+    // 그렇지 않으면 플레이어가 동료-적 사선에 끼었을 때 조준 보정용 카메라 트레이스가 플레이어에서
+    // 막혀 그 지점을 조준점으로 삼아버려, 동료가 플레이어를 겨냥한 것처럼 보이는 문제가 생긴다.
+    if (Cast<ACompanionNPC>(WeaponOwner))
+    {
+        if (APawn* OwningPlayer = UGameplayStatics::GetPlayerPawn(this, 0))
+        {
+            Params.AddIgnoredActor(OwningPlayer);
+        }
+    }
 
     const FVector MuzzleStart = MuzzlePoint->GetComponentLocation();
 
@@ -124,7 +136,18 @@ void APistol::Fire()
     FVector CameraStart = MuzzleStart;
     FVector CameraForward = MuzzlePoint->GetForwardVector();
 
-    if (const APawn* OwnerPawn = Cast<APawn>(WeaponOwner))
+    if (ACompanionNPC* CompanionOwnerActor = Cast<ACompanionNPC>(WeaponOwner))
+    {
+        // AIController::GetControlRotation()은 컨트롤러 자신의 틱에서 갱신되므로 이번 틱에 막
+        // SetFocalPoint()한 값이 아직 반영 안 됐을 수 있다(교전 진입 첫 발이 직전 방향, 예를 들어
+        // 플레이어 쪽을 향하는 원인). 컨트롤러 회전을 거치지 않고 실제 조준 대상 위치를 직접 조준한다.
+        if (AActor* CombatTarget = CompanionOwnerActor->AIComponent ? CompanionOwnerActor->AIComponent->GetCombatTarget() : nullptr)
+        {
+            CameraStart = MuzzleStart;
+            CameraForward = (CombatTarget->GetActorLocation() - CameraStart).GetSafeNormal();
+        }
+    }
+    else if (const APawn* OwnerPawn = Cast<APawn>(WeaponOwner))
     {
         if (AController* Controller = OwnerPawn->GetController())
         {

@@ -6,6 +6,8 @@
 #include "CompanionSpeechComponent.h"
 #include "CompanionGameplayTags.h"
 #include "CompanionLog.h"
+#include "../PlayerContent/Inventory/InventoryGridComponent.h"
+#include "../PlayerContent/Item/DropItem.h"
 #include "GameplayTagAssetInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
@@ -166,9 +168,91 @@ void UCompanionCommandRouterComponent::HandleActionRequested(const FString& Acti
 	{
 		ExecuteCommand(ECompanionCommandType::Explore);
 	}
+	else if (ActionName == TEXT("give_item"))
+	{
+		TryGiveItem(ActionArg);
+	}
 	else
 	{
 		UE_LOG(LogCompanionAI, Warning, TEXT("[Router] 알 수 없는 액션: %s"), *ActionName);
+	}
+}
+
+void UCompanionCommandRouterComponent::TryGiveItem(const FString& ItemNameQuery)
+{
+	AActor* Owner = GetOwner();
+	UInventoryGridComponent* Inventory = Owner ? Owner->FindComponentByClass<UInventoryGridComponent>() : nullptr;
+
+	if (Owner && Inventory && !ItemNameQuery.IsEmpty())
+	{
+		for (const FInventoryItemInstance& Item : Inventory->Items)
+		{
+			if (!Item.ItemData)
+			{
+				continue;
+			}
+
+			const FString DisplayName = Item.ItemData->DisplayName.ToString();
+			// Gemini가 목록 이름을 정확히 그대로 주는 걸 우선 기대하지만, 약간의 표현 차이(조사 등)도
+			// 허용하기 위해 양방향 부분 일치까지 인정한다.
+			const bool bMatches = DisplayName.Contains(ItemNameQuery, ESearchCase::IgnoreCase)
+				|| ItemNameQuery.Contains(DisplayName, ESearchCase::IgnoreCase);
+			if (!bMatches)
+			{
+				continue;
+			}
+
+			UWorld* World = GetWorld();
+			if (!World)
+			{
+				return;
+			}
+
+			const int32 StackCount = FMath::Max(1, Item.StackCount);
+			UItemDataBase* ItemData = Item.ItemData;
+			const FGuid InstanceId = Item.InstanceId;
+
+			// FTransform(Rotation, Location) 생성자는 스케일을 (1,1,1)로 고정하고, SpawnActorDeferred +
+			// FinishSpawning은 이 트랜스폼을 루트 컴포넌트에 그대로 적용해버려서, 블루프린트에서
+			// StaticMeshComp에 설정해둔 스케일 값이 스폰 순간 항상 1로 덮어써진다 - 클래스 기본값(CDO)의
+			// 스케일을 읽어와 그대로 유지시킨다.
+			FVector DefaultScale = FVector::OneVector;
+			if (const ADropItem* DefaultDropItem = GetDefault<ADropItem>(ADropItem::StaticClass()))
+			{
+				if (DefaultDropItem->StaticMeshComp)
+				{
+					DefaultScale = DefaultDropItem->StaticMeshComp->GetRelativeScale3D();
+				}
+			}
+
+			const FVector SpawnLocation = Owner->GetActorLocation() + Owner->GetActorForwardVector() * 150.0f + FVector(0.0f, 0.0f, 50.0f);
+			const FTransform SpawnTransform(Owner->GetActorRotation(), SpawnLocation, DefaultScale);
+
+			// ItemData는 ADropItem::OnConstruction이 메시를 붙이는 데 쓰이므로, 스폰 후 대입하면
+			// 늦다 - Deferred 스폰으로 먼저 세팅한 뒤 FinishSpawning에서 OnConstruction이 돌게 한다.
+			ADropItem* Drop = World->SpawnActorDeferred<ADropItem>(ADropItem::StaticClass(), SpawnTransform, nullptr, nullptr,
+				ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			if (Drop)
+			{
+				Drop->ItemData = ItemData;
+				Drop->StackCount = StackCount;
+				Drop->FinishSpawning(SpawnTransform);
+
+				Inventory->RemoveInstanceById(InstanceId);
+
+				if (SpeechComponent.IsValid())
+				{
+					SpeechComponent->Speak(FString::Printf(TEXT("%s 여기 놔둘게!"), *DisplayName));
+				}
+			}
+			return;
+		}
+	}
+
+	UE_LOG(LogCompanionAI, Log, TEXT("[Router] give_item 대상 못 찾음: \"%s\""), *ItemNameQuery);
+	if (SpeechComponent.IsValid())
+	{
+		SpeechComponent->Speak(GiveItemNotFoundLine);
 	}
 }
 

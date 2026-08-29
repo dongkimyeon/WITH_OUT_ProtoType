@@ -2,6 +2,7 @@
 
 #include "CompanionBrainComponent.h"
 #include "CompanionPerceptionComponent.h"
+#include "../PlayerContent/Inventory/InventoryGridComponent.h"
 #include "CompanionMemorySaveGame.h"
 #include "CompanionLog.h"
 #include "HttpModule.h"
@@ -49,7 +50,10 @@ UCompanionBrainComponent::UCompanionBrainComponent()
 		TEXT("[응답 형식]\n")
 		TEXT("- 무조건 한국어 반말로, 2~3문장으로만 대답해. 행동 묘사(*..*)나 화자 표시, 괄호는 쓰지 마.\n")
 		TEXT("- 네가 AI라는 사실은 절대 말하지 마.\n")
-		TEXT("- 플레이어의 말이 이동/전투/대기 같은 '명령'으로 명확히 해석되면 반드시 해당 함수를 호출해라.");
+		TEXT("- 플레이어의 말이 이동/전투/대기 같은 '명령'으로 명확히 해석되면 반드시 해당 함수를 호출해라.\n")
+		TEXT("- 플레이어가 특정 아이템을 달라고 하면 give_item 함수를 호출해라. item_name에는 아래 ")
+		TEXT("[네가 지금 들고 있는 아이템 목록]에 있는 이름을 정확히 그대로 적어라. 목록에 없는 걸 ")
+		TEXT("달라고 하면 함수를 호출하지 말고 그런 건 없다고 대답해라.");
 }
 
 void UCompanionBrainComponent::BeginPlay()
@@ -112,6 +116,32 @@ FString UCompanionBrainComponent::BuildSystemInstruction() const
 		if (const UCompanionPerceptionComponent* Perception = Owner->FindComponentByClass<UCompanionPerceptionComponent>())
 		{
 			Instruction += TEXT("\n[현재 상황 - 아래 정보를 최우선으로 참고해라]\n") + Perception->BuildSituationSummary();
+		}
+
+		if (const UInventoryGridComponent* Inventory = Owner->FindComponentByClass<UInventoryGridComponent>())
+		{
+			FString ItemsSummary;
+			for (const FInventoryItemInstance& Item : Inventory->Items)
+			{
+				if (!Item.ItemData)
+				{
+					continue;
+				}
+
+				if (!ItemsSummary.IsEmpty())
+				{
+					ItemsSummary += TEXT(", ");
+				}
+
+				ItemsSummary += Item.ItemData->DisplayName.ToString();
+				if (Item.StackCount > 1)
+				{
+					ItemsSummary += FString::Printf(TEXT(" x%d"), Item.StackCount);
+				}
+			}
+
+			Instruction += TEXT("\n[네가 지금 들고 있는 아이템 목록 - give_item 호출 시 이 중 정확한 이름으로 item_name을 채워라]\n");
+			Instruction += ItemsSummary.IsEmpty() ? TEXT("(가진 아이템 없음)") : ItemsSummary;
 		}
 	}
 
@@ -210,7 +240,10 @@ void UCompanionBrainComponent::SendGeminiRequest(const FString& UserText, const 
 	// 아예 tools 필드를 빼서 실수로 명령이 트리거되는 걸 원천 차단한다.
 	if (bIncludeTools)
 	{
-		auto MakeFunctionDeclaration = [](const TCHAR* Name, const TCHAR* Description) -> TSharedRef<FJsonValue>
+		// ParamName이 있으면 필수 string 파라미터 하나를 가진 function declaration을 만든다
+		// (지금은 give_item의 item_name 하나만 필요해서 파라미터는 최대 1개로 단순화했다).
+		auto MakeFunctionDeclaration = [](const TCHAR* Name, const TCHAR* Description,
+			const TCHAR* ParamName = nullptr, const TCHAR* ParamDescription = nullptr) -> TSharedRef<FJsonValue>
 		{
 			TSharedRef<FJsonObject> Func = MakeShared<FJsonObject>();
 			Func->SetStringField(TEXT("name"), Name);
@@ -218,7 +251,20 @@ void UCompanionBrainComponent::SendGeminiRequest(const FString& UserText, const 
 
 			TSharedRef<FJsonObject> Params = MakeShared<FJsonObject>();
 			Params->SetStringField(TEXT("type"), TEXT("OBJECT"));
-			Params->SetObjectField(TEXT("properties"), MakeShared<FJsonObject>());
+
+			TSharedRef<FJsonObject> Properties = MakeShared<FJsonObject>();
+			if (ParamName)
+			{
+				TSharedRef<FJsonObject> ParamSchema = MakeShared<FJsonObject>();
+				ParamSchema->SetStringField(TEXT("type"), TEXT("STRING"));
+				ParamSchema->SetStringField(TEXT("description"), ParamDescription ? ParamDescription : TEXT(""));
+				Properties->SetObjectField(ParamName, ParamSchema);
+
+				TArray<TSharedPtr<FJsonValue>> Required;
+				Required.Add(MakeShared<FJsonValueString>(FString(ParamName)));
+				Params->SetArrayField(TEXT("required"), Required);
+			}
+			Params->SetObjectField(TEXT("properties"), Properties);
 			Func->SetObjectField(TEXT("parameters"), Params);
 
 			return MakeShared<FJsonValueObject>(Func);
@@ -230,6 +276,9 @@ void UCompanionBrainComponent::SendGeminiRequest(const FString& UserText, const 
 		FunctionDeclarations.Add(MakeFunctionDeclaration(TEXT("engage"), TEXT("주변 적과 싸우라는 명령으로 해석되면 호출한다.")));
 		FunctionDeclarations.Add(MakeFunctionDeclaration(TEXT("move_to"), TEXT("플레이어가 가리키는 곳으로 이동하라는 명령으로 해석되면 호출한다.")));
 		FunctionDeclarations.Add(MakeFunctionDeclaration(TEXT("explore"), TEXT("주변을 탐색/수색하고 아이템을 주우라는 명령으로 해석되면 호출한다.")));
+		FunctionDeclarations.Add(MakeFunctionDeclaration(TEXT("give_item"),
+			TEXT("플레이어가 특정 아이템을 달라고 요청하면 호출한다."),
+			TEXT("item_name"), TEXT("건네줄 아이템의 이름. [네가 지금 들고 있는 아이템 목록]에 있는 이름을 정확히 그대로 적는다.")));
 
 		TSharedRef<FJsonObject> ToolsEntry = MakeShared<FJsonObject>();
 		ToolsEntry->SetArrayField(TEXT("functionDeclarations"), FunctionDeclarations);
@@ -325,12 +374,20 @@ void UCompanionBrainComponent::HandleGeminiResponse(FHttpRequestPtr Request, FHt
 		FString ActionName;
 		(*FunctionCallObject)->TryGetStringField(TEXT("name"), ActionName);
 
+		FString ActionArg;
+		const TSharedPtr<FJsonObject>* ArgsObject;
+		if ((*FunctionCallObject)->TryGetObjectField(TEXT("args"), ArgsObject))
+		{
+			(*ArgsObject)->TryGetStringField(TEXT("item_name"), ActionArg);
+		}
+
 		// 원문 JSON은 다음 요청에 흉내내기 부작용을 남기므로, 사람이 읽는 짧은 표시만 이력에 남긴다.
-		ConversationHistory.Add(FCompanionChatTurn(TEXT("model"), FString::Printf(TEXT("[행동: %s]"), *ActionName)));
+		ConversationHistory.Add(FCompanionChatTurn(TEXT("model"), FString::Printf(TEXT("[행동: %s%s%s]"),
+			*ActionName, ActionArg.IsEmpty() ? TEXT("") : TEXT(" "), *ActionArg)));
 		TrimHistory();
 
-		UE_LOG(LogCompanionAI, Log, TEXT("[Brain] 액션 요청: %s"), *ActionName);
-		OnActionRequested.Broadcast(ActionName, TEXT(""));
+		UE_LOG(LogCompanionAI, Log, TEXT("[Brain] 액션 요청: %s (%s)"), *ActionName, *ActionArg);
+		OnActionRequested.Broadcast(ActionName, ActionArg);
 		return;
 	}
 

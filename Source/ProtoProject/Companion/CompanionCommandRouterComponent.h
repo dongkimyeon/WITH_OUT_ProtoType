@@ -78,6 +78,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command")
 	FString ExploreAckLine = TEXT("알겠어, 주변 좀 살펴볼게.");
 
+	// 요청받은 이름과 일치하는 아이템이 인벤토리에 없을 때(또는 이름 자체가 안 들어왔을 때) 하는 대답.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command")
+	FString GiveItemNotFoundLine = TEXT("그런 건 안 갖고 있는데?");
+
 	// 플레이어가 이 시간(초) 동안 말이 없으면 혼잣말을 시도한다. Max는 다음 시도까지의 랜덤 상한.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command|IdleChatter")
 	bool bIdleChatterEnabled = true;
@@ -114,6 +118,9 @@ private:
 	ECompanionCommandType MatchKeywordCommand(const FString& Text) const;
 	bool MatchesVisionQuery(const FString& Text) const;
 	void ExecuteCommand(ECompanionCommandType Command);
+	// Brain의 give_item(item_name) 요청을 처리한다: 이름이 일치하는 아이템을 인벤토리에서 찾아
+	// 땅에 드롭(ADropItem 스폰)하고 인벤토리에서 제거한다. 못 찾으면 GiveItemNotFoundLine으로 답한다.
+	void TryGiveItem(const FString& ItemNameQuery);
 	void PerformMoveToWherePlayerIsLooking();
 	void TriggerVisionReply(const FString& UserText);
 

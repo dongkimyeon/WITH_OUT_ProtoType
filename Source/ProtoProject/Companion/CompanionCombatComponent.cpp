@@ -289,6 +289,15 @@ FVector UCompanionCombatComponent::GetLeftHandJointTargetForEquippedWeapon() con
 		return EquippedWeapon->LeftHandJointTarget;
 	}
 }
+float UCompanionCombatComponent::GetEffectiveAttackInterval() const
+{
+	if (EquippedWeapon && EquippedWeapon->bAutomatic && EquippedWeapon->FireRate > 0.0f)
+	{
+		return 1.0f / EquippedWeapon->FireRate;
+	}
+	return AttackCooldown;
+}
+
 bool UCompanionCombatComponent::CanAttack() const
 {
 	const UWorld* World = GetWorld();
@@ -302,7 +311,7 @@ bool UCompanionCombatComponent::CanAttack() const
 	const bool bWeaponInHand = bOwnerValid && CompanionOwner->SwappingAlpha;
 	const bool bAiming = bOwnerValid && CompanionOwner->bIsAiming;
 	const bool bNotReloading = bOwnerValid && !CompanionOwner->bIsReloading;
-	const bool bCooldownReady = World && World->GetTimeSeconds() - LastAttackTime >= AttackCooldown;
+	const bool bCooldownReady = World && World->GetTimeSeconds() - LastAttackTime >= GetEffectiveAttackInterval();
 	const bool bCanAttack = !bIsDead
 		&& bHasEquippedWeapon
 		&& bWeaponCanFire
@@ -317,7 +326,7 @@ bool UCompanionCombatComponent::CanAttack() const
 #if !(UE_BUILD_SHIPPING)
 	if (GEngine)
 	{
-		const float RemainingCooldown = World ? FMath::Max(0.0f, AttackCooldown - (World->GetTimeSeconds() - LastAttackTime)) : AttackCooldown;
+		const float RemainingCooldown = World ? FMath::Max(0.0f, GetEffectiveAttackInterval() - (World->GetTimeSeconds() - LastAttackTime)) : GetEffectiveAttackInterval();
 		const int32 WeaponTypeValue = bOwnerValid ? static_cast<int32>(CompanionOwner->CurrentWeaponType) : -1;
 		const FString DebugText = FString::Printf(
 			TEXT("Companion CanAttack: %s\nDead:%s Equipped:%s WeaponCanFire:%s Owner:%s HasWeapon:%s WeaponType:%d ValidType:%s InHand(SwappingAlpha):%s Aiming:%s NotReloading:%s Cooldown:%s(%.2f)"),
@@ -386,6 +395,14 @@ void UCompanionCombatComponent::ReloadWeapon()
 	{
 		EquippedWeapon->ReloadMagazine();
 		bIsReloadingWeapon = false;
+
+		if (ACompanionNPC* CompanionOwner = Cast<ACompanionNPC>(GetOwner()))
+		{
+			if (CompanionOwner->AIComponent)
+			{
+				CompanionOwner->AIComponent->RequestAiming();
+			}
+		}
 	}
 }
 
@@ -444,6 +461,14 @@ void UCompanionCombatComponent::HandleMontageEnded(UAnimMontage* Montage, bool b
 	if (!bInterrupted && EquippedWeapon)
 	{
 		EquippedWeapon->ReloadMagazine();
+
+		if (ACompanionNPC* CompanionOwner = Cast<ACompanionNPC>(GetOwner()))
+		{
+			if (CompanionOwner->AIComponent)
+			{
+				CompanionOwner->AIComponent->RequestAiming();
+			}
+		}
 	}
 
 	bIsReloadingWeapon = false;

@@ -65,6 +65,12 @@ void UCompanionAIComponent::BeginPlay()
 		InventoryComponent = Owner->FindComponentByClass<UInventoryGridComponent>();
 	}
 
+	if (PerceptionComponent.IsValid())
+	{
+		PerceptionComponent->OnEnemySpotted.AddDynamic(this, &UCompanionAIComponent::HandleEnemySpotted);
+		PerceptionComponent->OnEnemyLost.AddDynamic(this, &UCompanionAIComponent::HandleEnemyLost);
+	}
+
 	CachedPlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 
 	BuildBehaviorTree();
@@ -99,22 +105,39 @@ void UCompanionAIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	MoveRequestTimer -= DeltaTime;
 
 	const bool bEnemyVisible = PerceptionComponent.IsValid() && PerceptionComponent->HasEnemyTarget();
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : LastEnemyVisibleTime;
+	if (bEnemyVisible)
+	{
+		LastEnemyVisibleTime = Now;
+	}
+
 	if (bAutoEngageEnabled && !bCombatSuppressed && bEnemyVisible)
 	{
 		bCombatEngaged = true;
 	}
-	else if (!bEnemyVisible)
+	else if (bCombatEngaged && (Now - LastEnemyVisibleTime) > CombatDisengageGraceTime)
 	{
 		bCombatEngaged = false;
 	}
 
-	AActor* CombatEnemy = bCombatEngaged ? GetCurrentEnemyTarget() : nullptr;
+	AActor* CombatEnemy = GetCombatTarget();
 	SetCombatRotationEnabled(CombatEnemy != nullptr);
 	if (CombatEnemy)
 	{
 		if (AAIController* AIController = GetAIController())
 		{
 			AIController->SetFocalPoint(CombatEnemy->GetActorLocation());
+		}
+
+		if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
+		{
+			const FVector ToEnemy = CombatEnemy->GetActorLocation() - OwnerCharacter->GetActorLocation();
+			if (!ToEnemy.IsNearlyZero())
+			{
+				const FRotator CurrentRot = OwnerCharacter->GetActorRotation();
+				const FRotator TargetRot(CurrentRot.Pitch, ToEnemy.Rotation().Yaw, CurrentRot.Roll);
+				OwnerCharacter->SetActorRotation(FMath::RInterpTo(CurrentRot, TargetRot, DeltaTime, CombatRotationInterpSpeed));
+			}
 		}
 	}
 
@@ -151,6 +174,16 @@ bool UCompanionAIComponent::IsAimingRequested() const
 void UCompanionAIComponent::ClearAimingRequest()
 {
 	bAimingRequested = false;
+}
+
+void UCompanionAIComponent::RequestAiming()
+{
+	if (bCombatSuppressed)
+	{
+		return;
+	}
+
+	bAimingRequested = CombatComponent.IsValid() && CombatComponent->GetEquippedWeapon() != nullptr;
 }
 
 bool UCompanionAIComponent::ShouldSprintWhileFollowing() const
@@ -201,6 +234,7 @@ void UCompanionAIComponent::CommandStop()
 	bCombatEngaged = false;
 	bCombatSuppressed = true;
 	bExploring = false;
+	bHasEverEngaged = false;
 
 	if (AAIController* AIController = GetAIController())
 	{
@@ -253,6 +287,25 @@ void UCompanionAIComponent::CommandEngage()
 	bCombatSuppressed = false;
 	bCombatEngaged = true;
 	bExploring = false;
+	bHasEverEngaged = true;
+	LastEnemyVisibleTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastEnemyVisibleTime;
+}
+
+void UCompanionAIComponent::HandleEnemySpotted(AActor* EnemyActor)
+{
+	LastEnemyVisibleTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastEnemyVisibleTime;
+
+	// 재장전 등으로 조준이 풀린 상태에서 적을 다시 포착하면 곧바로 재무장한다 - 사용자가 이미
+	// CommandEngage()로 교전을 지시했을 때만(자동 교전 정책을 건드리지 않기 위해).
+	if (bHasEverEngaged && !bCombatSuppressed)
+	{
+		RequestAiming();
+	}
+}
+
+void UCompanionAIComponent::HandleEnemyLost(AActor* EnemyActor)
+{
+	// 실제 교전 해제는 TickComponent의 CombatDisengageGraceTime 유예 로직이 판단한다.
 }
 
 void UCompanionAIComponent::CommandExplore()
@@ -339,7 +392,10 @@ void UCompanionAIComponent::SetCombatRotationEnabled(bool bEnabled)
 	{
 		MovementComponent->bOrientRotationToMovement = !bEnabled;
 	}
-	OwnerCharacter->bUseControllerRotationYaw = bEnabled;
+	// 회전은 TickComponent에서 RInterpTo로 직접 보간한다(스냅 방지) - 컨트롤러 회전을 그대로
+	// 따라가면 CharacterMovementComponent가 매 틱 즉시 스냅시키므로 항상 꺼둔다. Controller의
+	// ControlRotation 자체(AimPitch 등에 쓰임)는 SetFocalPoint로 계속 갱신되므로 영향 없다.
+	OwnerCharacter->bUseControllerRotationYaw = false;
 
 	if (AAIController* AIController = GetAIController())
 	{

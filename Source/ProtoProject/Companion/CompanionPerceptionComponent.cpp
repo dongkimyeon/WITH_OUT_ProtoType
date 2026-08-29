@@ -63,6 +63,18 @@ void UCompanionPerceptionComponent::TickComponent(float DeltaTime, ELevelTick Ti
 		SightSenseConfig->LoseSightRadius = FMath::Max(EffectiveSightRadius, LoseSightRadius);
 		SightSenseConfig->PeripheralVisionAngleDegrees = PeripheralVisionAngleDegrees;
 	}
+
+	// 시야각 경계에서 한두 틱만 스치듯 벗어나는 노이즈를 흡수: 유예시간을 넘겨야 실제로 소실 처리한다.
+	if (CurrentEnemyTarget.IsValid())
+	{
+		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : LastSensedTime;
+		if (Now - LastSensedTime > EnemyLostGraceTime)
+		{
+			AActor* Lost = CurrentEnemyTarget.Get();
+			CurrentEnemyTarget = nullptr;
+			OnEnemyLost.Broadcast(Lost);
+		}
+	}
 }
 
 float UCompanionPerceptionComponent::GetEffectiveSightRadius() const
@@ -89,16 +101,14 @@ void UCompanionPerceptionComponent::HandlePerceptionUpdated(AActor* UpdatedActor
 	{
 		const bool bIsNewSighting = !CurrentEnemyTarget.IsValid();
 		CurrentEnemyTarget = UpdatedActor;
+		LastSensedTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastSensedTime;
 		if (bIsNewSighting)
 		{
 			OnEnemySpotted.Broadcast(UpdatedActor);
 		}
 	}
-	else if (CurrentEnemyTarget.Get() == UpdatedActor)
-	{
-		CurrentEnemyTarget = nullptr;
-		OnEnemyLost.Broadcast(UpdatedActor);
-	}
+	// 감지 실패는 여기서 즉시 처리하지 않는다. TickComponent의 EnemyLostGraceTime 유예 타이머가
+	// 실제 소실 여부(순간적 시야각 이탈 vs 지속적 소실)를 판단해 OnEnemyLost를 브로드캐스트한다.
 }
 
 void UCompanionPerceptionComponent::HandlePlayerHealthChanged(float NewValue, float MaxValue)

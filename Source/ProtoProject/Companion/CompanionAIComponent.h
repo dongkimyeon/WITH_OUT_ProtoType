@@ -76,11 +76,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	bool IsCombatEngaged() const { return bCombatEngaged; }
 
+	// 현재 조준/교전 중인 적(교전 중이 아니면 nullptr). 무기가 화면/카메라 기반 조준 대신 이 액터를
+	// 직접 겨냥하는 데 쓴다 - AIController의 ControlRotation은 컨트롤러 자신의 틱에서 갱신되므로
+	// 매 프레임 즉시 반영되지 않을 수 있어, 그 값을 거치면 교전 진입 첫 프레임에 방향이 어긋날 수 있다.
+	UFUNCTION(BlueprintPure, Category = "Companion|AI")
+	AActor* GetCombatTarget() const { return bCombatEngaged ? GetCurrentEnemyTarget() : nullptr; }
+
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	bool IsAimingRequested() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Companion|AI")
 	void ClearAimingRequest();
+
+	// 재장전 완료 등으로 꺼졌던 조준 요청을 되살린다. 교전이 억제된 상태(CommandStop 등)에서는
+	// 무시되며, 무기가 장착되어 있을 때만 의미가 있다.
+	UFUNCTION(BlueprintCallable, Category = "Companion|AI")
+	void RequestAiming();
 
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	bool ShouldSprintWhileFollowing() const;
@@ -129,6 +140,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
 	float MaxCombatDistanceFromPlayer = 1500.0f;
 
+	// 적을 놓친 뒤 실제로 교전을 해제하기까지의 유예시간. 스트레이프/회전 중 시야각 경계에서
+	// 순간적으로 적을 놓쳐도(한두 틱) 이 시간 안에 다시 보이면 교전을 계속 유지한다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	float CombatDisengageGraceTime = 1.5f;
+
+	// 전투 중 회전을 스냅이 아니라 이 속도로 적 방향으로 보간한다(FMath::RInterpTo 계수).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	float CombatRotationInterpSpeed = 8.0f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -151,6 +171,13 @@ private:
 	bool bExploring = false;
 	mutable bool bFollowSprintActive = false;
 
+	// 플레이어가 이 동료에게 CommandEngage()로 전투를 지시한 적이 있는지. 재장전 중 적을
+	// 재감지했을 때 자동으로 조준을 재무장할지 판단하는 데 쓰인다(bAutoEngageEnabled=false
+	// 정책을 위반하지 않도록, 한 번도 교전 지시를 받지 않은 동료는 자동 재무장하지 않는다).
+	bool bHasEverEngaged = false;
+
+	float LastEnemyVisibleTime = -FLT_MAX;
+
 	FVector CommandedLocation = FVector::ZeroVector;
 	TWeakObjectPtr<AActor> CommandedTargetActor;
 
@@ -171,6 +198,12 @@ private:
 
 	void BuildBehaviorTree();
 	AAIController* GetAIController();
+
+	UFUNCTION()
+	void HandleEnemySpotted(AActor* EnemyActor);
+
+	UFUNCTION()
+	void HandleEnemyLost(AActor* EnemyActor);
 
 	bool HasEnemyTarget() const;
 	AActor* GetCurrentEnemyTarget() const;

@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "CompanionReportComponent.generated.h"
 
+class UCompanionAIComponent;
 class UCompanionPerceptionComponent;
 class UCompanionSpeechComponent;
 
@@ -20,7 +21,7 @@ public:
 	UCompanionReportComponent();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Report")
-	float MinReportInterval = 5.0f;
+	float MinReportInterval = 20.0f;
 
 	// 같은 적을 재감지해도 이 시간(초) 안에는 다시 보고하지 않는다(perception noise로 인한 스팸 방지).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Report")
@@ -36,6 +37,7 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
+	TWeakObjectPtr<UCompanionAIComponent> AIComponent;
 	TWeakObjectPtr<UCompanionPerceptionComponent> PerceptionComponent;
 	TWeakObjectPtr<UCompanionSpeechComponent> SpeechComponent;
 

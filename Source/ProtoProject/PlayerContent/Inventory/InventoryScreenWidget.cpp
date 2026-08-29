@@ -252,7 +252,20 @@ void UInventoryScreenWidget::SpawnDropItemActor(UItemDataBase* ItemData, int32 S
 	if (!World) return;
 
 	const FVector SpawnLocation = OwningCharacter->GetActorLocation() + OwningCharacter->GetActorForwardVector() * 150.f + FVector(0.f, 0.f, 50.f);
-	const FTransform SpawnTransform(OwningCharacter->GetActorRotation(), SpawnLocation);
+
+	// FTransform(Rotation, Location) 생성자는 스케일을 (1,1,1)로 고정한다. SpawnActorDeferred +
+	// FinishSpawning은 이 트랜스폼을 루트 컴포넌트에 그대로 적용해버려서, 블루프린트에서
+	// StaticMeshComp에 설정해둔 스케일 값이 스폰되는 순간 항상 1로 덮어써진다 - 클래스 기본값(CDO)의
+	// 스케일을 읽어와 그대로 유지시킨다.
+	FVector DefaultScale = FVector::OneVector;
+	if (const ADropItem* DefaultDropItem = GetDefault<ADropItem>(DropItemActorClass))
+	{
+		if (DefaultDropItem->StaticMeshComp)
+		{
+			DefaultScale = DefaultDropItem->StaticMeshComp->GetRelativeScale3D();
+		}
+	}
+	const FTransform SpawnTransform(OwningCharacter->GetActorRotation(), SpawnLocation, DefaultScale);
 
 	// 지연 스폰 (메시 세팅 전 데이터 반영)
 	if (ADropItem* Spawned = World->SpawnActorDeferred<ADropItem>(DropItemActorClass, SpawnTransform))

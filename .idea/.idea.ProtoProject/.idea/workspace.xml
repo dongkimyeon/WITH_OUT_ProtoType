@@ -19,17 +19,18 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionAIComponent.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBrainComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBridgeSubsystem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBridgeSubsystem.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBridgeSubsystem.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionBridgeSubsystem.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionSpeechComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionSpeechComponent.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionSpeechComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionSpeechComponent.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Tools/TTS_Bridge/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/Tools/TTS_Bridge/server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Tools/TTS_Bridge/setup_tts_env.bat" beforeDir="false" afterPath="$PROJECT_DIR$/Tools/TTS_Bridge/setup_tts_env.bat" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCombatComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionCommandRouterComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionPerceptionComponent.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionPerceptionComponent.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionPerceptionComponent.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/Companion/CompanionPerceptionComponent.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/weapon/AK47.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/weapon/AK47.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/weapon/Pistol.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/weapon/Pistol.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -347,7 +348,10 @@
       <workItem from="1787567214341" duration="1916000" />
       <workItem from="1787582752343" duration="1695000" />
       <workItem from="1787584504652" duration="126000" />
-      <workItem from="1787664530593" duration="3979000" />
+      <workItem from="1787664530593" duration="4573000" />
+      <workItem from="1787735691337" duration="233000" />
+      <workItem from="1787935690401" duration="480000" />
+      <workItem from="1787979300995" duration="2992000" />
     </task>
     <servers />
   </component>

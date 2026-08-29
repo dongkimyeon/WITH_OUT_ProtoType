@@ -25,18 +25,25 @@ class PROTOPROJECT_API UCompanionPerceptionComponent : public UAIPerceptionCompo
 public:
 	UCompanionPerceptionComponent();
 
+	// 참고: CompanionCombatComponent::AttackRange 기본값(2000)보다 넉넉하게 커야 사거리 안에
+	// 들어온 적을 놓치지 않고 미리 발견할 수 있다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Perception")
-	float SightRadius = 1500.0f;
+	float SightRadius = 3000.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Perception")
-	float LoseSightRadius = 1800.0f;
+	float LoseSightRadius = 3500.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Perception")
-	float PeripheralVisionAngleDegrees = 90.0f;
+	float PeripheralVisionAngleDegrees = 120.0f;
 
 	// 임계값을 넘어야 "체력 낮음"으로 판단(0~1).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Perception")
 	float LowHealthThresholdPct = 0.3f;
+
+	// 시야각 경계에서의 순간적인 감지 끊김을 흡수하기 위한 유예시간. 마지막 성공 감지 후 이 시간
+	// 동안은 CurrentEnemyTarget을 유지하고, 초과해야 실제로 OnEnemyLost를 브로드캐스트한다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Perception")
+	float EnemyLostGraceTime = 1.0f;
 
 	UPROPERTY(BlueprintAssignable, Category = "Companion|Perception")
 	FOnCompanionEnemySpotted OnEnemySpotted;
@@ -75,6 +82,7 @@ private:
 	TWeakObjectPtr<AActor> CurrentEnemyTarget;
 	TWeakObjectPtr<class UPlayerStatusComponent> PlayerStatus;
 	bool bLowHealthReported = false;
+	float LastSensedTime = -FLT_MAX;
 
 	UFUNCTION()
 	void HandlePerceptionUpdated(AActor* UpdatedActor, FAIStimulus Stimulus);
