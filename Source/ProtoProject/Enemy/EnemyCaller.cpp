@@ -27,6 +27,11 @@ void AEnemyCaller::DoCall()
 {
     LastCallTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastCallTime;
 
+    if (CallMontage)
+    {
+        PlayAnimMontage(CallMontage, 1.0f, CallSectionName);
+    }
+
     TArray<AActor*> NearbyEnemies;
     UGameplayStatics::GetAllActorsOfClass(this, AEnemyBase::StaticClass(), NearbyEnemies);
 
@@ -46,3 +51,5 @@ void AEnemyCaller::DoCall()
 
     PrintBehaviorDebug(TEXT("Enemy BT: Call nearby zombies"), FColor::Magenta);
 }
+
+

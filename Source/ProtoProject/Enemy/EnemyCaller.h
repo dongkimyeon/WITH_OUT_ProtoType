@@ -4,6 +4,8 @@
 #include "EnemyBase.h"
 #include "EnemyCaller.generated.h"
 
+class UAnimMontage;
+
 UCLASS()
 class PROTOPROJECT_API AEnemyCaller : public AEnemyBase
 {
@@ -25,6 +27,14 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Call")
     float CallCooldown = 8.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Call")
+    TObjectPtr<UAnimMontage> CallMontage;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Call")
+    FName CallSectionName = TEXT("Call");
+
 private:
     float LastCallTime = -999.0f;
 };
+
+
