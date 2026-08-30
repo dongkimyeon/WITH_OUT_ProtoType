@@ -726,42 +726,21 @@ bool AEnemyBase::CanSeeCandidate(const AActor* Candidate) const
 
 bool AEnemyBase::CanCall() const
 {
-    if (bIsDead || EnemyType != EEnemyType::Caller || !HasTarget())
-    {
-        return false;
-    }
-
-    const UWorld* World = GetWorld();
-    if (!World)
-    {
-        return false;
-    }
-
-    return World->GetTimeSeconds() - LastCallTime >= CallCooldown;
+    return false;
 }
 
 void AEnemyBase::DoCall()
 {
-    LastCallTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastCallTime;
+}
 
-    TArray<AActor*> NearbyEnemies;
-    UGameplayStatics::GetAllActorsOfClass(this, AEnemyBase::StaticClass(), NearbyEnemies);
-
-    for (AActor* Actor : NearbyEnemies)
+void AEnemyBase::ReceiveCallTarget(AActor* NewTarget)
+{
+    if (bIsDead)
     {
-        AEnemyBase* OtherEnemy = Cast<AEnemyBase>(Actor);
-        if (!OtherEnemy || OtherEnemy == this || OtherEnemy->bIsDead || OtherEnemy->HasTarget())
-        {
-            continue;
-        }
-
-        if (FVector::DistSquared(GetActorLocation(), OtherEnemy->GetActorLocation()) <= FMath::Square(CallRadius))
-        {
-            OtherEnemy->TargetActor = TargetActor;
-        }
+        return;
     }
 
-    PrintBehaviorDebug(TEXT("Enemy BT: Call nearby zombies"), FColor::Magenta);
+    TargetActor = NewTarget;
 }
 
 void AEnemyBase::PrintBehaviorDebug(const FString& Message, const FColor& Color)

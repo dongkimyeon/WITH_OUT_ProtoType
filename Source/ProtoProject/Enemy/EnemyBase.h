@@ -12,14 +12,6 @@ class UAnimMontage;
 class UBoxComponent;
 class UItemDataBase;
 
-UENUM(BlueprintType)
-enum class EEnemyType : uint8
-{
-    Walker,
-    Runner,
-    Caller
-};
-
 UCLASS()
 class PROTOPROJECT_API AEnemyBase : public ACharacter
 {
@@ -61,9 +53,11 @@ public:
     UFUNCTION(BlueprintPure, Category = "Enemy|Stats")
     bool IsDead() const { return bIsDead; }
 
+    // 기본값은 false를 반환한다. Caller 타입(AEnemyCaller)에서만 오버라이드되어 실제로 동작한다.
     UFUNCTION(BlueprintPure, Category = "Enemy|Call")
-    bool CanCall() const;
+    virtual bool CanCall() const;
 
+    // 기본 구현은 아무것도 하지 않는다. Caller 타입(AEnemyCaller)에서만 오버라이드되어
     // 주변 CallRadius 안의 타겟 없는 살아있는 좀비들을 자신과 같은 타겟으로 즉시 반응시킨다.
     UFUNCTION(BlueprintCallable, Category = "Enemy|Call")
     virtual void DoCall();
@@ -74,14 +68,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy|Combat")
     void EndAttackHitWindow();
 
+    // Caller가 주변 좀비를 호출할 때 사용: 죽지 않았다면 타겟을 강제로 세팅한다.
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Call")
+    void ReceiveCallTarget(AActor* NewTarget);
+
 protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|AI")
     TObjectPtr<UAIPerceptionStimuliSourceComponent> PerceptionStimuliSource;
-
-    // 걷는 좀비/뛰는 좀비/주변 좀비를 불러모으는 좀비를 구분한다. 실제 수치 차이는 이 값과
-    // MoveSpeed/AttackDamage 등 인스턴스별 프로퍼티를 블루프린트 자식에서 조정해 표현한다.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Type")
-    EEnemyType EnemyType = EEnemyType::Walker;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Stats")
     float MaxHealth = 100.0f;
@@ -135,13 +128,6 @@ protected:
     // 걷는 좀비는 낮게, 뛰는 좀비는 높게 잡아 타입별 이동속도를 구분한다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|AI")
     float MoveSpeed = 300.0f;
-
-    // Caller 타입 전용: 이 반경 안의 다른 살아있는 좀비를 즉시 같은 타겟으로 반응시킨다.
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Call", meta = (EditCondition = "EnemyType == EEnemyType::Caller"))
-    float CallRadius = 1200.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Call", meta = (EditCondition = "EnemyType == EEnemyType::Caller"))
-    float CallCooldown = 8.0f;
 
     // 처치 시 이 중 하나를 랜덤으로 드랍한다(비어있으면 드랍 없음).
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Loot")
@@ -218,7 +204,6 @@ private:
     TSharedPtr<TBTNode<AEnemyBase>> BehaviorTreeRoot;
     float DebugPrintTimer = 0.0f;
     float MoveRequestTimer = 0.0f;
-    float LastCallTime = -999.0f;
     float DefaultMaxAcceleration = 2048.0f;
     FString LastBehaviorDebugMessage;
     TSet<TWeakObjectPtr<AActor>> DamagedActorsThisSwing;
