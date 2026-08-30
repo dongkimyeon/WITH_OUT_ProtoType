@@ -78,7 +78,8 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     TSoftObjectPtr<UStaticMesh> ItemMesh;
 
-    // 월드에 드롭 아이템으로 놓일 때 메시 스케일. 총기처럼 큰 메시를 줄일 때 사용.
+    // 스폰(스폰 포인트/적 루트)으로 월드에 놓일 때 드롭 메시에 적용할 스케일.
+    // 기본값(1,1,1)이면 적용하지 않음 - BP_DropItem_* 를 직접 배치한 경우의 스케일을 유지.
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     FVector WorldMeshScale = FVector(1.f);
 

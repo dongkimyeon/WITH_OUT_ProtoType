@@ -59,7 +59,6 @@ void AItemSpawnPoint::SpawnLoot()
 		Offset.Z = 30.f;
 
 		// 스폰 포인트 액터의 스케일이 아이템에 새어들지 않도록 위치/회전만 쓰고 스케일은 1로 고정.
-		// (아이템 크기는 ItemData->WorldMeshScale로 제어)
 		const FTransform SpawnTransform(GetActorQuat(), GetActorLocation() + Offset, FVector(1.f));
 
 		// ItemData는 OnConstruction이 메시를 붙이는 데 쓰이므로 Deferred 스폰으로 먼저 세팅한다.

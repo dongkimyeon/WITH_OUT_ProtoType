@@ -20,54 +20,14 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Automation_ProtoProject.slnx" beforeDir="false" afterPath="$PROJECT_DIR$/Automation_ProtoProject.slnx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/BP_ProtoCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/BP_ProtoCharacter.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/BP_StorageContainer.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/BP_StorageContainer.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_EquipmentSlot.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_EquipmentSlot.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_InventoryItem.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_InventoryItem.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_InventoryScreen.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_InventoryScreen.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_QuickSlotHud.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_QuickSlotHud.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_QuickSlotRegister.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_QuickSlotRegister.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_RadialQuickSlot.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Blueprint/UI/Inventory/WBP_RadialQuickSlot.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_AK47.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Bandage.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Lv1_Vest.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_M1911.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Meat.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Medkit.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_Water.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Data/DA_Item_injector.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_DropItemAK47.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_DropItemBase.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_DropItemBase_Bandage.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_DropItemM1911.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_DropItem_Injector.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_DropItem_Meat.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_DropItem_MedKit.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_DropItem_Water.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_LootContainer.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/BP_StorageContainer.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/DropItem/Default__BP_DropItem_C.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItem.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemAK47.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemBase_Bandage.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Item/BP_DropItemM1911.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Material/M_ItemImageMat.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Texture/AK47.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Texture/Bandage.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Texture/Injector.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Texture/Lv1_Vest.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Texture/M1911A1.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Texture/Meat.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Texture/MedKit.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/ItemData/Texture/Water.uasset" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Maps/L_SafePlace.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_SafePlace.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Item/Data/DA_Item_Water.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Item/Data/DA_Item_Water.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/Item/DropItem/BP_DropItem_MedKit.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Item/DropItem/BP_DropItem_MedKit.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/1/IC/NCRKW11FZ7ND6680B1SAWG.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/1/IC/NCRKW11FZ7ND6680B1SAWG.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/9/SW/PWBP8LJVVCX3C8HK3WC2RU.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/9/SW/PWBP8LJVVCX3C8HK3WC2RU.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/B/II/7CRKR2XV05O23BF7ZOSCH3.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/B/II/7CRKR2XV05O23BF7ZOSCH3.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemDataBase.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemDataBase.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/LootContainer.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/LootContainer.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/LootContainer.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/LootContainer.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemSpawnPoint.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/ItemSpawnPoint.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -392,7 +352,7 @@
       <workItem from="1787979300995" duration="3587000" />
       <workItem from="1788071004998" duration="376000" />
       <workItem from="1788071435903" duration="607000" />
-      <workItem from="1788082654771" duration="2946000" />
+      <workItem from="1788082654771" duration="4686000" />
     </task>
     <servers />
   </component>
