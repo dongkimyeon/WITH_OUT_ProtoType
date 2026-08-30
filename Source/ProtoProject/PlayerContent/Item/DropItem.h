@@ -34,6 +34,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Data")
 	int32 StackCount = 1;
 
+	// 서버 권위 아이템 동기화를 붙일 때 사용할 안정적 슬롯 id. 스폰 포인트가 채운다. (현재 미사용)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Net")
+	int32 NetSlotId = 0;
+
 	virtual void OnInteract_Implementation(AProtoCharacter* InPlayer) override;
 	virtual FText GetInteractPrompt_Implementation() const override;
 	virtual bool CanInteract_Implementation(AProtoCharacter* InPlayer) const override;

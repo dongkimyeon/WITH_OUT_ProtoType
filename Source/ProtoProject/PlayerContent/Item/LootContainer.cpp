@@ -1,6 +1,7 @@
 #include "LootContainer.h"
 #include "ItemDataBase.h"
 #include "../Inventory/InventoryGridComponent.h"
+#include "LootTierRoll.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/GameInstance.h"
 
@@ -55,6 +56,19 @@ ALootContainer::ALootContainer()
 
 void ALootContainer::SeedContents()
 {
+	// LootTable을 비워두면 RegionTier 기준으로 자동 채운다.
+	if (LootTable.Num() == 0)
+	{
+		const int32 Count = FMath::RandRange(FMath::Min(MinItems, MaxItems), FMath::Max(MinItems, MaxItems));
+		for (int32 i = 0; i < Count; ++i)
+		{
+			if (UItemDataBase* Chosen = LootTier::RollItem(RegionTier))
+			{
+				ContainerInventory->AddItem(Chosen);
+			}
+		}
+	}
+
 	for (const FLootTableEntry& Entry : LootTable)
 	{
 		if (!Entry.Item) continue;

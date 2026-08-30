@@ -1,0 +1,60 @@
+#include "ItemSpawnPoint.h"
+#include "DropItem.h"
+#include "ItemDataBase.h"
+#include "Components/BillboardComponent.h"
+
+AItemSpawnPoint::AItemSpawnPoint()
+{
+	PrimaryActorTick.bCanEverTick = false;
+
+	Billboard = CreateDefaultSubobject<UBillboardComponent>(TEXT("Billboard"));
+	RootComponent = Billboard;
+}
+
+void AItemSpawnPoint::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (bSpawnOnBeginPlay)
+	{
+		SpawnLoot();
+	}
+}
+
+void AItemSpawnPoint::SpawnLoot()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (int32 i = 0; i < LootTable.Num(); ++i)
+	{
+		const FLootTableEntry& Entry = LootTable[i];
+		if (!Entry.Item || FMath::FRand() > Entry.DropChance)
+		{
+			continue;
+		}
+
+		FVector Offset = FVector(FMath::VRand().GetSafeNormal2D() * FMath::FRand() * ScatterRadius);
+		Offset.Z = 30.f;
+
+		FTransform SpawnTransform = GetActorTransform();
+		SpawnTransform.SetLocation(SpawnTransform.GetLocation() + Offset);
+
+		// ItemData는 OnConstruction이 메시를 붙이는 데 쓰이므로 Deferred 스폰으로 먼저 세팅한다.
+		// (AEnemyBase::SpawnLoot와 동일한 패턴)
+		ADropItem* Drop = World->SpawnActorDeferred<ADropItem>(ADropItem::StaticClass(), SpawnTransform, nullptr, nullptr,
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (!Drop)
+		{
+			continue;
+		}
+
+		Drop->ItemData = Entry.Item;
+		Drop->StackCount = FMath::RandRange(Entry.MinStackCount, Entry.MaxStackCount);
+		Drop->NetSlotId = GetTypeHash(GetName() + FString::FromInt(i));
+		Drop->FinishSpawning(SpawnTransform);
+	}
+}

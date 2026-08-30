@@ -23,6 +23,17 @@ enum class EItemContextAction : uint8
     Use     // 즉시 소모/사용
 };
 
+// 아이템 등급. 스폰 지점/컨테이너의 지역 티어가 N이면 Tier <= N인 아이템만 후보가 된다.
+UENUM(BlueprintType)
+enum class EItemTier : uint8
+{
+    Tier1 = 0,  // 흔함
+    Tier2,
+    Tier3,
+    Tier4,
+    Tier5       // 희귀
+};
+
 UCLASS(Abstract, BlueprintType, meta = (PrioritizeCategories = "Item"))
 class PROTOPROJECT_API UItemDataBase : public UPrimaryDataAsset
 {
@@ -60,8 +71,16 @@ public:
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     EItemCategory Category = EItemCategory::Material;
 
+    // 아이템 등급 (스폰 티어 필터에 사용)
+    UPROPERTY(EditDefaultsOnly, Category = "Item")
+    EItemTier Tier = EItemTier::Tier1;
+
     UPROPERTY(EditDefaultsOnly, Category = "Item")
     TSoftObjectPtr<UStaticMesh> ItemMesh;
+
+    // 월드에 드롭 아이템으로 놓일 때 메시 스케일. 총기처럼 큰 메시를 줄일 때 사용.
+    UPROPERTY(EditDefaultsOnly, Category = "Item")
+    FVector WorldMeshScale = FVector(1.f);
 
     // 우클릭 시 수행할 동작 오버라이드
     virtual EItemContextAction GetContextAction() const { return EItemContextAction::None; }

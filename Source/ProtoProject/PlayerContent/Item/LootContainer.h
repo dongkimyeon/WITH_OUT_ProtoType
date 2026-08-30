@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "ItemContainerBase.h"
+#include "ItemDataBase.h"
 #include "../../Network/ProtoNetClientSubsystem.h"
 #include "LootContainer.generated.h"
 
@@ -27,10 +28,7 @@ struct FLootTableEntry
 	int32 MaxStackCount = 1;
 };
 
-// 랜덤 확률로 내용물이 채워지는 스테이지 파밍용 루팅 박스. 매번 각자 로컬에서 리롤하지만,
-// 서버에 처음 보고된 결과가 권위 있는 정답이 되어 모든 클라이언트에게 재방송되므로
-// (SendContainerLootRoll/OnContainerLootState 참고) 다른 플레이어와 내용물이 항상 일치한다.
-UCLASS()
+UCLASS(meta = (PrioritizeCategories = "Loot"))
 class PROTOPROJECT_API ALootContainer : public AItemContainerBase
 {
 	GENERATED_BODY()
@@ -38,6 +36,17 @@ class PROTOPROJECT_API ALootContainer : public AItemContainerBase
 public:
 	ALootContainer();
 
+	// LootTable이 비어 있을 때 사용. Tier <= RegionTier인 아이템이 티어별 가중치로 채워진다.
+	UPROPERTY(EditAnywhere, Category = "Loot")
+	EItemTier RegionTier = EItemTier::Tier1;
+
+	UPROPERTY(EditAnywhere, Category = "Loot", meta = (ClampMin = "0"))
+	int32 MinItems = 1;
+
+	UPROPERTY(EditAnywhere, Category = "Loot", meta = (ClampMin = "0"))
+	int32 MaxItems = 3;
+
+	// 수동 지정 루트 테이블. 비워두면 위 RegionTier 기준으로 자동 채운다.
 	UPROPERTY(EditAnywhere, Category = "Loot")
 	TArray<FLootTableEntry> LootTable;
 

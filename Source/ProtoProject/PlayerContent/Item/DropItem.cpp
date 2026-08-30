@@ -49,14 +49,25 @@ void ADropItem::OnConstruction(const FTransform& Transform)
 
 	if (!StaticMeshComp) return;
 
+	FVector MeshScale(1.f);
 	if (ItemData && !ItemData->ItemMesh.IsNull())
 	{
 		StaticMeshComp->SetStaticMesh(ItemData->ItemMesh.LoadSynchronous());
+		if (!ItemData->WorldMeshScale.IsNearlyZero())
+		{
+			MeshScale = ItemData->WorldMeshScale;
+		}
 	}
 	else
 	{
 		StaticMeshComp->SetStaticMesh(nullptr);
 	}
+
+	// StaticMeshComp가 루트라 여기에 스케일을 주면 액터 전체(자식 박스 포함)가 스케일된다.
+	// BoundingBox(가시성 트레이스 대상)는 메시를 따라 커지는 게 맞지만, InteractBox는
+	// "플레이어가 가까이 왔는지" 트리거라 메시 크기와 무관하게 월드 기준 크기를 유지해야 한다.
+	StaticMeshComp->SetRelativeScale3D(MeshScale);
+	InteractBox->SetRelativeScale3D(FVector(1.f / MeshScale.X, 1.f / MeshScale.Y, 1.f / MeshScale.Z));
 }
 
 void ADropItem::BeginPlay()
