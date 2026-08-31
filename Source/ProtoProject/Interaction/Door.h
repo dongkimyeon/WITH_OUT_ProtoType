@@ -26,8 +26,17 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UStaticMeshComponent* DoorMesh;
 
+	// 근접 감지용 트리거(오버랩).
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UBoxComponent* InteractBox;
+
+	// F키 라인트레이스가 맞는 대상. Root에 붙어 문과 함께 회전하지 않고 문틀에 고정.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UBoxComponent* HitBox;
+
+	// "F 열기" 프롬프트가 뜨는 월드 위치. BP에서 위치 조정.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	USceneComponent* PromptAnchor;
 
 	// 열렸을 때 회전 각도(크기). 방향(부호)은 플레이어 위치에 따라 자동 결정.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")

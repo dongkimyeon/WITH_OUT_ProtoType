@@ -4,6 +4,7 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/ProgressBar.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
+#include "Components/SceneComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Inventory/QuickSlotHudWidget.h"
 #include "ProtoCharacter.h"
@@ -100,10 +101,15 @@ void UPlayerDefalutUI::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 		UTextBlock* Text = Pair.Value;
 		if (!IsValid(Actor) || !Text) continue;
 
+		// 액터에 "PromptAnchor" 태그가 붙은 컴포넌트가 있으면 그 위치를, 없으면 액터 위 100.
+		FVector PromptLoc = Actor->GetActorLocation() + FVector(0.f, 0.f, 100.f);
+		if (UActorComponent* Anchor = Actor->FindComponentByTag(USceneComponent::StaticClass(), TEXT("PromptAnchor")))
+		{
+			PromptLoc = CastChecked<USceneComponent>(Anchor)->GetComponentLocation();
+		}
+
 		FVector2D ScreenPos;
-		bool bOnScreen = GetOwningPlayer()->ProjectWorldLocationToScreen(
-			Actor->GetActorLocation() + FVector(0.f, 0.f, 100.f), ScreenPos
-		);
+		bool bOnScreen = GetOwningPlayer()->ProjectWorldLocationToScreen(PromptLoc, ScreenPos);
 
 		if (bOnScreen)
 		{

@@ -18,14 +18,7 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Companion/BP_CompanionNPC.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Companion/BP_CompanionNPC.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Item/BP_ItemSpawnPoint.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Item/BP_ItemSpawnPoint.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Maps/L_Stage1.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Modular/Blueprints/Wall_Top_Door_Window_B_4m.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/Modular_Rural_Cabin/Meshes/Modular/Blueprints/Wall_Top_Door_Window_B_4m.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ProtoProject.sln.DotSettings.user" beforeDir="false" afterPath="$PROJECT_DIR$/ProtoProject.sln.DotSettings.user" afterDir="false" />
-    </list>
+    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -351,7 +344,7 @@
       <workItem from="1788071004998" duration="376000" />
       <workItem from="1788071435903" duration="607000" />
       <workItem from="1788082654771" duration="7402000" />
-      <workItem from="1788167887619" duration="502000" />
+      <workItem from="1788167887619" duration="893000" />
     </task>
     <servers />
   </component>

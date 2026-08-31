@@ -14,13 +14,24 @@ ADoor::ADoor()
 
 	DoorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DoorMesh"));
 	DoorMesh->SetupAttachment(Root);
-	// 카메라 라인트레이스(ECC_Visibility)에 맞아야 상호작용이 실행됨.
-	DoorMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	InteractBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractBox"));
 	InteractBox->SetupAttachment(Root);
 	InteractBox->SetBoxExtent(FVector(120.f, 120.f, 120.f));
 	InteractBox->SetCollisionProfileName(TEXT("Trigger"));
+
+	// 라인트레이스 전용 히트 박스: 쿼리만, Visibility만 Block(총알/이동/물리에는 영향 없음).
+	HitBox = CreateDefaultSubobject<UBoxComponent>(TEXT("HitBox"));
+	HitBox->SetupAttachment(Root);
+	HitBox->SetBoxExtent(FVector(10.f, 60.f, 100.f));
+	HitBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	HitBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+	HitBox->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+
+	PromptAnchor = CreateDefaultSubobject<USceneComponent>(TEXT("PromptAnchor"));
+	PromptAnchor->SetupAttachment(Root);
+	PromptAnchor->SetRelativeLocation(FVector(0.f, 60.f, 120.f));
+	PromptAnchor->ComponentTags.Add(TEXT("PromptAnchor"));
 }
 
 void ADoor::BeginPlay()
