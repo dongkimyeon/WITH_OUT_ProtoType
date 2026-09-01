@@ -29,6 +29,8 @@
 #include "weapon/WeaponBase.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "../LevelChange/LevelChanger.h"
 #include "../LevelChange/LevelChangeSelectWidget.h"
 #include "Engine/GameInstance.h"
@@ -92,6 +94,12 @@ AProtoCharacter::AProtoCharacter()
 void AProtoCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+
+    // 사망 후에는 래그돌 상태이므로 무기 IK/스왑/네트워크 위치 전송을 멈춘다.
+    if (bIsDead)
+    {
+        return;
+    }
 
     if (Controller)
     {
@@ -239,6 +247,11 @@ void AProtoCharacter::BeginPlay()
         if (InventoryComponent)
         {
             InventoryComponent->OnInventoryChanged.AddDynamic(this, &AProtoCharacter::HandleInventoryChanged);
+        }
+
+        if (StatusComponent)
+        {
+            StatusComponent->OnPlayerDied.AddDynamic(this, &AProtoCharacter::HandleDeath);
         }
 
         SpawnCompanion();
@@ -480,6 +493,30 @@ void AProtoCharacter::DebugDecreaseStamina()
     if (StatusComponent) StatusComponent->SetStamina(StatusComponent->GetStamina() - 5.0f);
 }
 
+void AProtoCharacter::Die()
+{
+    if (bIsDead)
+    {
+        return;
+    }
+
+    // 체력을 0으로 만들면 SetHealth가 OnPlayerDied를 브로드캐스트 -> HandleDeath(래그돌 + 소실) +
+    // ARaidManager::HandlePlayerDied(사망 화면 + 허브 복귀)가 실제 사망과 똑같이 돈다.
+    if (StatusComponent)
+    {
+        StatusComponent->SetHealth(0.0f);
+    }
+    else
+    {
+        HandleDeath();
+    }
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93010, 2.0f, FColor::Red, TEXT("Debug: Die"));
+    }
+}
+
 void AProtoCharacter::Move(const FInputActionValue& Value)
 {
     const FVector2D MovementVector = Value.Get<FVector2D>();
@@ -525,7 +562,10 @@ void AProtoCharacter::Sprint(const FInputActionValue& Value)
 
 void AProtoCharacter::StartSprint()
 {
+    if (bIsDead) return;
     if (StatusComponent && StatusComponent->GetStamina() <= 0.0f) return;
+    // 목마름/배고픔이 임계치(기본 20) 이하면 달릴 수 없다.
+    if (StatusComponent && !StatusComponent->CanSprint()) return;
 
     bIsSprint = true;
     GetCharacterMovement()->MaxWalkSpeed = SprintWalkSpeed;
@@ -539,7 +579,13 @@ void AProtoCharacter::StopSprint()
 
 void AProtoCharacter::UpdateStamina(float DeltaTime)
 {
-    if (!StatusComponent) return;
+    if (!StatusComponent || bIsDead) return;
+
+    // 달리는 중 목마름/배고픔이 임계치 이하로 떨어지면 즉시 중단한다.
+    if (bIsSprint && !StatusComponent->CanSprint())
+    {
+        StopSprint();
+    }
 
     const bool bIsMovingWhileSprint = bIsSprint && GetVelocity().SizeSquared2D() > 1.0f;
 
@@ -1646,9 +1692,66 @@ void AProtoCharacter::HandleInventoryChanged()
 
 void AProtoCharacter::HandleEnemyAttackPlayer(int32 EnemyId, float Damage)
 {
+    if (bIsDead) return;
+
     if (StatusComponent)
     {
         StatusComponent->SetHealth(StatusComponent->GetHealth() - Damage);
+    }
+}
+
+void AProtoCharacter::HandleDeath()
+{
+    if (bIsDead) return;
+    bIsDead = true;
+
+    // 사격 중단.
+    StopFireWeapon();
+    GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
+
+    // 입력 차단(컨트롤러는 유지 - ARaidManager가 레벨 이동을 처리한다).
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        DisableInput(PC);
+    }
+
+    // 이동 정지 + 래그돌 (AEnemyBase::Die 레시피와 동일, UnPossess만 제외).
+    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+    {
+        Movement->DisableMovement();
+        Movement->StopMovementImmediately();
+    }
+    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    {
+        Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+    if (USkeletalMeshComponent* MeshComponent = GetMesh())
+    {
+        MeshComponent->SetCollisionProfileName(TEXT("Ragdoll"));
+        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        MeshComponent->SetSimulatePhysics(true);
+        MeshComponent->WakeAllRigidBodies();
+    }
+
+    // 지니고 있던 것 전부 소실(스태시는 별개).
+    WipeCarriedInventoryOnDeath();
+}
+
+void AProtoCharacter::WipeCarriedInventoryOnDeath()
+{
+    if (EquipmentComponent)
+    {
+        EquipmentComponent->ClearAll();
+    }
+    if (QuickSlotComponent)
+    {
+        QuickSlotComponent->ClearAll();
+    }
+    if (InventoryComponent)
+    {
+        InventoryComponent->Items.Empty();
+        // OnInventoryChanged → HandleInventoryChanged가 빈 인벤토리를 서버에 저장하고 UI를 갱신한다.
+        InventoryComponent->OnInventoryChanged.Broadcast();
     }
 }
 
@@ -1889,6 +1992,7 @@ void AProtoCharacter::EndConsumableAnimationState()
 bool AProtoCharacter::UseConsumable(UConsumableItemData* ConsumableData)
 {
     if (!ConsumableData || !StatusComponent) return false;
+    if (bIsDead) return false;
 
     if (bIsUsingConsumable || bIsReloading || Swapping > 0.0f)
     {

@@ -222,6 +222,11 @@ private:
     void DebugIncreaseInfection();
     void DebugDecreaseStamina();
 
+    // PIE 콘솔(~)에서 "die" 입력 시 즉시 사망(실제 사망 경로와 동일: 래그돌 + 지닌 것 소실 +
+    // RaidManager가 있으면 사망 화면 + 허브 복귀).
+    UFUNCTION(Exec)
+    void Die();
+
     void UpdateStamina(float DeltaTime);
 
     // 소비 아이템의 OverTime 효과를 반복 타이머로 서서히 적용한다 (자가 종료).
@@ -396,6 +401,13 @@ public:
     UFUNCTION()
     void HandleEnemyAttackPlayer(int32 EnemyId, float Damage);
 
+    // UPlayerStatusComponent::OnPlayerDied 구독(로컬 플레이어만). 래그돌 + 입력 차단 + 무기 정지.
+    // SafePlace 복귀/인벤토리 소실은 ARaidManager가 같은 델리게이트를 받아 처리한다.
+    UFUNCTION()
+    void HandleDeath();
+
+    bool IsDead() const { return bIsDead; }
+
     // Finds a UItemDataBase asset by its own object name (e.g.
     // "DA_Item_AK47") via the Asset Registry -- not by ItemId, which isn't
     // guaranteed to be filled in (see inventory.fbs's item_id comment).
@@ -514,6 +526,11 @@ public:
 
 private:
     bool bIsInvetoryOpened = false;
+    bool bIsDead = false;
+
+    // 사망 시 지니고 있던 것을 전부 소실시킨다: 그리드 인벤토리 비우기 + 장비 슬롯 ClearAll +
+    // 퀵슬롯 ClearAll. 허브의 StorageContainer(스태시)는 별개라 손대지 않는다.
+    void WipeCarriedInventoryOnDeath();
 };
 
 

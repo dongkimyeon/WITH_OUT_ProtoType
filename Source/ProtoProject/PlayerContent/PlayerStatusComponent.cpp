@@ -28,6 +28,13 @@ void UPlayerStatusComponent::SetHealth(float newHealth)
 
 	Health = Clamped;
 	OnHealthChanged.Broadcast(Health, MaxHealth);
+
+	// 체력이 0이 되면 사망을 1회 알린다. IsNearlyEqual early-return이 이후 재발동을 막는다.
+	if (Health <= 0.0f && !bIsDead)
+	{
+		bIsDead = true;
+		OnPlayerDied.Broadcast();
+	}
 }
 
 void UPlayerStatusComponent::SetInfection(float newInfection)
@@ -81,6 +88,31 @@ void UPlayerStatusComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// ...
+	// 레이드 밖(허브)이거나 이미 사망했으면 생존 스탯을 시뮬레이션하지 않는다.
+	if (bIsDead || !bSurvivalSimActive)
+	{
+		return;
+	}
+
+	// 감염도 상승. 제한시간 경과 후에는 폭주 속도.
+	const float InfectionRate = bInfectionOverdue ? InfectionOverdueRatePerSecond : InfectionRatePerSecond;
+	SetInfection(Infection + InfectionRate * DeltaTime);
+
+	// 감염도가 최대면 체력을 깎는다.
+	if (Infection >= MaxInfection - KINDA_SMALL_NUMBER)
+	{
+		const float InfectionDamage = bInfectionOverdue ? InfectionOverdueDamagePerSecond : InfectionDamagePerSecond;
+		SetHealth(Health - InfectionDamage * DeltaTime);
+	}
+
+	// 배고픔 / 목마름 감소.
+	SetHunger(Hunger - HungerDrainPerSecond * DeltaTime);
+	SetThirst(Thirst - ThirstDrainPerSecond * DeltaTime);
+
+	// 배고픔이 바닥나면 굶주림으로 체력을 깎는다.
+	if (Hunger <= KINDA_SMALL_NUMBER)
+	{
+		SetHealth(Health - StarvationDamagePerSecond * DeltaTime);
+	}
 }
 

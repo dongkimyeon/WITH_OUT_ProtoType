@@ -178,6 +178,22 @@ const FQuickSlotEntry& UQuickSlotComponent::GetQuickSlotEntry(int32 SlotIndex) c
 	return Slots.IsValidIndex(SlotIndex) ? Slots[SlotIndex] : EmptyEntry;
 }
 
+void UQuickSlotComponent::ClearAll()
+{
+	for (int32 SlotIndex = 0; SlotIndex < Slots.Num(); ++SlotIndex)
+	{
+		if (!Slots[SlotIndex].ItemData)
+		{
+			continue;
+		}
+
+		Slots[SlotIndex] = FQuickSlotEntry();
+		OnQuickSlotChanged.Broadcast(SlotIndex);
+	}
+
+	LastUsedSlotIndex = INDEX_NONE;
+}
+
 void UQuickSlotComponent::EnsureValidLastUsedSlot()
 {
 	if (Slots.IsValidIndex(LastUsedSlotIndex) && Slots[LastUsedSlotIndex].ItemData)

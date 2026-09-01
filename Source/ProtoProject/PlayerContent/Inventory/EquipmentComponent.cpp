@@ -135,3 +135,17 @@ const FEquippedItem& UEquipmentComponent::GetEquippedItem(EEquipmentSlot Slot) c
 {
     return EquippedSlots[static_cast<int32>(Slot)];
 }
+
+void UEquipmentComponent::ClearAll()
+{
+    for (int32 SlotIndex = 0; SlotIndex < EquippedSlots.Num(); ++SlotIndex)
+    {
+        if (!EquippedSlots[SlotIndex].ItemData)
+        {
+            continue;
+        }
+
+        EquippedSlots[SlotIndex] = FEquippedItem();
+        OnEquipmentChanged.Broadcast(static_cast<EEquipmentSlot>(SlotIndex));
+    }
+}

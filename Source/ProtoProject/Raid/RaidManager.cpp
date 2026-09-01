@@ -1,0 +1,142 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#include "RaidManager.h"
+#include "RaidTimerWidget.h"
+#include "../PlayerContent/ProtoCharacter.h"
+#include "../PlayerContent/PlayerStatusComponent.h"
+#include "Blueprint/UserWidget.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+
+ARaidManager::ARaidManager()
+{
+	PrimaryActorTick.bCanEverTick = true;
+}
+
+void ARaidManager::BeginPlay()
+{
+	Super::BeginPlay();
+	// 로컬 플레이어는 아직 스폰 전일 수 있으므로 Tick에서 폴링해 잡는다.
+}
+
+void ARaidManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (LocalStatus.IsValid())
+	{
+		LocalStatus->OnPlayerDied.RemoveDynamic(this, &ARaidManager::HandlePlayerDied);
+	}
+
+	if (TimerWidgetInstance)
+	{
+		TimerWidgetInstance->RemoveFromParent();
+		TimerWidgetInstance = nullptr;
+	}
+
+	if (DeathScreenInstance)
+	{
+		DeathScreenInstance->RemoveFromParent();
+		DeathScreenInstance = nullptr;
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+bool ARaidManager::TryAcquireLocalPlayer()
+{
+	APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	AProtoCharacter* Character = Cast<AProtoCharacter>(Pawn);
+	if (!Character || !Character->IsLocallyControlled())
+	{
+		return false;
+	}
+
+	UPlayerStatusComponent* Status = Character->FindComponentByClass<UPlayerStatusComponent>();
+	if (!Status)
+	{
+		return false;
+	}
+
+	LocalStatus = Status;
+
+	Status->SetSurvivalSimulationActive(true);
+	Status->OnPlayerDied.AddDynamic(this, &ARaidManager::HandlePlayerDied);
+
+	if (RaidTimerWidgetClass)
+	{
+		TimerWidgetInstance = CreateWidget<URaidTimerWidget>(GetWorld(), RaidTimerWidgetClass);
+		if (TimerWidgetInstance)
+		{
+			TimerWidgetInstance->AddToViewport();
+			TimerWidgetInstance->SetRaidTime(RaidDuration, false);
+		}
+	}
+
+	return true;
+}
+
+void ARaidManager::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (!bRaidActive)
+	{
+		bRaidActive = TryAcquireLocalPlayer();
+		return;
+	}
+
+	// 플레이어가 사라졌으면(레벨 이동 등) 더 할 일이 없다.
+	if (!LocalStatus.IsValid())
+	{
+		return;
+	}
+
+	RaidElapsed += DeltaTime;
+
+	if (!bOverdueTriggered && RaidElapsed >= RaidDuration)
+	{
+		bOverdueTriggered = true;
+		LocalStatus->SetInfectionOverdue(true);
+	}
+
+	if (TimerWidgetInstance)
+	{
+		TimerWidgetInstance->SetRaidTime(FMath::Max(0.0f, RaidDuration - RaidElapsed), bOverdueTriggered);
+	}
+}
+
+void ARaidManager::HandlePlayerDied()
+{
+	// 캐릭터가 지니고 있던 것(그리드/장비/퀵슬롯)은 AProtoCharacter::HandleDeath에서 전부 소실 처리한다.
+	// 안전 창고(허브의 StorageContainer = 스태시)는 별개이므로 손대지 않는다.
+	// RaidManager는 사망 연출과 허브 복귀만 담당한다.
+
+	if (DeathScreenWidgetClass && !DeathScreenInstance)
+	{
+		DeathScreenInstance = CreateWidget<UUserWidget>(GetWorld(), DeathScreenWidgetClass);
+		if (DeathScreenInstance)
+		{
+			DeathScreenInstance->AddToViewport(100);
+		}
+	}
+
+	if (TimerWidgetInstance)
+	{
+		TimerWidgetInstance->RemoveFromParent();
+		TimerWidgetInstance = nullptr;
+	}
+
+	GetWorldTimerManager().SetTimer(
+		DeathReturnTimerHandle, this, &ARaidManager::ReturnToHub, FMath::Max(0.1f, DeathReturnDelay), false);
+}
+
+void ARaidManager::ReturnToHub()
+{
+	if (ExtractionFailLevel.IsNull())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[RaidManager] ExtractionFailLevel이 지정되지 않아 복귀할 수 없습니다."));
+		return;
+	}
+
+	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), ExtractionFailLevel);
+}

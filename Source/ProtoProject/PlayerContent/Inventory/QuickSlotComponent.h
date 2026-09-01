@@ -62,6 +62,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "QuickSlot")
 	const FQuickSlotEntry& GetQuickSlotEntry(int32 SlotIndex) const;
 
+	// 모든 퀵슬롯을 비운다. 내용물은 인벤토리로 반환하지 않고 소실된다(사망 페널티용).
+	// 채워져 있던 슬롯마다 OnQuickSlotChanged를 브로드캐스트한다.
+	UFUNCTION(BlueprintCallable, Category = "QuickSlot")
+	void ClearAll();
+
 	// 마지막 사용 슬롯 (짧게 탭 시 재사용)
 	UPROPERTY(BlueprintReadWrite, Category = "QuickSlot")
 	int32 LastUsedSlotIndex = INDEX_NONE;

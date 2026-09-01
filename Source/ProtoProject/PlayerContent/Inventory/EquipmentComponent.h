@@ -66,6 +66,11 @@ public:
     UFUNCTION(BlueprintPure, Category = "Equipment")
     const FEquippedItem& GetEquippedItem(EEquipmentSlot Slot) const;
 
+    // 모든 장착 슬롯을 비운다. 내용물은 인벤토리로 반환하지 않고 소실된다(사망 페널티용).
+    // 채워져 있던 슬롯마다 OnEquipmentChanged를 브로드캐스트한다.
+    UFUNCTION(BlueprintCallable, Category = "Equipment")
+    void ClearAll();
+
     UPROPERTY(BlueprintAssignable, Category = "Equipment")
     FOnEquipmentChanged OnEquipmentChanged;
 

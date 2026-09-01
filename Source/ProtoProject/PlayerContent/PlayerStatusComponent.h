@@ -8,6 +8,9 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStatChanged, float, NewValue, float, MaxValue);
 
+// 체력이 0에 도달했을 때 1회 브로드캐스트된다(감염/굶주림/피격 등 원인 무관).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDied);
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROTOPROJECT_API UPlayerStatusComponent : public UActorComponent
 {
@@ -44,6 +47,43 @@ private:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat", meta = (AllowPrivateAccess = "true"))
     float Stamina = 100.0f;
 
+    /*-------------------
+     레이드 생존 시뮬레이션 (ARaidManager가 SetSurvivalSimulationActive(true)로 켠다)
+    -------------------*/
+    // 평상시 감염도 상승 속도(초당). 방치 시 이 속도로 100까지 차오른다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat|Survival", meta = (AllowPrivateAccess = "true"))
+    float InfectionRatePerSecond = 0.15f;
+
+    // 레이드 제한시간(15분) 경과 후의 감염도 상승 속도(초당) - 사실상 즉사 유도.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat|Survival", meta = (AllowPrivateAccess = "true"))
+    float InfectionOverdueRatePerSecond = 20.0f;
+
+    // 감염도가 최대(100)일 때 초당 깎이는 체력.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat|Survival", meta = (AllowPrivateAccess = "true"))
+    float InfectionDamagePerSecond = 1.0f;
+
+    // 제한시간 경과 + 감염도 최대일 때 초당 깎이는 체력.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat|Survival", meta = (AllowPrivateAccess = "true"))
+    float InfectionOverdueDamagePerSecond = 10.0f;
+
+    // 배고픔/목마름 감소 속도(초당). 0.5 = 2초당 1.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat|Survival", meta = (AllowPrivateAccess = "true"))
+    float HungerDrainPerSecond = 0.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat|Survival", meta = (AllowPrivateAccess = "true"))
+    float ThirstDrainPerSecond = 0.5f;
+
+    // 배고픔이 0일 때 초당 깎이는 체력.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat|Survival", meta = (AllowPrivateAccess = "true"))
+    float StarvationDamagePerSecond = 1.0f;
+
+    // 목마름 또는 배고픔이 이 값 이하면 달리기 불가.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stat|Survival", meta = (AllowPrivateAccess = "true"))
+    float SprintBlockThreshold = 20.0f;
+
+    bool bIsDead = false;
+    bool bSurvivalSimActive = false;
+    bool bInfectionOverdue = false;
 
 public:
     // Sets default values for this component's properties
@@ -63,6 +103,20 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Stat")
     FOnStatChanged OnStaminaChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Stat")
+    FOnPlayerDied OnPlayerDied;
+
+    // ARaidManager가 레이드 진입 시 켜고, 허브에서는 켜지 않는다.
+    void SetSurvivalSimulationActive(bool bActive) { bSurvivalSimActive = bActive; }
+
+    // ARaidManager가 레이드 제한시간(15분) 경과 시 호출한다.
+    void SetInfectionOverdue(bool bOverdue) { bInfectionOverdue = bOverdue; }
+
+    bool IsDead() const { return bIsDead; }
+
+    // 목마름/배고픔이 모두 임계치를 넘어야 달릴 수 있다.
+    bool CanSprint() const { return Thirst > SprintBlockThreshold && Hunger > SprintBlockThreshold; }
 
 public:
     //Getter
