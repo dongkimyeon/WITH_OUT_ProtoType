@@ -29,7 +29,10 @@ void AEnemyCaller::DoCall()
 
     if (CallMontage)
     {
-        PlayAnimMontage(CallMontage, 1.0f, CallSectionName);
+        if (PlayAnimMontage(CallMontage, 1.0f, CallSectionName) > 0.0f)
+        {
+            PauseMovementForMontage(CallMontage);
+        }
     }
 
     TArray<AActor*> NearbyEnemies;

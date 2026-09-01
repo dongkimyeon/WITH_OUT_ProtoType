@@ -214,9 +214,60 @@ void AEnemyBase::Attack()
     if (AttackMontage)
     {
         bIsAttacking = PlayAnimMontage(AttackMontage) > 0.0f;
-
+        if (bIsAttacking)
+        {
+            PauseMovementForMontage(AttackMontage);
+        }
     }
 }
+
+void AEnemyBase::PauseMovementForMontage(UAnimMontage* Montage)
+{
+    if (!Montage || bIsDead)
+    {
+        return;
+    }
+
+    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+    {
+        if (!bMovementPausedForMontage)
+        {
+            SavedMontageMaxWalkSpeed = Movement->MaxWalkSpeed;
+            SavedMontageMaxAcceleration = Movement->MaxAcceleration;
+        }
+
+        bMovementPausedForMontage = true;
+        MovementPausedMontage = Montage;
+        if (AAIController* AIController = Cast<AAIController>(GetController()))
+        {
+            AIController->StopMovement();
+        }
+        Movement->StopMovementImmediately();
+        Movement->MaxWalkSpeed = 0.0f;
+        Movement->MaxAcceleration = 0.0f;
+    }
+}
+
+void AEnemyBase::RestoreMovementAfterMontage(UAnimMontage* Montage)
+{
+    if (!bMovementPausedForMontage || (Montage && MovementPausedMontage && Montage != MovementPausedMontage))
+    {
+        return;
+    }
+
+    bMovementPausedForMontage = false;
+    MovementPausedMontage = nullptr;
+
+    if (!bIsDead)
+    {
+        if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+        {
+            Movement->MaxWalkSpeed = SavedMontageMaxWalkSpeed > 0.0f ? SavedMontageMaxWalkSpeed : MoveSpeed;
+            Movement->MaxAcceleration = SavedMontageMaxAcceleration > 0.0f ? SavedMontageMaxAcceleration : DefaultMaxAcceleration;
+        }
+    }
+}
+
 void AEnemyBase::HandleAttackMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
 {
     static const FName BeginAttackNotifyName(TEXT("BeginAttack"));
@@ -239,7 +290,10 @@ void AEnemyBase::HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupt
         bIsAttacking = false;
         EndAttackHitWindow();
     }
+
+    RestoreMovementAfterMontage(Montage);
 }
+
 void AEnemyBase::BeginAttackHitWindow()
 {
     DamagedActorsThisSwing.Reset();
@@ -269,7 +323,7 @@ void AEnemyBase::EndAttackHitWindow()
     LeftHandAttackBox->SetGenerateOverlapEvents(false);
     LeftHandAttackBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-    if (!bIsDead)
+    if (!bMovementPausedForMontage && !bIsDead)
     {
         if (UCharacterMovementComponent* Movement = GetCharacterMovement())
         {
@@ -328,8 +382,12 @@ void AEnemyBase::OnAttackBoxBeginOverlap(UPrimitiveComponent* OverlappedComponen
 }
 void AEnemyBase::MoveToTarget()
 {
-if (!HasTarget())
+    if (bMovementPausedForMontage || bIsAttacking || !HasTarget())
     {
+        if (AAIController* AIController = Cast<AAIController>(GetController()))
+        {
+            AIController->StopMovement();
+        }
         return;
     }
 

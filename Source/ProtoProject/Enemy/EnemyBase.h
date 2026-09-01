@@ -158,6 +158,8 @@ protected:
     void UpdateTarget();
     void PrintBehaviorDebug(const FString& Message, const FColor& Color = FColor::Cyan);
     void SpawnLoot();
+    void PauseMovementForMontage(UAnimMontage* Montage);
+    void RestoreMovementAfterMontage(UAnimMontage* Montage = nullptr);
 
     // 거리(SightRange)는 이미 통과했다고 가정하고, 시야각 + 장애물 차단(라인오브사이트)만 검사한다.
     bool CanSeeCandidate(const AActor* Candidate) const;
@@ -207,6 +209,10 @@ private:
     float DefaultMaxAcceleration = 2048.0f;
     FString LastBehaviorDebugMessage;
     TSet<TWeakObjectPtr<AActor>> DamagedActorsThisSwing;
+    TObjectPtr<UAnimMontage> MovementPausedMontage = nullptr;
+    float SavedMontageMaxWalkSpeed = 0.0f;
+    float SavedMontageMaxAcceleration = 0.0f;
+    bool bMovementPausedForMontage = false;
 
     // Whether THIS client's copy is the one actually running the behavior
     // tree/pathing for this enemy (see HandleEnemyClaimResult). Defaults to

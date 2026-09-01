@@ -29,6 +29,7 @@
 #include "weapon/WeaponBase.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "../LevelChange/LevelChanger.h"
 #include "../LevelChange/LevelChangeSelectWidget.h"
 #include "Engine/GameInstance.h"
@@ -1713,11 +1714,43 @@ void AProtoCharacter::HandleDeath()
         DisableInput(PC);
     }
 
-    // 이동 정지. 사망 시 래그돌/사망 애니메이션 처리는 별도 작업 예정.
+    // 이동 정지.
     if (UCharacterMovementComponent* Movement = GetCharacterMovement())
     {
         Movement->DisableMovement();
         Movement->StopMovementImmediately();
+    }
+
+    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+    {
+        Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    }
+
+    if (USkeletalMeshComponent* CharacterMesh = GetMesh())
+    {
+        CharacterMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+        CharacterMesh->SetCollisionProfileName(TEXT("Ragdoll"));
+        CharacterMesh->SetCollisionObjectType(ECC_PhysicsBody);
+        CharacterMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        CharacterMesh->SetAllBodiesBelowSimulatePhysics(NAME_None, true, true);
+        CharacterMesh->SetAllBodiesSimulatePhysics(true);
+        CharacterMesh->SetSimulatePhysics(true);
+        CharacterMesh->WakeAllRigidBodies();
+        CharacterMesh->bBlendPhysics = true;
+
+#if !(UE_BUILD_SHIPPING)
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                93011,
+                4.0f,
+                CharacterMesh->IsSimulatingPhysics() ? FColor::Green : FColor::Red,
+                FString::Printf(TEXT("Player Ragdoll: PhysicsAsset=%s Sim=%s Collision=%d"),
+                    CharacterMesh->GetPhysicsAsset() ? TEXT("YES") : TEXT("NO"),
+                    CharacterMesh->IsSimulatingPhysics() ? TEXT("YES") : TEXT("NO"),
+                    static_cast<int32>(CharacterMesh->GetCollisionEnabled())));
+        }
+#endif
     }
 
     // 지니고 있던 것 전부 소실(스태시는 별개).
