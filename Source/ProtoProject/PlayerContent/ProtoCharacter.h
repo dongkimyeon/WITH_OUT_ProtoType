@@ -401,8 +401,8 @@ public:
     UFUNCTION()
     void HandleEnemyAttackPlayer(int32 EnemyId, float Damage);
 
-    // UPlayerStatusComponent::OnPlayerDied 구독(로컬 플레이어만). 래그돌 + 입력 차단 + 무기 정지.
-    // SafePlace 복귀/인벤토리 소실은 ARaidManager가 같은 델리게이트를 받아 처리한다.
+    // UPlayerStatusComponent::OnPlayerDied 구독(로컬 플레이어만). 입력 차단 + 이동 정지 +
+    // 지닌 것 소실. 래그돌/사망 애니메이션은 별도 작업 예정. SafePlace 복귀·사망 화면은 ARaidManager.
     UFUNCTION()
     void HandleDeath();
 

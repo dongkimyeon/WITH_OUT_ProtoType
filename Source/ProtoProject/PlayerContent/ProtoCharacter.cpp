@@ -29,8 +29,6 @@
 #include "weapon/WeaponBase.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
-#include "Components/CapsuleComponent.h"
-#include "Components/SkeletalMeshComponent.h"
 #include "../LevelChange/LevelChanger.h"
 #include "../LevelChange/LevelChangeSelectWidget.h"
 #include "Engine/GameInstance.h"
@@ -1715,22 +1713,11 @@ void AProtoCharacter::HandleDeath()
         DisableInput(PC);
     }
 
-    // 이동 정지 + 래그돌 (AEnemyBase::Die 레시피와 동일, UnPossess만 제외).
+    // 이동 정지. 사망 시 래그돌/사망 애니메이션 처리는 별도 작업 예정.
     if (UCharacterMovementComponent* Movement = GetCharacterMovement())
     {
         Movement->DisableMovement();
         Movement->StopMovementImmediately();
-    }
-    if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-    {
-        Capsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-    }
-    if (USkeletalMeshComponent* MeshComponent = GetMesh())
-    {
-        MeshComponent->SetCollisionProfileName(TEXT("Ragdoll"));
-        MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-        MeshComponent->SetSimulatePhysics(true);
-        MeshComponent->WakeAllRigidBodies();
     }
 
     // 지니고 있던 것 전부 소실(스태시는 별개).
@@ -1784,7 +1771,10 @@ TArray<FProtoInventoryItemEntry> AProtoCharacter::BuildInventorySnapshot() const
 
 void AProtoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    if (IsLocallyControlled() && EndPlayReason == EEndPlayReason::LevelTransition)
+    // 사망으로 인한 레벨 이동이면 위치/시선/무기/인벤토리를 다음 레벨로 이월하지 않는다.
+    // 허브에서 PlayerStart + 기본 스탯(체력100/감염0/허기·갈증100)으로 새로 시작한다.
+    // (인벤토리는 WipeCarriedInventoryOnDeath에서 이미 비우고 서버에도 빈 상태로 저장됨)
+    if (IsLocallyControlled() && EndPlayReason == EEndPlayReason::LevelTransition && !bIsDead)
     {
         if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
         {
