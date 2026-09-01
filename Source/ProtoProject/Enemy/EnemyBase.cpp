@@ -50,7 +50,7 @@ AEnemyBase::AEnemyBase()
     PerceptionStimuliSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(TEXT("PerceptionStimuliSource"));
 
     LeftHandAttackBox = CreateDefaultSubobject<UBoxComponent>(TEXT("LeftHandAttackBox"));
-    LeftHandAttackBox->SetupAttachment(GetMesh(), TEXT("hand_l"));
+    LeftHandAttackBox->SetupAttachment(GetMesh(), TEXT("RightHand"));
     LeftHandAttackBox->SetBoxExtent(LeftHandAttackBoxExtent);
     LeftHandAttackBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     LeftHandAttackBox->SetCollisionObjectType(ECC_WorldDynamic);
