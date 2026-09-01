@@ -13,6 +13,9 @@ class UCompanionPerceptionComponent;
 class UInventoryGridComponent;
 class ADropItem;
 
+// 명령 이동 지점에 도달하지 못하고 정체(스턱)로 명령을 포기했을 때 브로드캐스트된다.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FCompanionMoveBlockedSignature);
+
 // EnemyBase와 같은 방식(TBTNode<UCompanionAIComponent> 커스텀 트리)으로 Idle/Follow/
 // MoveToLocation/MoveToTarget(Combat)/Attack 상태를 매 틱 평가하고 AIController 이동을 호출한다.
 // 명령(CommandRouter)과 지각(Perception)이 세팅하는 bool 플래그로 상태 전이를 표현한다.
@@ -41,6 +44,34 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
 	float MoveRequestInterval = 0.25f;
+
+	// 이동 명령/탐색 수행 중 이 시간(초) 동안 StuckDistanceThreshold보다 적게 움직이면 경로가
+	// 막힌 것으로 본다(플레이어가 좁은 통로를 막고 서 있는 경우 등). UE 기본값에서 플레이어 캐릭터는
+	// 내비메시를 깎지 않아 경로는 항상 플레이어를 통과하도록 계산되므로, 물리적으로 막히면
+	// PathFollowing이 스스로 실패를 보고하지 않는다 - 여기서 직접 감지해야 한다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
+	float StuckTimeThreshold = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
+	float StuckDistanceThreshold = 50.0f;
+
+	// 명령 이동이 정체될 때마다 좌/우 우회 지점을 경유해 본 목적지로 재접근을 시도하는 최대 횟수.
+	// 이 횟수를 넘겨도 계속 막히면 명령을 포기하고 OnMoveCommandBlocked를 브로드캐스트한다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
+	int32 MaxStuckRetries = 3;
+
+	// 정체 시 잡는 우회 지점을 현재 위치에서 좌/우(재시도마다 번갈아)로 얼마나 벌릴지.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
+	float DetourDistance = 500.0f;
+
+	// 우회 지점으로 이동을 시도하는 최대 시간(초). 이 안에 도달 못 하면 본 목적지 재시도로 넘어간다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|AI")
+	float DetourTimeout = 5.0f;
+
+	// 명령 이동이 MaxStuckRetries회 우회 재시도 후에도 막혀 포기했을 때 브로드캐스트.
+	// Router가 받아 확인 대사를 들려준다.
+	UPROPERTY(BlueprintAssignable, Category = "Companion|AI")
+	FCompanionMoveBlockedSignature OnMoveCommandBlocked;
 
 	// 적을 시야에 두면(Perception) 자동으로 교전 상태로 전환할지 여부. 기본값 false: 플레이어가
 	// "싸워"/CommandEngage()로 명령하기 전까지는 적을 발견해도 공격하지 않는다.
@@ -192,6 +223,17 @@ private:
 
 	float MoveRequestTimer = 0.0f;
 
+	// 이동 정체(스턱) 감지 상태.
+	FVector StuckAnchorLocation = FVector::ZeroVector;
+	float StuckElapsed = 0.0f;
+	double LastStuckTickTime = -1.0;
+
+	// 명령 이동 정체 시 우회 재시도 상태.
+	int32 CommandedMoveStuckRetries = 0;
+	bool bCommandedMoveDetouring = false;
+	FVector CommandedDetourLocation = FVector::ZeroVector;
+	float CommandedDetourEndTime = 0.0f;
+
 	float StrafeTimer = 0.0f;
 	float StrafeDirection = 1.0f;
 	bool bCombatRotationActive = false;
@@ -231,6 +273,19 @@ private:
 	// (쓰로틀로 요청 자체를 건너뛴 경우는 실패로 치지 않는다.)
 	bool RequestMoveToActor(AActor* Target, float AcceptRadius);
 	void RequestMoveToLocation(const FVector& Location, float AcceptRadius);
+
+	// 이동 명령/탐색 Action에서 매 틱 호출한다. 다른 상태에 있다가 돌아온 경우(연속 호출이
+	// 0.5초 이상 끊긴 경우) 추적을 자동으로 리셋하고, 정체가 StuckTimeThreshold를 넘으면 true.
+	bool TickStuckDetection(float DeltaTime);
+	void ResetStuckDetection();
+
+	// 정체 시 호출. 현재 위치에서 목적지 방향의 좌/우(재시도마다 번갈아)로 DetourDistance만큼
+	// 벌린 지점을 내비메시에 투영해 우회 목표로 잡는다. 실패하면 주변 랜덤 도달 가능 지점으로
+	// 폴백하고, 그것도 없으면 false.
+	bool ComputeDetourLocation(const FVector& TowardTarget, FVector& OutDetour) const;
+
+	// 명령 이동을 포기한다: 상태 초기화 + StopMovement + OnMoveCommandBlocked 브로드캐스트.
+	void AbandonCommandedMove();
 };
 
 

@@ -10,6 +10,7 @@
 #include "CompanionCommandRouterComponent.h"
 #include "CompanionReportComponent.h"
 #include "AIController.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "../PlayerContent/Inventory/InventoryGridComponent.h"
 #include "../PlayerContent/weapon/WeaponBase.h"
@@ -126,6 +127,16 @@ void ACompanionNPC::BeginPlay()
 	}
 
 	Super::BeginPlay();
+
+	// 다른 동료/적을 부드럽게 피해 돌아가도록 RVO 회피를 켠다. RVO는 등록된 에이전트끼리만
+	// 상호 회피하므로 플레이어(비등록)는 피하지 못한다 - 플레이어가 좁은 통로를 완전히 막는
+	// 경우는 UCompanionAIComponent의 스턱 감지가 명령을 포기시키는 방식으로 처리한다.
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		Movement->bUseRVOAvoidance = true;
+		Movement->AvoidanceConsiderationRadius = 250.0f;
+		Movement->AvoidanceWeight = 0.5f;
+	}
 
 	// 명령/대화 라우팅: 인식된 텍스트는 항상 Router를 먼저 거친다(키워드 즉시 실행 -> Brain 폴백).
 	ListenComponent->OnTranscribed.AddDynamic(CommandRouterComponent, &UCompanionCommandRouterComponent::HandleTranscribed);

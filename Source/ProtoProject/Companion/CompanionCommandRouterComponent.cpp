@@ -45,6 +45,11 @@ void UCompanionCommandRouterComponent::BeginPlay()
 		VisionCapture = Owner->FindComponentByClass<USceneCaptureComponent2D>();
 	}
 
+	if (AIComponent.IsValid())
+	{
+		AIComponent->OnMoveCommandBlocked.AddDynamic(this, &UCompanionCommandRouterComponent::HandleMoveCommandBlocked);
+	}
+
 	if (VisionCapture.IsValid())
 	{
 		VisionRenderTarget = NewObject<UTextureRenderTarget2D>(this);
@@ -175,6 +180,15 @@ void UCompanionCommandRouterComponent::HandleActionRequested(const FString& Acti
 	else
 	{
 		UE_LOG(LogCompanionAI, Warning, TEXT("[Router] 알 수 없는 액션: %s"), *ActionName);
+	}
+}
+
+void UCompanionCommandRouterComponent::HandleMoveCommandBlocked()
+{
+	UE_LOG(LogCompanionAI, Log, TEXT("[Router] 이동 명령이 정체로 포기됨 -> 확인 대사"));
+	if (SpeechComponent.IsValid() && !MoveBlockedLine.IsEmpty())
+	{
+		SpeechComponent->Speak(MoveBlockedLine);
 	}
 }
 

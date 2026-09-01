@@ -82,6 +82,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command")
 	FString GiveItemNotFoundLine = TEXT("그런 건 안 갖고 있는데?");
 
+	// 이동 명령을 수행하다 길이 막혀(플레이어가 통로를 막는 등) 포기했을 때 하는 대답.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command")
+	FString MoveBlockedLine = TEXT("여기서는 못 가겠어. 길을 막고 있는 것 같은데?");
+
 	// 플레이어가 이 시간(초) 동안 말이 없으면 혼잣말을 시도한다. Max는 다음 시도까지의 랜덤 상한.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Command|IdleChatter")
 	bool bIdleChatterEnabled = true;
@@ -97,6 +101,9 @@ public:
 
 	UFUNCTION()
 	void HandleActionRequested(const FString& ActionName, const FString& ActionArg);
+
+	UFUNCTION()
+	void HandleMoveCommandBlocked();
 
 protected:
 	virtual void BeginPlay() override;

@@ -264,6 +264,9 @@ void UCompanionAIComponent::CommandMoveToLocation(const FVector& Location)
 	CommandedTargetActor = nullptr;
 	bCombatSuppressed = false;
 	bExploring = false;
+	LastStuckTickTime = -1.0; // 다음 TickStuckDetection이 새 명령 기준으로 추적을 리셋하게 한다.
+	CommandedMoveStuckRetries = 0;
+	bCommandedMoveDetouring = false;
 }
 
 void UCompanionAIComponent::CommandMoveToActor(AActor* TargetActor)
@@ -279,6 +282,9 @@ void UCompanionAIComponent::CommandMoveToActor(AActor* TargetActor)
 	CommandedTargetActor = TargetActor;
 	bCombatSuppressed = false;
 	bExploring = false;
+	LastStuckTickTime = -1.0; // 다음 TickStuckDetection이 새 명령 기준으로 추적을 리셋하게 한다.
+	CommandedMoveStuckRetries = 0;
+	bCommandedMoveDetouring = false;
 }
 
 void UCompanionAIComponent::CommandEngage()
@@ -319,6 +325,7 @@ void UCompanionAIComponent::CommandExplore()
 	ExploreWanderTimer = 0.0f;
 	ExploreMoveFailCount = 0;
 	UnreachableExploreItems.Reset();
+	LastStuckTickTime = -1.0; // 다음 TickStuckDetection이 탐색 시작 기준으로 추적을 리셋하게 한다.
 
 	if (AActor* Owner = GetOwner())
 	{
@@ -465,7 +472,18 @@ EBTNodeResult UCompanionAIComponent::DoAttack(float DeltaTime)
 		StrafeDirection = FMath::RandBool() ? 1.0f : -1.0f;
 	}
 
-	RequestMoveToLocation(ComputeCombatMoveLocation(Enemy), MoveAcceptanceRadius);
+	// 스트레이프 목표 지점이 벽 안/낭떠러지 등 내비메시 밖이면 MoveToLocation이 실패해 전투 중
+	// 이동이 끊긴다 - 내비메시로 투영해 가장 가까운 유효 지점으로 보낸다.
+	FVector CombatMoveLocation = ComputeCombatMoveLocation(Enemy);
+	if (UNavigationSystemV1* NavSystem = GetWorld() ? UNavigationSystemV1::GetCurrent(GetWorld()) : nullptr)
+	{
+		FNavLocation ProjectedMove;
+		if (NavSystem->ProjectPointToNavigation(CombatMoveLocation, ProjectedMove, FVector(300.0f, 300.0f, 500.0f)))
+		{
+			CombatMoveLocation = ProjectedMove.Location;
+		}
+	}
+	RequestMoveToLocation(CombatMoveLocation, MoveAcceptanceRadius);
 
 	if (CombatComponent.IsValid())
 	{
@@ -493,33 +511,112 @@ EBTNodeResult UCompanionAIComponent::DoMoveToEnemy(float DeltaTime)
 	return EBTNodeResult::Running;
 }
 
+void UCompanionAIComponent::AbandonCommandedMove()
+{
+	bHasCommandedDestination = false;
+	bCommandedMoveDetouring = false;
+	CommandedMoveStuckRetries = 0;
+	if (AAIController* AIController = GetAIController())
+	{
+		AIController->StopMovement();
+	}
+	OnMoveCommandBlocked.Broadcast();
+}
+
 EBTNodeResult UCompanionAIComponent::DoMoveToCommanded(float DeltaTime)
 {
-	FVector TargetLocation;
+	AActor* Owner = GetOwner();
 
+	// 최종 목적지 좌표 파악(액터면 현재 위치).
+	FVector TargetLocation;
+	AActor* TargetActor = nullptr;
 	if (bCommandedDestinationIsActor)
 	{
-		AActor* Target = CommandedTargetActor.Get();
-		if (!IsValid(Target))
+		TargetActor = CommandedTargetActor.Get();
+		if (!IsValid(TargetActor))
 		{
 			bHasCommandedDestination = false;
+			bCommandedMoveDetouring = false;
+			CommandedMoveStuckRetries = 0;
 			return EBTNodeResult::Failed;
 		}
-
-		TargetLocation = Target->GetActorLocation();
-		RequestMoveToActor(Target, MoveAcceptanceRadius);
+		TargetLocation = TargetActor->GetActorLocation();
 	}
 	else
 	{
 		TargetLocation = CommandedLocation;
-		RequestMoveToLocation(CommandedLocation, MoveAcceptanceRadius);
 	}
 
-	AActor* Owner = GetOwner();
+	// 최종 목적지 도착 판정(우회 중이어도 우연히 도착했으면 성공).
 	if (Owner && FVector::DistSquared(Owner->GetActorLocation(), TargetLocation) <= FMath::Square(MoveAcceptanceRadius))
 	{
 		bHasCommandedDestination = false;
+		bCommandedMoveDetouring = false;
+		CommandedMoveStuckRetries = 0;
 		return EBTNodeResult::Succeeded;
+	}
+
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+
+	// ── 우회 지점으로 이동 중 ──
+	if (bCommandedMoveDetouring)
+	{
+		const bool bReachedDetour = Owner &&
+			FVector::DistSquared(Owner->GetActorLocation(), CommandedDetourLocation) <= FMath::Square(MoveAcceptanceRadius);
+		const bool bDetourTimedOut = Now >= CommandedDetourEndTime;
+		const bool bDetourStuck = TickStuckDetection(DeltaTime);
+
+		if (bReachedDetour || bDetourTimedOut || bDetourStuck)
+		{
+			UE_LOG(LogCompanionAI, Log, TEXT("[AI] 우회 지점 처리 완료(도달=%d 시간초과=%d 정체=%d) - 본 목적지 재접근"),
+				bReachedDetour, bDetourTimedOut, bDetourStuck);
+			bCommandedMoveDetouring = false;
+			ResetStuckDetection();
+		}
+		else
+		{
+			RequestMoveToLocation(CommandedDetourLocation, MoveAcceptanceRadius);
+		}
+		return EBTNodeResult::Running;
+	}
+
+	// ── 본 목적지로 이동 ──
+	if (TargetActor)
+	{
+		RequestMoveToActor(TargetActor, MoveAcceptanceRadius);
+	}
+	else
+	{
+		RequestMoveToLocation(TargetLocation, MoveAcceptanceRadius);
+	}
+
+	// 도착도 실패도 아니면서 제자리에 멈춰 있으면(플레이어가 길을 막고 서 있는 등) 우회를 시도한다.
+	if (TickStuckDetection(DeltaTime))
+	{
+		++CommandedMoveStuckRetries;
+
+		if (CommandedMoveStuckRetries > MaxStuckRetries)
+		{
+			UE_LOG(LogCompanionAI, Warning, TEXT("[AI] 명령 지점으로 이동 불가(%d회 우회 재시도 실패) - 명령 포기"), MaxStuckRetries);
+			AbandonCommandedMove();
+			return EBTNodeResult::Failed;
+		}
+
+		FVector Detour;
+		if (ComputeDetourLocation(TargetLocation, Detour))
+		{
+			UE_LOG(LogCompanionAI, Log, TEXT("[AI] 이동 정체 감지 - 우회 시도 %d/%d"), CommandedMoveStuckRetries, MaxStuckRetries);
+			bCommandedMoveDetouring = true;
+			CommandedDetourLocation = Detour;
+			CommandedDetourEndTime = Now + DetourTimeout;
+			ResetStuckDetection();
+		}
+		else
+		{
+			UE_LOG(LogCompanionAI, Warning, TEXT("[AI] 우회 지점을 찾지 못함 - 명령 포기"));
+			AbandonCommandedMove();
+			return EBTNodeResult::Failed;
+		}
 	}
 
 	return EBTNodeResult::Running;
@@ -583,18 +680,22 @@ EBTNodeResult UCompanionAIComponent::DoExplore(float DeltaTime)
 			if (RequestMoveToActor(TargetItem, PickupRadius))
 			{
 				++ExploreMoveFailCount;
-				if (ExploreMoveFailCount >= 3)
-				{
-					UE_LOG(LogCompanionAI, Warning, TEXT("[AI] %s 도달 불가로 판단해 포기(경로 탐색 %d회 실패)"),
-						*TargetItem->GetName(), ExploreMoveFailCount);
-					UnreachableExploreItems.Add(TargetItem);
-					CurrentExploreTargetItem = nullptr;
-					ExploreMoveFailCount = 0;
-				}
 			}
 			else
 			{
 				ExploreMoveFailCount = 0;
+			}
+
+			// 경로 요청이 반복 실패했거나, 요청은 받아들여졌지만 실제로는 제자리라면(플레이어가
+			// 막고 서 있는 경우 등) 이 아이템은 도달 불가로 보고 포기한 뒤 다른 대상을 찾는다.
+			if (ExploreMoveFailCount >= 3 || TickStuckDetection(DeltaTime))
+			{
+				UE_LOG(LogCompanionAI, Warning, TEXT("[AI] %s 도달 불가로 판단해 포기(요청 실패 %d회 또는 정체 감지)"),
+					*TargetItem->GetName(), ExploreMoveFailCount);
+				UnreachableExploreItems.Add(TargetItem);
+				CurrentExploreTargetItem = nullptr;
+				ExploreMoveFailCount = 0;
+				ResetStuckDetection();
 			}
 		}
 		return EBTNodeResult::Running;
@@ -815,6 +916,83 @@ void UCompanionAIComponent::RequestMoveToLocation(const FVector& Location, float
 	{
 		UE_LOG(LogCompanionAI, Warning, TEXT("[AI] %s(으)로 이동 요청 실패(경로 탐색 실패)"), *Location.ToString());
 	}
+}
+
+void UCompanionAIComponent::ResetStuckDetection()
+{
+	StuckElapsed = 0.0f;
+	StuckAnchorLocation = GetOwner() ? GetOwner()->GetActorLocation() : FVector::ZeroVector;
+}
+
+bool UCompanionAIComponent::TickStuckDetection(float DeltaTime)
+{
+	const AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return false;
+	}
+
+	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+
+	// 이 함수가 매 틱 연속 호출되지 않았다면(전투/추적 등 다른 상태에 있었다면) 추적을 리셋한다.
+	if (LastStuckTickTime < 0.0 || (Now - LastStuckTickTime) > 0.5)
+	{
+		ResetStuckDetection();
+	}
+	LastStuckTickTime = Now;
+
+	if (FVector::DistSquared(Owner->GetActorLocation(), StuckAnchorLocation) >= FMath::Square(StuckDistanceThreshold))
+	{
+		// 기준점에서 충분히 멀어졌다 = 전진 중. 기준점을 당겨오고 타이머를 리셋한다.
+		StuckAnchorLocation = Owner->GetActorLocation();
+		StuckElapsed = 0.0f;
+		return false;
+	}
+
+	StuckElapsed += DeltaTime;
+	return StuckElapsed >= StuckTimeThreshold;
+}
+
+bool UCompanionAIComponent::ComputeDetourLocation(const FVector& TowardTarget, FVector& OutDetour) const
+{
+	const AActor* Owner = GetOwner();
+	UWorld* World = GetWorld();
+	UNavigationSystemV1* NavSystem = World ? UNavigationSystemV1::GetCurrent(World) : nullptr;
+	if (!Owner || !NavSystem)
+	{
+		return false;
+	}
+
+	const FVector OwnerLocation = Owner->GetActorLocation();
+	FVector ToTarget = TowardTarget - OwnerLocation;
+	ToTarget.Z = 0.0f;
+	if (!ToTarget.Normalize())
+	{
+		ToTarget = Owner->GetActorForwardVector();
+	}
+
+	// 재시도마다 좌/우를 번갈아 시도한다(1회=우, 2회=좌, 3회=우 ...).
+	const float SideSign = (CommandedMoveStuckRetries % 2 == 1) ? 1.0f : -1.0f;
+	const FVector SideDir = FVector::CrossProduct(FVector::UpVector, ToTarget).GetSafeNormal();
+
+	// 옆쪽으로 벌리고 살짝 앞쪽으로 당긴 지점을 우선 시도.
+	const FVector Candidate = OwnerLocation + SideDir * SideSign * DetourDistance + ToTarget * (DetourDistance * 0.5f);
+
+	FNavLocation NavLoc;
+	if (NavSystem->ProjectPointToNavigation(Candidate, NavLoc, FVector(DetourDistance, DetourDistance, 500.0f)))
+	{
+		OutDetour = NavLoc.Location;
+		return true;
+	}
+
+	// 폴백: 주변 아무 도달 가능 지점.
+	if (NavSystem->GetRandomReachablePointInRadius(OwnerLocation, DetourDistance * 1.5f, NavLoc))
+	{
+		OutDetour = NavLoc.Location;
+		return true;
+	}
+
+	return false;
 }
 
 void UCompanionAIComponent::BuildBehaviorTree()
