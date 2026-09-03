@@ -42,6 +42,9 @@
 #include "../Companion/CompanionAIComponent.h"
 #include "../Companion/CompanionCombatComponent.h"
 #include "../Companion/CompanionListenComponent.h"
+#include "ProtoDebugPanel.h"
+#include "HAL/IConsoleManager.h"
+#include "Engine/GameViewportClient.h"
 
 AProtoCharacter::AProtoCharacter()
 {
@@ -89,6 +92,10 @@ AProtoCharacter::AProtoCharacter()
     // (LoadingIsStuck 크래시). 대신 BP_ProtoCharacter 디테일 패널에서 Companion > CompanionClass에
     // BP_CompanionNPC를 직접 지정해야 한다.
 }
+
+// ProtoCharacter.h 참고: SProtoDebugPanel이 전방 선언뿐이라, DebugPanelWidget(TSharedPtr) 소멸을
+// 이 TU(ProtoDebugPanel.h를 완전히 include한 곳)에서만 일어나게 하려고 일부러 여기서 정의한다.
+AProtoCharacter::~AProtoCharacter() = default;
 
 void AProtoCharacter::Tick(float DeltaTime)
 {
@@ -346,14 +353,11 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Released, this, &AProtoCharacter::StopAim);
 
-    PlayerInputComponent->BindKey(EKeys::Seven, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionEquipWeapon1);
-    PlayerInputComponent->BindKey(EKeys::Eight, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionEquipWeapon2);
-    PlayerInputComponent->BindKey(EKeys::Nine, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionHolsterWeapon);
-    PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionJump);
-    PlayerInputComponent->BindKey(EKeys::Hyphen, IE_Pressed, this, &AProtoCharacter::DebugDecreaseStamina);
-    PlayerInputComponent->BindKey(EKeys::LeftBracket, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionReload);
-    PlayerInputComponent->BindKey(EKeys::Five, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionEngage);
-    PlayerInputComponent->BindKey(EKeys::Six, IE_Pressed, this, &AProtoCharacter::DebugCommandCompanionExplore);
+#if !UE_BUILD_SHIPPING
+    // 이전엔 5/6/7/8/9/0/-/[ 숫자키에 흩어져 있던 디버그 명령들 - 전부 0번 키로 여는 디버그
+    // 패널(ProtoDebugPanel) 버튼으로 옮겼다. 진입점을 하나로 모아 뭘 눌러야 할지 안 외워도 되게.
+    PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::ToggleDebugPanel);
+#endif
 }
 
 void AProtoCharacter::DebugCommandCompanionEngage()
@@ -495,6 +499,104 @@ void AProtoCharacter::DebugIncreaseInfection()
 void AProtoCharacter::DebugDecreaseStamina()
 {
     if (StatusComponent) StatusComponent->SetStamina(StatusComponent->GetStamina() - 5.0f);
+}
+
+void AProtoCharacter::ToggleDebugPanel()
+{
+#if !UE_BUILD_SHIPPING
+    APlayerController* PC = Cast<APlayerController>(Controller);
+    if (!PC)
+    {
+        return;
+    }
+
+    // 이미 열려 있으면 닫기.
+    if (DebugPanelWidget.IsValid())
+    {
+        if (GEngine && GEngine->GameViewport)
+        {
+            GEngine->GameViewport->RemoveViewportWidgetContent(DebugPanelWidget.ToSharedRef());
+        }
+        DebugPanelWidget.Reset();
+
+        PC->SetShowMouseCursor(false);
+        PC->SetInputMode(FInputModeGameOnly());
+        return;
+    }
+
+    // 패널이 액션을 몰라도 되게, 실제 어떤 함수를 부를지는 여기서 구성해 넘긴다(ProtoDebugPanel.h 참고).
+    TArray<FProtoDebugSection> Sections;
+
+    FProtoDebugSection PlayerSection;
+    PlayerSection.Title = FText::FromString(TEXT("플레이어 상태"));
+    PlayerSection.Actions.Add({ FText::FromString(TEXT("체력 -5")), [this]() { DebugDecreaseHealth(); } });
+    PlayerSection.Actions.Add({ FText::FromString(TEXT("배고픔 -5")), [this]() { DebugDecreaseHunger(); } });
+    PlayerSection.Actions.Add({ FText::FromString(TEXT("갈증 -5")), [this]() { DebugDecreaseThirst(); } });
+    PlayerSection.Actions.Add({ FText::FromString(TEXT("감염 +5")), [this]() { DebugIncreaseInfection(); } });
+    PlayerSection.Actions.Add({ FText::FromString(TEXT("스태미나 -5")), [this]() { DebugDecreaseStamina(); } });
+    Sections.Add(PlayerSection);
+
+    FProtoDebugSection CompanionSection;
+    CompanionSection.Title = FText::FromString(TEXT("동료 명령"));
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("교전")), [this]() { DebugCommandCompanionEngage(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("탐색")), [this]() { DebugCommandCompanionExplore(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("무기1 장착")), [this]() { DebugCommandCompanionEquipWeapon1(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("무기2 장착")), [this]() { DebugCommandCompanionEquipWeapon2(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("무기 해제")), [this]() { DebugCommandCompanionHolsterWeapon(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("재장전")), [this]() { DebugCommandCompanionReload(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("점프")), [this]() { DebugCommandCompanionJump(); } });
+    Sections.Add(CompanionSection);
+
+    FProtoDebugSection TuningSection;
+    TuningSection.Title = FText::FromString(TEXT("동료 튜닝 (companion.* CVar, PIE 실시간 반영)"));
+
+    // companion.FollowDistance/SightRadius/AttackRange는 기본값 -1(오버라이드 없음, 인스턴스
+    // 프로퍼티 그대로 사용)이라 슬라이더를 조금이라도 움직이면 즉시 그 값으로 덮어써진다 - CVar
+    // 자체가 원래 그런 "오버라이드 스위치"라 패널에서도 동일하게 동작한다.
+    auto AddCVarSlider = [&TuningSection](const TCHAR* CVarName, const FText& Label, float MinV, float MaxV)
+    {
+        IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(CVarName);
+        if (!CVar)
+        {
+            return;
+        }
+        FProtoDebugSlider Slider;
+        Slider.Label = Label;
+        Slider.MinValue = MinV;
+        Slider.MaxValue = MaxV;
+        Slider.GetValue = [CVar]() { return CVar->GetFloat(); };
+        Slider.SetValue = [CVar](float NewValue) { CVar->Set(NewValue); };
+        TuningSection.Sliders.Add(Slider);
+    };
+
+    AddCVarSlider(TEXT("companion.FollowDistance"), FText::FromString(TEXT("FollowDistance")), 0.0f, 2000.0f);
+    AddCVarSlider(TEXT("companion.SightRadius"), FText::FromString(TEXT("SightRadius")), 0.0f, 6000.0f);
+    AddCVarSlider(TEXT("companion.AttackRange"), FText::FromString(TEXT("AttackRange")), 0.0f, 4000.0f);
+
+    if (IConsoleVariable* DebugDrawCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("companion.DebugDraw")))
+    {
+        FProtoDebugToggle Toggle;
+        Toggle.Label = FText::FromString(TEXT("DebugDraw"));
+        Toggle.GetValue = [DebugDrawCVar]() { return DebugDrawCVar->GetInt() != 0; };
+        Toggle.SetValue = [DebugDrawCVar](bool bNewValue) { DebugDrawCVar->Set(bNewValue ? 1 : 0); };
+        TuningSection.Toggles.Add(Toggle);
+    }
+
+    Sections.Add(TuningSection);
+
+    DebugPanelWidget = SNew(SProtoDebugPanel).Sections(Sections);
+
+    if (GEngine && GEngine->GameViewport)
+    {
+        GEngine->GameViewport->AddViewportWidgetContent(DebugPanelWidget.ToSharedRef());
+    }
+
+    FInputModeGameAndUI InputMode;
+    InputMode.SetWidgetToFocus(DebugPanelWidget);
+    InputMode.SetHideCursorDuringCapture(false);
+    PC->SetInputMode(InputMode);
+    PC->SetShowMouseCursor(true);
+#endif
 }
 
 void AProtoCharacter::Die()

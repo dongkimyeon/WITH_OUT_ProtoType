@@ -26,6 +26,7 @@ class UPlayerStatusComponent;
 class ULevelChangeSelectWidget;
 class ALevelChanger;
 class ACompanionNPC;
+class SProtoDebugPanel;
 struct FBranchingPointNotifyPayload;
 enum class EConsumableTargetStat : uint8;
 
@@ -45,6 +46,12 @@ class PROTOPROJECT_API AProtoCharacter : public ACharacter
 
 public:
     AProtoCharacter();
+
+    // 명시적으로 선언해서 .cpp(ProtoDebugPanel.h가 완전히 포함된 곳)에서만 정의한다 - 헤더에는
+    // SProtoDebugPanel을 전방 선언만 해뒀는데, 소멸자가 암시적으로 생성되면 이 클래스를 생성/파괴
+    // 하는 다른 모든 TU에서 TSharedPtr<SProtoDebugPanel> 멤버를 파괴하려다 불완전 타입 에러가 난다.
+    virtual ~AProtoCharacter() override;
+
     virtual void Tick(float DeltaTime) override;
 
 protected:
@@ -221,6 +228,15 @@ private:
     void DebugDecreaseThirst();
     void DebugIncreaseInfection();
     void DebugDecreaseStamina();
+
+    // 위 Debug* 함수들 + companion.* CVar 튜닝값을 한 곳에 모아 클릭으로 조작하는 Slate 패널.
+    // 0번 키로 열고 닫는다(SetupPlayerInputComponent 참고). 패널은 순수 UI만 담당하고, 실제
+    // 액션 목록(무엇을 누르면 무슨 함수가 불리는지)은 여기 ProtoCharacter.cpp가 구성해 넘겨준다.
+    void ToggleDebugPanel();
+
+#if !UE_BUILD_SHIPPING
+    TSharedPtr<SProtoDebugPanel> DebugPanelWidget;
+#endif
 
     // PIE 콘솔(~)에서 "die" 입력 시 즉시 사망(실제 사망 경로와 동일: 래그돌 + 지닌 것 소실 +
     // RaidManager가 있으면 사망 화면 + 허브 복귀).

@@ -1,10 +1,30 @@
 #include "EnemyCaller.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
 
 AEnemyCaller::AEnemyCaller()
 {
     MoveSpeed = 300.0f;
+}
+
+void AEnemyCaller::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    if (!bEnableBehaviorDebug || !bShowCallRadius)
+    {
+        return;
+    }
+
+    if (UWorld* World = GetWorld())
+    {
+        // 콜리전 박스/스피어를 실제로 추가하지 않고(부르는 범위는 게임플레이 판정용 콜라이더가
+        // 아니라 DoCall()의 거리 체크일 뿐이라) 디버그 스피어로만 시각화한다 - 매 틱 다시 그려서
+        // CallRadius를 에디터/PIE에서 실시간으로 조정해도 즉시 반영되게 한다.
+        const FColor SphereColor = CanCall() ? FColor::Green : FColor::Red;
+        DrawDebugSphere(World, GetActorLocation(), CallRadius, 24, SphereColor, false, -1.0f, 0, 2.0f);
+    }
 }
 
 bool AEnemyCaller::CanCall() const
