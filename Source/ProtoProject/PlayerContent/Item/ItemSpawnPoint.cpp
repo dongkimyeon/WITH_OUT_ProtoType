@@ -13,7 +13,12 @@ namespace
 	// than shared: same reasoning as that copy's own comment -- this class
 	// has no relationship to it either, and the lookup itself has no
 	// per-instance state.
-	UItemDataBase* ResolveItemDataByAssetName(const FString& AssetName)
+	// Named distinctly from LootContainer.cpp's copy (not just "anonymous
+	// namespace") because Unity Build can merge both .cpp files into one
+	// translation unit, where an unnamed namespace no longer gives each
+	// file its own scope -- two identically-named functions there collide
+	// as a redefinition (C2084) instead of quietly staying file-local.
+	UItemDataBase* ResolveItemDataByAssetNameForSpawnPoint(const FString& AssetName)
 	{
 		static TMap<FString, TWeakObjectPtr<UItemDataBase>> Cache;
 
@@ -195,7 +200,7 @@ void AItemSpawnPoint::HandleItemSpawnState(int32 SpawnPointId, const TArray<FPro
 
 	for (const FProtoWorldItemEntry& Entry : Items)
 	{
-		UItemDataBase* ItemData = ResolveItemDataByAssetName(Entry.ItemId.ToString());
+		UItemDataBase* ItemData = ResolveItemDataByAssetNameForSpawnPoint(Entry.ItemId.ToString());
 		if (!ItemData)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("AItemSpawnPoint::HandleItemSpawnState: couldn't resolve item asset '%s', skipping"), *Entry.ItemId.ToString());

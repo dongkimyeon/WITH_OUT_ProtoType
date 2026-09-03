@@ -7,11 +7,7 @@
 
 namespace
 {
-	// Same lookup ProtoCharacter.cpp's ResolveItemDataByName does (asset
-	// name -> UItemDataBase*), duplicated here with its own cache rather
-	// than shared: this class has no relationship to AProtoCharacter, and
-	// the lookup itself has no character-specific state (static local
-	// cache, only takes AssetName as input).
+
 	UItemDataBase* ResolveItemDataByAssetName(const FString& AssetName)
 	{
 		static TMap<FString, TWeakObjectPtr<UItemDataBase>> Cache;

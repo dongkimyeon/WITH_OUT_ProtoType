@@ -29,7 +29,7 @@ protected:
 
     // 이 반경 안의 다른 살아있는 좀비를 즉시 같은 타겟으로 반응시킨다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Call")
-    float CallRadius = 1200.0f;
+    float CallRadius = 2500.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Call")
     float CallCooldown = 8.0f;
