@@ -5,6 +5,8 @@
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISense_Sight.h"
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/PlayerController.h"
+#include "CollisionShape.h"
 #include "../Enemy/EnemyBase.h"
 
 namespace
@@ -65,15 +67,31 @@ void UCompanionPerceptionComponent::TickComponent(float DeltaTime, ELevelTick Ti
 	}
 
 	// 시야각 경계에서 한두 틱만 스치듯 벗어나는 노이즈를 흡수: 유예시간을 넘겨야 실제로 소실 처리한다.
-	if (CurrentEnemyTarget.IsValid())
+	// 적 개별로 유예시간을 판정하므로(여러 적이 섞여 있어도 각자 따로), 죽었거나 유예시간을 넘긴
+	// 항목만 감지 목록에서 정리한다.
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	for (auto It = SensedEnemyLastSeenTime.CreateIterator(); It; ++It)
 	{
-		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : LastSensedTime;
-		if (Now - LastSensedTime > EnemyLostGraceTime)
+		const AEnemyBase* Enemy = Cast<AEnemyBase>(It.Key().Get());
+		if (!Enemy || Enemy->IsDead() || (Now - It.Value()) > EnemyLostGraceTime)
 		{
-			AActor* Lost = CurrentEnemyTarget.Get();
-			CurrentEnemyTarget = nullptr;
-			OnEnemyLost.Broadcast(Lost);
+			It.RemoveCurrent();
 		}
+	}
+
+	// 플레이어 조준 대상은 AIPerception 스티뮬러스 갱신 없이도(카메라만 돌려도) 매 프레임 바뀔 수
+	// 있으므로, 퍼셉션 이벤트를 기다리지 않고 매 틱 우선순위를 다시 계산한다.
+	AActor* const PreviousTarget = CurrentEnemyTarget.Get();
+	CurrentEnemyTarget = ResolveBestTarget();
+	AActor* const NewTarget = CurrentEnemyTarget.Get();
+
+	if (NewTarget && !PreviousTarget)
+	{
+		OnEnemySpotted.Broadcast(NewTarget);
+	}
+	else if (!NewTarget && PreviousTarget)
+	{
+		OnEnemyLost.Broadcast(PreviousTarget);
 	}
 }
 
@@ -85,30 +103,118 @@ float UCompanionPerceptionComponent::GetEffectiveSightRadius() const
 
 void UCompanionPerceptionComponent::HandlePerceptionUpdated(AActor* UpdatedActor, FAIStimulus Stimulus)
 {
-	// 시체/비적대 액터 오탐 방지: Enemy 타입이면서 아직 살아있는 경우만 타겟으로 인정한다.
+	// 시체/비적대 액터 오탐 방지: Enemy 타입이면서 아직 살아있는 경우만 감지 목록에 남긴다.
 	AEnemyBase* Enemy = Cast<AEnemyBase>(UpdatedActor);
 	if (!Enemy || Enemy->IsDead())
 	{
-		if (CurrentEnemyTarget.Get() == UpdatedActor)
-		{
-			CurrentEnemyTarget = nullptr;
-			OnEnemyLost.Broadcast(UpdatedActor);
-		}
+		SensedEnemyLastSeenTime.Remove(UpdatedActor);
 		return;
 	}
 
 	if (Stimulus.WasSuccessfullySensed())
 	{
-		const bool bIsNewSighting = !CurrentEnemyTarget.IsValid();
-		CurrentEnemyTarget = UpdatedActor;
-		LastSensedTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastSensedTime;
-		if (bIsNewSighting)
+		SensedEnemyLastSeenTime.Add(UpdatedActor, GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f);
+	}
+	// 감지 실패는 여기서 즉시 제거하지 않는다. TickComponent가 매 틱 EnemyLostGraceTime 유예를
+	// 적용해(개별 적 단위로) 실제 소실 여부(순간적 시야각 이탈 vs 지속적 소실)를 판단하고, 그 결과에
+	// 따라 우선순위 재계산(ResolveBestTarget)과 OnEnemySpotted/OnEnemyLost 브로드캐스트를 처리한다.
+}
+
+AActor* UCompanionPerceptionComponent::FindPlayerAimedEnemy() const
+{
+	const UWorld* World = GetWorld();
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	APlayerController* PlayerController = PlayerPawn ? Cast<APlayerController>(PlayerPawn->GetController()) : nullptr;
+	if (!World || !PlayerController)
+	{
+		return nullptr;
+	}
+
+	FVector ViewLocation;
+	FRotator ViewRotation;
+	PlayerController->GetPlayerViewPoint(ViewLocation, ViewRotation);
+	const FVector TraceEnd = ViewLocation + ViewRotation.Vector() * PlayerAimTraceRange;
+
+	FCollisionQueryParams Params(TEXT("CompanionPlayerAim"), false, PlayerPawn);
+	Params.AddIgnoredActor(PlayerPawn);
+
+	FHitResult Hit;
+	const bool bHit = World->SweepSingleByChannel(
+		Hit,
+		ViewLocation,
+		TraceEnd,
+		FQuat::Identity,
+		ECC_Visibility,
+		FCollisionShape::MakeSphere(PlayerAimTraceRadius),
+		Params);
+
+	if (!bHit)
+	{
+		return nullptr;
+	}
+
+	AEnemyBase* Enemy = Cast<AEnemyBase>(Hit.GetActor());
+	if (!Enemy && Hit.GetComponent())
+	{
+		Enemy = Cast<AEnemyBase>(Hit.GetComponent()->GetOwner());
+	}
+
+	return (Enemy && !Enemy->IsDead()) ? Enemy : nullptr;
+}
+
+AActor* UCompanionPerceptionComponent::ResolveBestTarget() const
+{
+	if (SensedEnemyLastSeenTime.Num() == 0)
+	{
+		return nullptr;
+	}
+
+	// 1순위: 플레이어가 조준 중인 적이 현재 감지 목록에 있으면 그 적을 우선한다.
+	if (AActor* PlayerAimedEnemy = FindPlayerAimedEnemy())
+	{
+		if (SensedEnemyLastSeenTime.Contains(PlayerAimedEnemy))
 		{
-			OnEnemySpotted.Broadcast(UpdatedActor);
+			return PlayerAimedEnemy;
 		}
 	}
-	// 감지 실패는 여기서 즉시 처리하지 않는다. TickComponent의 EnemyLostGraceTime 유예 타이머가
-	// 실제 소실 여부(순간적 시야각 이탈 vs 지속적 소실)를 판단해 OnEnemyLost를 브로드캐스트한다.
+
+	// 2순위: 기존 타겟이 여전히 감지되고 있으면 유지한다(우선순위가 매 틱 흔들려 타겟이
+	// 계속 바뀌는 것을 방지).
+	if (AActor* Current = CurrentEnemyTarget.Get())
+	{
+		if (SensedEnemyLastSeenTime.Contains(Current))
+		{
+			return Current;
+		}
+	}
+
+	// 3순위: 감지된 것 중 가장 가까운 적.
+	const AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return nullptr;
+	}
+
+	AActor* Nearest = nullptr;
+	float NearestDistSq = FLT_MAX;
+	const FVector OwnerLocation = Owner->GetActorLocation();
+	for (const auto& SensedPair : SensedEnemyLastSeenTime)
+	{
+		AActor* SensedEnemy = SensedPair.Key.Get();
+		if (!SensedEnemy)
+		{
+			continue;
+		}
+
+		const float DistSq = FVector::DistSquared(OwnerLocation, SensedEnemy->GetActorLocation());
+		if (DistSq < NearestDistSq)
+		{
+			NearestDistSq = DistSq;
+			Nearest = SensedEnemy;
+		}
+	}
+
+	return Nearest;
 }
 
 void UCompanionPerceptionComponent::HandlePlayerHealthChanged(float NewValue, float MaxValue)

@@ -8,6 +8,8 @@
 #include "GameFramework/Pawn.h"
 #include "Inventory/QuickSlotHudWidget.h"
 #include "ProtoCharacter.h"
+#include "../Companion/CompanionNPC.h"
+#include "../Companion/CompanionAIComponent.h"
 
 void UPlayerDefalutUI::NativeConstruct()
 {
@@ -91,6 +93,28 @@ void UPlayerDefalutUI::RemoveInteractPrompt(AActor* Actor)
 	PromptMap.Remove(Actor);
 }
 
+void UPlayerDefalutUI::AddCompanionStatusLabel(ACompanionNPC* Companion)
+{
+	if (!PromptCanvas || !Companion || CompanionStatusMap.Contains(Companion)) return;
+
+	UTextBlock* NewText = NewObject<UTextBlock>(this);
+	NewText->SetJustification(ETextJustify::Center);
+
+	UCanvasPanelSlot* CanvasSlot = PromptCanvas->AddChildToCanvas(NewText);
+	CanvasSlot->SetAutoSize(true);
+
+	CompanionStatusMap.Add(Companion, NewText);
+}
+
+void UPlayerDefalutUI::RemoveCompanionStatusLabel(ACompanionNPC* Companion)
+{
+	UTextBlock** Found = CompanionStatusMap.Find(Companion);
+	if (!Found) return;
+
+	(*Found)->RemoveFromParent();
+	CompanionStatusMap.Remove(Companion);
+}
+
 void UPlayerDefalutUI::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 {
 	Super::NativeTick(MyGeometry, DeltaTime);
@@ -113,6 +137,37 @@ void UPlayerDefalutUI::NativeTick(const FGeometry& MyGeometry, float DeltaTime)
 
 		if (bOnScreen)
 		{
+			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Text->Slot))
+			{
+				float DPIScale = UWidgetLayoutLibrary::GetViewportScale(GetWorld());
+				FVector2D ViewportPos = ScreenPos / DPIScale;
+				FVector2D TextSize = Text->GetDesiredSize();
+				CanvasSlot->SetPosition(ViewportPos - TextSize * 0.5f);
+			}
+			Text->SetVisibility(ESlateVisibility::Visible);
+		}
+		else
+		{
+			Text->SetVisibility(ESlateVisibility::Hidden);
+		}
+	}
+
+	for (auto& Pair : CompanionStatusMap)
+	{
+		ACompanionNPC* Companion = Pair.Key.Get();
+		UTextBlock* Text = Pair.Value;
+		if (!IsValid(Companion) || !Text) continue;
+
+		const FVector LabelLoc = Companion->GetActorLocation() + FVector(0.f, 0.f, CompanionStatusLabelHeight);
+
+		FVector2D ScreenPos;
+		bool bOnScreen = GetOwningPlayer()->ProjectWorldLocationToScreen(LabelLoc, ScreenPos);
+
+		if (bOnScreen)
+		{
+			const FText StatusText = Companion->AIComponent ? Companion->AIComponent->GetStatusDisplayText() : FText::GetEmpty();
+			Text->SetText(FText::Format(FText::FromString(TEXT("{0}\n{1}")), Companion->CompanionDisplayName, StatusText));
+
 			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Text->Slot))
 			{
 				float DPIScale = UWidgetLayoutLibrary::GetViewportScale(GetWorld());

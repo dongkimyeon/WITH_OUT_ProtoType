@@ -9,6 +9,7 @@ class UTextBlock;
 class UCanvasPanel;
 class UProgressBar;
 class UQuickSlotHudWidget;
+class ACompanionNPC;
 
 UCLASS()
 class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
@@ -18,6 +19,11 @@ class PROTOPROJECT_API UPlayerDefalutUI : public UUserWidget
 public:
 	void AddInteractPrompt(AActor* Actor, FText Text);
 	void RemoveInteractPrompt(AActor* Actor);
+
+	// 동료 머리 위에 이름 + 현재 AI 상태(전투/따라가기/이동/탐색/정지)를 3D->2D 투영해 표시한다
+	// (WidgetComponent 없이 AddInteractPrompt와 동일한 방식으로 이 HUD 캔버스 위에 그린다).
+	void AddCompanionStatusLabel(ACompanionNPC* Companion);
+	void RemoveCompanionStatusLabel(ACompanionNPC* Companion);
 
 protected:
 	virtual void NativeConstruct() override;
@@ -79,4 +85,11 @@ private:
 	UPlayerStatusComponent* PlayerStatusComponent;
 
 	TMap<AActor*, UTextBlock*> PromptMap;
+
+	// 동료 머리 위 상태 라벨. 동료가 파괴되는 경우(레벨 전환 등)를 대비해 약참조로 보관한다.
+	TMap<TWeakObjectPtr<ACompanionNPC>, UTextBlock*> CompanionStatusMap;
+
+	// 동료 캡슐 기준 상태 라벨을 띄우는 높이.
+	UPROPERTY(EditAnywhere, Category = "Companion")
+	float CompanionStatusLabelHeight = 220.0f;
 };

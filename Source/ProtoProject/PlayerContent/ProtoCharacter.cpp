@@ -296,6 +296,11 @@ void AProtoCharacter::BeginPlay()
             if (DefaultUI)
             {
                 DefaultUI->AddToViewport();
+
+                if (CachedCompanionNPC)
+                {
+                    DefaultUI->AddCompanionStatusLabel(CachedCompanionNPC);
+                }
             }
         }
     }

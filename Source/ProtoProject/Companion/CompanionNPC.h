@@ -31,6 +31,10 @@ class PROTOPROJECT_API ACompanionNPC : public ACharacter
 public:
 	ACompanionNPC();
 
+	// 머리 위 상태 라벨(UI, PlayerDefalutUI::AddCompanionStatusLabel)에 표시할 이름.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Companion")
+	FText CompanionDisplayName = FText::FromString(TEXT("서아"));
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Companion")
 	TObjectPtr<UCompanionListenComponent> ListenComponent;
 
