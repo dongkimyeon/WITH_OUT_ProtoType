@@ -4,6 +4,7 @@
 #include "Door.h"
 #include "Components/StaticMeshComponent.h"
 #include "../PlayerContent/ProtoCharacter.h"
+#include "../Network/ProtoNetClientSubsystem.h"
 
 ADoor::ADoor()
 {
@@ -42,28 +43,74 @@ void ADoor::BeginPlay()
 	InteractBox->OnComponentEndOverlap.AddDynamic(this, &ADoor::OnInteractEndOverlap);
 
 	CurrentYaw = DoorMesh->GetRelativeRotation().Yaw;
+
+	// 다른 클라이언트가 이 문을 열고/닫으면 우리 쪽도 같이 반영한다 (see
+	// UProtoNetClientSubsystem::OnDoorInteract's comment).
+	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->OnDoorInteract.AddDynamic(this, &ADoor::HandleDoorInteract);
+		}
+	}
 }
 
 void ADoor::OnInteract_Implementation(AProtoCharacter* InPlayer)
 {
-	bIsOpen = !bIsOpen;
+	const bool bNewOpen = !bIsOpen;
 
-	if (bIsOpen && InPlayer)
+	float Sign = 1.f;
+	if (bNewOpen && InPlayer)
 	{
 		// 플레이어가 문 앞쪽(ForwardVector 방향)에 있으면 뒤로, 뒤쪽에 있으면 앞으로 = 항상 플레이어 반대편으로 열림.
 		const FVector ToPlayer = (InPlayer->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
 		const bool bPlayerInFront = FVector::DotProduct(ToPlayer, GetActorForwardVector()) > 0.f;
-		float Sign = bPlayerInFront ? -1.f : 1.f;
-		if (bInvertSwing)
-		{
-			Sign = -Sign;
-		}
-		OpenTargetYaw = Sign * FMath::Abs(OpenAngle);
+		Sign = bPlayerInFront ? -1.f : 1.f;
 	}
-	else
+	if (bInvertSwing)
 	{
-		OpenTargetYaw = 0.f;
+		Sign = -Sign;
 	}
+
+	SetOpen(bNewOpen, Sign);
+
+	// 다른 클라이언트들에게도 이 상태를 알린다 -- 서버는 별도 판정 없이 그대로 중계한다
+	// (see UProtoNetClientSubsystem::SendDoorInteract's comment). Single 맵/오프라인이면
+	// bMultiplayerVisualsEnabled 체크에서 조용히 no-op.
+	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->SendDoorInteract(GetDoorId(), bNewOpen);
+		}
+	}
+}
+
+int32 ADoor::GetDoorId() const
+{
+	return static_cast<int32>(GetTypeHash(GetName()));
+}
+
+void ADoor::HandleDoorInteract(int32 DoorId, bool bOpen)
+{
+	if (DoorId != GetDoorId())
+	{
+		// Not our door -- every door in the level shares this one
+		// broadcast delegate.
+		return;
+	}
+
+	// Remote toggle: no player reference to swing away from, so just use
+	// the door's default sign (still respects bInvertSwing) -- see this
+	// function's header comment.
+	const float Sign = bInvertSwing ? -1.f : 1.f;
+	SetOpen(bOpen, Sign);
+}
+
+void ADoor::SetOpen(bool bNewOpen, float SwingSign)
+{
+	bIsOpen = bNewOpen;
+	OpenTargetYaw = bIsOpen ? SwingSign * FMath::Abs(OpenAngle) : 0.f;
 }
 
 FText ADoor::GetInteractPrompt_Implementation() const

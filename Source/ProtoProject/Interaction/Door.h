@@ -54,6 +54,12 @@ public:
 	virtual FText GetInteractPrompt_Implementation() const override;
 	virtual bool CanInteract_Implementation(AProtoCharacter* InPlayer) const override;
 
+	// Stable id shared across every client's copy of this level, derived
+	// from the placed actor's own in-level name -- same idea as
+	// AItemContainerBase::GetContainerId. Used to key the network relay
+	// (see UProtoNetClientSubsystem::SendDoorInteract).
+	int32 GetDoorId() const;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -70,6 +76,17 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 private:
+	// Bound (if connected) to UProtoNetClientSubsystem::OnDoorInteract --
+	// applies another client's open/close toggle to this door too. Never
+	// fires for this client's own toggle (see that delegate's comment).
+	UFUNCTION()
+	void HandleDoorInteract(int32 DoorId, bool bOpen);
+
+	// Shared by OnInteract_Implementation (local, player-relative swing
+	// direction) and HandleDoorInteract (remote -- no player reference to
+	// swing away from, so it just uses the default/inverted sign).
+	void SetOpen(bool bNewOpen, float SwingSign);
+
 	bool bIsOpen = false;
 	float CurrentYaw = 0.f;
 	// 열 때 결정된 목표 각도(스윙 방향 포함). 닫으면 0.
