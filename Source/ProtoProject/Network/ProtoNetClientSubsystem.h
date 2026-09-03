@@ -321,6 +321,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendSetVisible(bool bVisible);
 
+	// Called once by AProtoCharacter::HandleDeath() (local player only) so
+	// every other client ragdolls their mirror of this player too instead
+	// of leaving it standing frozen -- see S2C_PlayerDied's schema comment.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendPlayerDied();
+
 	// Reports the local roll an AItemContainerBase-derived actor generated
 	// for itself on BeginPlay (see ALootContainer::SeedContents). The
 	// server answers via OnContainerLootState with the authoritative
@@ -387,8 +393,10 @@ public:
 	// too (not just move/range) so the server's own melee timing matches
 	// this enemy's actual Blueprint-configured stats instead of a hardcoded
 	// guess -- see OnEnemyAttackPlayer for the other half of this.
+	// bIsCaller/CallRadius/CallCooldown are AEnemyCaller-only (see
+	// AEnemyBase::IsCallerType) -- 0/false for every other enemy type.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange, float AttackDamage, float AttackCooldown);
+	bool SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange, float AttackDamage, float AttackCooldown, bool bIsCaller, float CallRadius, float CallCooldown);
 
 	/*-------------------
 	 상태 조회 / 델리게이트

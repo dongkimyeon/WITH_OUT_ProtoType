@@ -72,6 +72,17 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy|Call")
     void ReceiveCallTarget(AActor* NewTarget);
 
+    // AEnemyCaller overrides these to report ITS OWN CallRadius/CallCooldown
+    // (this base class has no such fields itself -- only AEnemyCaller does).
+    // Used only when registering with the server (SendEnemyRegister, see
+    // BeginPlay) so the server-driven call sweep (EnemyAI::Tick) knows
+    // whether/how this enemy should call others. The base defaults
+    // (false/0/0) are only ever actually read for a non-Caller subclass,
+    // where the server ignores them anyway (is_caller=false).
+    virtual bool IsCallerType() const { return false; }
+    virtual float GetCallRadius() const { return 0.0f; }
+    virtual float GetCallCooldown() const { return 0.0f; }
+
 protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|AI")
     TObjectPtr<UAIPerceptionStimuliSourceComponent> PerceptionStimuliSource;

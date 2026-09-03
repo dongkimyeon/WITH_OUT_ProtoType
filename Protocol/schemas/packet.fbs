@@ -45,6 +45,8 @@ union Payload {
   S2C_EnemyAttackBroadcast,
   C2S_ItemSpawnRoll,
   S2C_ItemSpawnState,
+  C2S_PlayerDied,
+  S2C_PlayerDied,
 }
 
 table Packet {

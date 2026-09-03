@@ -1821,6 +1821,41 @@ void AProtoCharacter::HandleDeath()
         DisableInput(PC);
     }
 
+    ApplyRagdollVisual();
+
+    // 지니고 있던 것 전부 소실(스태시는 별개).
+    WipeCarriedInventoryOnDeath();
+
+    // Other clients' mirror of this player should ragdoll too instead of
+    // standing there frozen -- see S2C_PlayerDied's schema comment.
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendPlayerDied();
+        }
+    }
+}
+
+void AProtoCharacter::HandleRemotePlayerDied()
+{
+    // Deliberately does NOT reuse HandleDeath(): that function also stops
+    // this client's own auto-fire timer, disables ITS OWN player's input,
+    // and wipes+re-saves an inventory -- all local-player-only state a
+    // remote mirror doesn't meaningfully have. Calling it directly on a
+    // remote instance would, at best, no-op those parts; at worst (the
+    // inventory wipe triggers OnInventoryChanged -> HandleInventoryChanged
+    // -> SendSaveInventory) it could push this remote instance's empty
+    // inventory to the server under THIS client's own logged-in account,
+    // silently corrupting their real saved inventory. Ragdoll only.
+    if (bIsDead) return;
+    bIsDead = true;
+
+    ApplyRagdollVisual();
+}
+
+void AProtoCharacter::ApplyRagdollVisual()
+{
     // 이동 정지.
     if (UCharacterMovementComponent* Movement = GetCharacterMovement())
     {
@@ -1859,9 +1894,6 @@ void AProtoCharacter::HandleDeath()
         }
 #endif
     }
-
-    // 지니고 있던 것 전부 소실(스태시는 별개).
-    WipeCarriedInventoryOnDeath();
 }
 
 void AProtoCharacter::WipeCarriedInventoryOnDeath()

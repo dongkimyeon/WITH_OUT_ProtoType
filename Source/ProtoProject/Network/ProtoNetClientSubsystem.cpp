@@ -463,6 +463,21 @@ bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendPlayerDied()
+{
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto Req = ProtoType::Net::CreateC2S_PlayerDied(Fbb);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_PlayerDied, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 bool UProtoNetClientSubsystem::SendContainerLootRoll(int32 ContainerId, const TArray<FProtoInventoryItemEntry>& Items)
 {
 	if (!IsConnected())
@@ -582,14 +597,14 @@ bool UProtoNetClientSubsystem::SendEnemyDamage(int32 EnemyId, float Damage)
 	return SendPacketBytes(Bytes);
 }
 
-bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange, float AttackDamage, float AttackCooldown)
+bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange, float AttackDamage, float AttackCooldown, bool bIsCaller, float CallRadius, float CallCooldown)
 {
 	if (!IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
-	auto Req = ProtoType::Net::CreateC2S_EnemyRegister(Fbb, static_cast<uint32_t>(EnemyId), &PositionVec, Health, MaxHealth, MoveSpeed, AttackRange, AttackDamage, AttackCooldown);
+	auto Req = ProtoType::Net::CreateC2S_EnemyRegister(Fbb, static_cast<uint32_t>(EnemyId), &PositionVec, Health, MaxHealth, MoveSpeed, AttackRange, AttackDamage, AttackCooldown, bIsCaller, CallRadius, CallCooldown);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_EnemyRegister, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
@@ -635,6 +650,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			case ProtoType::Net::Payload::S2C_PlayerLeft:
 			case ProtoType::Net::Payload::S2C_AttackResult:
 			case ProtoType::Net::Payload::S2C_CompanionMoveState:
+			case ProtoType::Net::Payload::S2C_PlayerDied:
 				return;
 			default:
 				break;
@@ -802,6 +818,23 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			{
 				RemoveRemotePlayer(Left->player_id());
 				RemoveRemoteCompanion(Left->player_id());
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_PlayerDied:
+			if (const auto* Died = Packet->payload_as_S2C_PlayerDied())
+			{
+				// Never fires for the local player (HandleDeath() calls
+				// SendPlayerDied() itself, the server doesn't echo it
+				// back) -- only ever a remote mirror, if one is currently
+				// spawned for this player.
+				if (AActor** Existing = RemotePlayers.Find(static_cast<int32>(Died->player_id())))
+				{
+					if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(*Existing))
+					{
+						RemoteCharacter->HandleRemotePlayerDied();
+					}
+				}
 			}
 			break;
 

@@ -419,8 +419,21 @@ public:
 
     // UPlayerStatusComponent::OnPlayerDied 구독(로컬 플레이어만). 입력 차단 + 이동 정지 +
     // 지닌 것 소실. 래그돌/사망 애니메이션은 별도 작업 예정. SafePlace 복귀·사망 화면은 ARaidManager.
+    // Also reports this to the server (SendPlayerDied) so other clients'
+    // mirror of this player ragdolls too -- see HandleRemotePlayerDied.
     UFUNCTION()
     void HandleDeath();
+
+    // Bound (called directly, not through a delegate) from
+    // UProtoNetClientSubsystem's S2C_PlayerDied handler on this player's
+    // REMOTE mirror instance on every OTHER client. Purely visual (just
+    // the ragdoll -- see ApplyRagdollVisual): unlike HandleDeath(), this
+    // must NOT touch input/inventory/save-to-server side effects, since a
+    // remote mirror has no real controller or populated inventory of its
+    // own to safely act on (see this function's .cpp comment for why that
+    // was a real risk, not just unnecessary).
+    UFUNCTION(BlueprintCallable, Category = "Death")
+    void HandleRemotePlayerDied();
 
     bool IsDead() const { return bIsDead; }
 
@@ -547,6 +560,13 @@ private:
     // 사망 시 지니고 있던 것을 전부 소실시킨다: 그리드 인벤토리 비우기 + 장비 슬롯 ClearAll +
     // 퀵슬롯 ClearAll. 허브의 StorageContainer(스태시)는 별개라 손대지 않는다.
     void WipeCarriedInventoryOnDeath();
+
+    // Shared by HandleDeath() (local) and HandleRemotePlayerDied() (other
+    // clients' mirror of this player): capsule collision off, movement
+    // disabled, mesh detached and switched to ragdoll physics. Everything
+    // else HandleDeath() does (stop fire, disable input, wipe inventory,
+    // report to server) is local-player-only and stays out of this helper.
+    void ApplyRagdollVisual();
 };
 
 

@@ -110,7 +110,8 @@ void AEnemyBase::BeginPlay()
                 // "granted/denied" round-trip to wait for, this client just
                 // switches straight to mirroring whatever S2C_EnemyState
                 // reports, same as a denied claim used to do.
-                NetClient->SendEnemyRegister(GetEnemyId(), GetActorLocation(), CurrentHealth, MaxHealth, MoveSpeed, AttackRange, AttackDamage, AttackCooldown);
+                NetClient->SendEnemyRegister(GetEnemyId(), GetActorLocation(), CurrentHealth, MaxHealth, MoveSpeed, AttackRange, AttackDamage, AttackCooldown,
+                    IsCallerType(), GetCallRadius(), GetCallCooldown());
                 bIsNetworkOwner = false;
             }
             else
