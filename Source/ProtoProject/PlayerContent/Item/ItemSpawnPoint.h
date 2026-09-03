@@ -3,10 +3,12 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "ItemDataBase.h"
+#include "../../Network/ProtoNetClientSubsystem.h"
 #include "ItemSpawnPoint.generated.h"
 
 class UBillboardComponent;
 class USphereComponent;
+class ADropItem;
 
 // 레벨에 배치해두면 BeginPlay에 RegionTier 기준으로 ADropItem을 월드에 스폰하는 지점.
 // Tier <= RegionTier인 아이템만 후보가 되고, 티어별 희귀도 가중치로 뽑힌다(LootTierRoll).
@@ -42,6 +44,12 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Loot")
 	void SpawnLoot();
 
+	// Stable id shared across every client's copy of this level, derived
+	// from the placed actor's own in-level name -- same idea as
+	// AItemContainerBase::GetContainerId. Used to key the server-mediated
+	// first-roll-wins arbitration (see SendItemSpawnRoll).
+	int32 GetSpawnPointId() const;
+
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	UBillboardComponent* Billboard;
@@ -49,4 +57,15 @@ private:
 	// ScatterRadius를 에디터에서 와이어프레임 구로 보여주는 용도. 게임에선 숨김, 콜리전 없음.
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	USphereComponent* RangeViz;
+
+	// Bound (if connected) to UProtoNetClientSubsystem::OnItemSpawnState:
+	// replaces whatever SpawnLoot() spawned locally with the authoritative
+	// set -- either this roll (if it was first) or an earlier client's.
+	UFUNCTION()
+	void HandleItemSpawnState(int32 SpawnPointId, const TArray<FProtoWorldItemEntry>& Items);
+
+	// What SpawnLoot()/HandleItemSpawnState() currently has spawned, so a
+	// later authoritative answer can destroy-and-replace them cleanly.
+	UPROPERTY()
+	TArray<TObjectPtr<ADropItem>> SpawnedDrops;
 };

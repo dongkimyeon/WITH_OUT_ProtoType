@@ -330,6 +330,27 @@ bool UProtoNetClientSubsystem::SendInteractLoot(int32 TargetId)
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendDoorInteract(int32 DoorId, bool bOpen)
+{
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	const ProtoType::Net::Header Header(
+		NextSeq++,
+		static_cast<uint32>(FDateTime::Now().GetTicks() / ETimespan::TicksPerMillisecond),
+		LocalPlayerId);
+
+	const auto InteractType = bOpen ? ProtoType::Net::InteractType::DoorOpen : ProtoType::Net::InteractType::DoorClose;
+	auto Req = ProtoType::Net::CreateC2S_InteractRequest(Fbb, &Header, static_cast<uint32_t>(DoorId), InteractType);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_InteractRequest, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 bool UProtoNetClientSubsystem::SendMoveInput(FVector Position, FRotator Look, int32 Flags)
 {
 	if (!bMultiplayerVisualsEnabled)
@@ -463,6 +484,33 @@ bool UProtoNetClientSubsystem::SendContainerLootRoll(int32 ContainerId, const TA
 
 	auto Req = ProtoType::Net::CreateC2S_ContainerLootRoll(Fbb, static_cast<uint32_t>(ContainerId), ItemsVector);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_ContainerLootRoll, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendItemSpawnRoll(int32 SpawnPointId, const TArray<FProtoWorldItemEntry>& Items)
+{
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+
+	TArray<flatbuffers::Offset<ProtoType::Net::WorldSpawnedItemEntry>> ItemOffsets;
+	ItemOffsets.Reserve(Items.Num());
+	for (const FProtoWorldItemEntry& Item : Items)
+	{
+		auto ItemIdOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Item.ItemId.ToString()));
+		const ProtoType::Net::Vec3 PositionVec(Item.Position.X, Item.Position.Y, Item.Position.Z);
+		ItemOffsets.Add(ProtoType::Net::CreateWorldSpawnedItemEntry(
+			Fbb, ItemIdOffset, &PositionVec, static_cast<int16_t>(Item.StackCount)));
+	}
+	auto ItemsVector = Fbb.CreateVector(ItemOffsets.GetData(), ItemOffsets.Num());
+
+	auto Req = ProtoType::Net::CreateC2S_ItemSpawnRoll(Fbb, static_cast<uint32_t>(SpawnPointId), ItemsVector);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_ItemSpawnRoll, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
 	TArray<uint8> Bytes;
@@ -794,6 +842,47 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					}
 				}
 				OnContainerLootState.Broadcast(static_cast<int32>(State->container_id()), Items);
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_ItemSpawnState:
+			if (const auto* State = Packet->payload_as_S2C_ItemSpawnState())
+			{
+				TArray<FProtoWorldItemEntry> Items;
+				if (const auto* Entries = State->items())
+				{
+					Items.Reserve(Entries->size());
+					for (const auto* Entry : *Entries)
+					{
+						if (!Entry || !Entry->item_id())
+							continue;
+						FProtoWorldItemEntry ItemEntry;
+						ItemEntry.ItemId = FName(UTF8_TO_TCHAR(Entry->item_id()->c_str()));
+						if (const auto* Pos = Entry->position())
+						{
+							ItemEntry.Position = FVector(Pos->x(), Pos->y(), Pos->z());
+						}
+						ItemEntry.StackCount = Entry->stack_count();
+						Items.Add(ItemEntry);
+					}
+				}
+				OnItemSpawnState.Broadcast(static_cast<int32>(State->spawn_point_id()), Items);
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_InteractResult:
+			if (const auto* Result = Packet->payload_as_S2C_InteractResult())
+			{
+				// Only door open/close has a client-side meaning right now
+				// -- see SendDoorInteract's schema comment. Other
+				// interact_types (Loot/Extract/PlantItem/UseSwitch) are
+				// silently ignored here, same as the server ignores them.
+				if (Result->interact_type() == ProtoType::Net::InteractType::DoorOpen
+					|| Result->interact_type() == ProtoType::Net::InteractType::DoorClose)
+				{
+					OnDoorInteract.Broadcast(static_cast<int32>(Result->target_id()),
+						Result->interact_type() == ProtoType::Net::InteractType::DoorOpen);
+				}
 			}
 			break;
 

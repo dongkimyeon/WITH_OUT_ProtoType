@@ -43,6 +43,8 @@ union Payload {
   C2S_EnemyRegister,
   S2C_EnemyAttackResult,
   S2C_EnemyAttackBroadcast,
+  C2S_ItemSpawnRoll,
+  S2C_ItemSpawnState,
 }
 
 table Packet {
