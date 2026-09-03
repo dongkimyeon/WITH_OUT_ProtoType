@@ -69,6 +69,24 @@ struct FProtoInventoryItemEntry
 	int32 StackCount = 1;
 };
 
+// One loose item dropped in the open world by an AItemSpawnPoint's roll --
+// a fixed world Position instead of a grid slot (see FProtoInventoryItemEntry
+// for that). ItemId is the item Data Asset's own object name, same as above.
+USTRUCT(BlueprintType)
+struct FProtoWorldItemEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	FName ItemId;
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	FVector Position = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	int32 StackCount = 1;
+};
+
 // Fired once after EVERY S2C_LoginSuccess (unlike OnProgressRestored, not
 // gated on has_saved_progress) -- Items is empty if the account has no
 // saved inventory. Listeners should treat this as "here is the complete,
@@ -84,6 +102,18 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnInventoryRestored, const TAr
 // filter by their own GetContainerId(), so nothing needs a central registry
 // of which container is waiting for which reply.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnContainerLootState, int32, ContainerId, const TArray<FProtoInventoryItemEntry>&, Items);
+
+// Same idea as FProtoOnContainerLootState, for an AItemSpawnPoint's
+// scattered world drops (see SendItemSpawnRoll) instead of a grid
+// container's contents. AItemSpawnPoint binds this in BeginPlay and
+// filters by its own spawn point id.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnItemSpawnState, int32, SpawnPointId, const TArray<FProtoWorldItemEntry>&, Items);
+
+// Fired on S2C_InteractResult for a DoorOpen/DoorClose interact_type only
+// (see SendDoorInteract's schema comment) -- every OTHER client's copy of
+// DoorId should match bOpen. Never fires for this client's own toggle (the
+// server doesn't echo C2S_InteractRequest back to its sender for doors).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnDoorInteract, int32, DoorId, bool, bOpen);
 
 // Fired on S2C_EnemyClaimResult, answering a SendEnemyClaimRequest for
 // EnemyId. bGranted true means this client is now the one running that
@@ -246,6 +276,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendInteractLoot(int32 TargetId);
 
+	// Sent by ADoor whenever it toggles (both opening AND closing), so
+	// every other client's copy matches. Simple relay, not an
+	// ownership/arbitration flow like the loot rolls below -- see
+	// S2C_InteractResult's schema comment (Session.cpp's C2S_InteractRequest
+	// case) for why. Gated the same way SendInteractLoot effectively is
+	// (bMultiplayerVisualsEnabled): a Single-map door has no one else to
+	// tell.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendDoorInteract(int32 DoorId, bool bOpen);
+
 	// Reports the local player's position/facing so others can see them move.
 	// Called periodically (throttled), not meant to be spammed every frame.
 	// Flags is a ProtoType::Net::MoveFlags bitmask -- see kMoveFlagSprint/
@@ -288,6 +328,14 @@ public:
 	// an earlier client's -- so every client agrees on what's in the box.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendContainerLootRoll(int32 ContainerId, const TArray<FProtoInventoryItemEntry>& Items);
+
+	// Same idea as SendContainerLootRoll, for an AItemSpawnPoint's
+	// scattered world drops (see AItemSpawnPoint::SpawnLoot). The server
+	// answers via OnItemSpawnState with the authoritative drops -- either
+	// this roll, if it's the first for SpawnPointId, or an earlier
+	// client's.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendItemSpawnRoll(int32 SpawnPointId, const TArray<FProtoWorldItemEntry>& Items);
 
 	// Reports the local AI companion's position/facing, throttled (same
 	// idea as SendMoveInput), so other clients can mirror it via a
@@ -369,6 +417,12 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnContainerLootState OnContainerLootState;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnItemSpawnState OnItemSpawnState;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnDoorInteract OnDoorInteract;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnEnemyClaimResult OnEnemyClaimResult;
