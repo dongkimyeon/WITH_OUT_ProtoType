@@ -15,6 +15,11 @@ ADoor::ADoor()
 
 	DoorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DoorMesh"));
 	DoorMesh->SetupAttachment(Root);
+	// 콜리전은 그대로 둬서 플레이어/좀비/컴패니언 전부와 물리적으로 충돌한다(닫혀있으면 못 지나감).
+	// 다만 NavMesh 베이크 시에는 이 문을 장애물로 치지 않는다 - 그러지 않으면 문이 닫혀 있던
+	// 순간의 스냅샷대로 도어웨이 자리가 통째로 막힌 네비메시로 구워져서, 문을 열어도(런타임에
+	// 콜리전이 사라져도) Static 네비메시는 재계산되지 않아 AI가 영영 그 문을 못 지나간다.
+	DoorMesh->SetCanEverAffectNavigation(false);
 
 	InteractBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractBox"));
 	InteractBox->SetupAttachment(Root);
