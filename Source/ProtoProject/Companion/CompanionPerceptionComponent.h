@@ -45,6 +45,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Perception")
 	float EnemyLostGraceTime = 1.0f;
 
+	// 플레이어가 조준 중인 적을 찾을 때 카메라 전방으로 쏘는 스피어트레이스의 사거리.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Perception")
+	float PlayerAimTraceRange = 5000.0f;
+
+	// 위 트레이스의 반경. 완전히 정조준하지 않아도(화면 중앙 근처) 인정되도록 어느 정도 여유를 둔다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Perception")
+	float PlayerAimTraceRadius = 25.0f;
+
 	UPROPERTY(BlueprintAssignable, Category = "Companion|Perception")
 	FOnCompanionEnemySpotted OnEnemySpotted;
 
@@ -82,11 +90,22 @@ private:
 	TWeakObjectPtr<AActor> CurrentEnemyTarget;
 	TWeakObjectPtr<class UPlayerStatusComponent> PlayerStatus;
 	bool bLowHealthReported = false;
-	float LastSensedTime = -FLT_MAX;
+
+	// 현재 감지 중인 모든 적과 각각의 마지막 성공 감지 시각. 시야각 경계에서의 순간적인 감지 끊김을
+	// 개별 적 단위로 흡수하기 위해(EnemyLostGraceTime), 단일 CurrentEnemyTarget이 아니라 목록으로
+	// 유지한다 - 그래야 여러 적이 보일 때 그중 하나(플레이어 조준 대상 등)를 우선순위로 고를 수 있다.
+	TMap<TWeakObjectPtr<AActor>, float> SensedEnemyLastSeenTime;
 
 	UFUNCTION()
 	void HandlePerceptionUpdated(AActor* UpdatedActor, FAIStimulus Stimulus);
 
 	UFUNCTION()
 	void HandlePlayerHealthChanged(float NewValue, float MaxValue);
+
+	// 플레이어 카메라 전방을 스피어트레이스해 조준 중인 적(살아있는 AEnemyBase)을 찾는다. 없으면 nullptr.
+	AActor* FindPlayerAimedEnemy() const;
+
+	// SensedEnemyLastSeenTime 중에서 우선순위(1.플레이어 조준 대상 2.기존 타겟 유지 3.최단거리)로
+	// 다음 CurrentEnemyTarget이 될 적을 고른다. 감지된 적이 하나도 없으면 nullptr.
+	AActor* ResolveBestTarget() const;
 };

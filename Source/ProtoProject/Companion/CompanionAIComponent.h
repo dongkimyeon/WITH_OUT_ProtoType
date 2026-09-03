@@ -107,6 +107,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Companion|AI")
 	bool IsCombatEngaged() const { return bCombatEngaged; }
 
+	// 머리 위 상태 라벨(UI) 등에 쓸 한국어 상태 텍스트. BuildBehaviorTree() 루트 우선순위와 동일한
+	// 순서(사망 > 전투 > 이동명령 > 탐색 > 따라가기 > 정지)로 판단한다.
+	UFUNCTION(BlueprintPure, Category = "Companion|AI")
+	FText GetStatusDisplayText() const;
+
 	// 현재 조준/교전 중인 적(교전 중이 아니면 nullptr). 무기가 화면/카메라 기반 조준 대신 이 액터를
 	// 직접 겨냥하는 데 쓴다 - AIController의 ControlRotation은 컨트롤러 자신의 틱에서 갱신되므로
 	// 매 프레임 즉시 반영되지 않을 수 있어, 그 값을 거치면 교전 진입 첫 프레임에 방향이 어긋날 수 있다.
@@ -180,6 +185,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
 	float CombatRotationInterpSpeed = 8.0f;
 
+	// true면 전투 중 위치를 랜덤 스트레이프 대신 Utility 점수(사선/엄폐/플레이어 근접/이동 비용)로
+	// 고른다. false면 기존 ComputeCombatMoveLocation 랜덤 좌우 스트레이프로 폴백(비교/롤백용).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	bool bTacticalPositioningEnabled = true;
+
+	// 부분 엄폐 판정용 허리 높이 프로브. 이 높이의 사선이 막히고 눈높이는 뚫리면 "낮은 엄폐물 뒤"로 본다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	float CoverProbeHeightLow = 40.0f;
+
+	// 사격 가능 판정용 눈높이 프로브.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
+	float EyeProbeHeight = 60.0f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -238,6 +256,12 @@ private:
 	float StrafeDirection = 1.0f;
 	bool bCombatRotationActive = false;
 
+	// Utility 포지셔닝 캐시: StrafeInterval마다(또는 적이 크게 움직였을 때) 재평가해 채운다.
+	FVector CachedTacticalLocation = FVector::ZeroVector;
+	bool bHasTacticalLocation = false;
+	// 마지막 평가 시점의 적 위치 - 적이 StrafeDistance 이상 이동하면 즉시 재평가한다.
+	FVector TacticalEvalEnemyLocation = FVector::ZeroVector;
+
 	void BuildBehaviorTree();
 	AAIController* GetAIController();
 
@@ -257,7 +281,20 @@ private:
 
 	// 적 기준 현재 거리를 사거리 안쪽으로 유지하면서 좌우로 벌린 목표 지점을 계산한다.
 	// 그 지점이 플레이어에게서 MaxCombatDistanceFromPlayer보다 멀면 플레이어 쪽으로 당겨온다.
+	// (bTacticalPositioningEnabled=false일 때, 그리고 Utility 평가가 실패했을 때의 폴백.)
 	FVector ComputeCombatMoveLocation(AActor* Enemy) const;
+
+	// 적 중심 궤도 링 위의 각도 오프셋 후보들을 내비메시에 투영하고 ScoreTacticalCandidate로
+	// 점수화해 최고점 위치를 고른다. 유효 후보가 하나도 없으면 false(호출자가 폴백).
+	bool EvaluateTacticalPosition(AActor* Enemy, FVector& OutLocation) const;
+
+	// 후보 위치 하나의 Utility 점수: 부분 엄폐 보너스 + 플레이어 이탈/이동 거리 감점
+	// + 직전 선택 위치 근접 보너스(히스테리시스). 사선 확보 여부(bCanFire)는 호출자가 판정해
+	// 넘긴다 - 사선 확보 후보가 하나도 없을 때의 폴백 선택에도 같은 점수를 재사용하기 위해.
+	float ScoreTacticalCandidate(const FVector& Candidate, AActor* Enemy, bool bCanFire) const;
+
+	// From 지점(높이 오프셋 포함 좌표 그대로)에서 적 상체로의 사선이 뚫려 있으면 true.
+	bool HasLineOfSightFrom(const FVector& From, AActor* Enemy) const;
 
 	EBTNodeResult DoAttack(float DeltaTime);
 	EBTNodeResult DoMoveToEnemy(float DeltaTime);

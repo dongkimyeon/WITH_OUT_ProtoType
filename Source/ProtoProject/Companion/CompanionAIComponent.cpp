@@ -111,13 +111,17 @@ void UCompanionAIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		LastEnemyVisibleTime = Now;
 	}
 
-	if (bAutoEngageEnabled && !bCombatSuppressed && bEnemyVisible)
+	// bHasEverEngaged: 플레이어가 CommandEngage()로 한 번이라도 "싸워"를 명령한 뒤 다른 명령으로
+	// 전투 모드를 끄기 전까지는(각 Command*() 참고), 지금 교전 중인 적을 놓쳐도 새로 보이는 적에
+	// 자동으로 재교전한다 - "그만 싸우라고 할 때까지 계속 전투 모드"라는 정책.
+	if ((bAutoEngageEnabled || bHasEverEngaged) && !bCombatSuppressed && bEnemyVisible)
 	{
 		bCombatEngaged = true;
 	}
 	else if (bCombatEngaged && (Now - LastEnemyVisibleTime) > CombatDisengageGraceTime)
 	{
 		bCombatEngaged = false;
+		bHasTacticalLocation = false; // 다음 교전의 히스테리시스가 지난 전투 위치를 참조하지 않게.
 	}
 
 	AActor* CombatEnemy = GetCombatTarget();
@@ -163,6 +167,31 @@ void UCompanionAIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 			}
 		}
 	}
+}
+
+FText UCompanionAIComponent::GetStatusDisplayText() const
+{
+	if (CombatComponent.IsValid() && CombatComponent->IsDead())
+	{
+		return FText::FromString(TEXT("사망"));
+	}
+	if (bCombatEngaged && HasEnemyTarget())
+	{
+		return FText::FromString(TEXT("전투 중"));
+	}
+	if (bHasCommandedDestination)
+	{
+		return FText::FromString(TEXT("이동 중"));
+	}
+	if (bExploring)
+	{
+		return FText::FromString(TEXT("탐색 중"));
+	}
+	if (bFollowEnabled)
+	{
+		return FText::FromString(TEXT("따라가는 중"));
+	}
+	return FText::FromString(TEXT("정지"));
 }
 
 bool UCompanionAIComponent::IsAimingRequested() const
@@ -224,6 +253,12 @@ void UCompanionAIComponent::CommandFollow()
 	bHasCommandedDestination = false;
 	bCombatSuppressed = false;
 	bExploring = false;
+
+	// "따라와"는 전투 모드를 명시적으로 끈다 - CommandEngage() 이후 다른 명령이 올 때까지
+	// 전투 모드를 유지하는 정책(TickComponent bHasEverEngaged 재교전)의 반대쪽 축.
+	bCombatEngaged = false;
+	bHasEverEngaged = false;
+	bHasTacticalLocation = false;
 }
 
 void UCompanionAIComponent::CommandStop()
@@ -235,6 +270,7 @@ void UCompanionAIComponent::CommandStop()
 	bCombatSuppressed = true;
 	bExploring = false;
 	bHasEverEngaged = false;
+	bHasTacticalLocation = false;
 
 	if (AAIController* AIController = GetAIController())
 	{
@@ -267,6 +303,11 @@ void UCompanionAIComponent::CommandMoveToLocation(const FVector& Location)
 	LastStuckTickTime = -1.0; // 다음 TickStuckDetection이 새 명령 기준으로 추적을 리셋하게 한다.
 	CommandedMoveStuckRetries = 0;
 	bCommandedMoveDetouring = false;
+
+	// 이동 명령도 전투 모드를 끈다(CommandFollow와 동일한 정책).
+	bCombatEngaged = false;
+	bHasEverEngaged = false;
+	bHasTacticalLocation = false;
 }
 
 void UCompanionAIComponent::CommandMoveToActor(AActor* TargetActor)
@@ -285,6 +326,11 @@ void UCompanionAIComponent::CommandMoveToActor(AActor* TargetActor)
 	LastStuckTickTime = -1.0; // 다음 TickStuckDetection이 새 명령 기준으로 추적을 리셋하게 한다.
 	CommandedMoveStuckRetries = 0;
 	bCommandedMoveDetouring = false;
+
+	// 이동 명령도 전투 모드를 끈다(CommandFollow와 동일한 정책).
+	bCombatEngaged = false;
+	bHasEverEngaged = false;
+	bHasTacticalLocation = false;
 }
 
 void UCompanionAIComponent::CommandEngage()
@@ -320,6 +366,12 @@ void UCompanionAIComponent::CommandExplore()
 	bExploring = true;
 	bHasCommandedDestination = false;
 	bCombatSuppressed = false;
+
+	// 탐색 명령도 전투 모드를 끈다(CommandFollow와 동일한 정책).
+	bCombatEngaged = false;
+	bHasEverEngaged = false;
+	bHasTacticalLocation = false;
+
 	CurrentExploreTargetItem = nullptr;
 	ExploreScanTimer = 0.0f;
 	ExploreWanderTimer = 0.0f;
@@ -361,24 +413,11 @@ bool UCompanionAIComponent::IsEnemyInAttackRangeWithLineOfSight() const
 		return false;
 	}
 
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return false;
-	}
-
-	FCollisionQueryParams Params(TEXT("CompanionAttackLOS"), false, Owner);
-	Params.AddIgnoredActor(Owner);
-
-	FHitResult Hit;
-	const bool bBlocked = World->LineTraceSingleByChannel(Hit, OwnerLocation, EnemyLocation, ECC_Visibility, Params);
-	if (bBlocked && Hit.GetActor() != Enemy)
-	{
-		// 사선이 다른 것(엄폐물, 아군 등)에 막혀 있음 - 헛사격 방지.
-		return false;
-	}
-
-	return true;
+	// EvaluateTacticalPosition/HasLineOfSightFrom과 동일한 트레이스 기준(EyeProbeHeight 오프셋,
+	// 적 상체 +50)을 써야 한다 - 서로 다른 높이로 판정하면 "전술 위치 선정 시엔 사격 가능"으로
+	// 골라놓고 실제로 그 자리에 도착했을 때는 이 함수가 다른 기준으로 막혀버려(false) DoAttack이
+	// 아예 호출되지 않는 불일치가 생긴다.
+	return HasLineOfSightFrom(OwnerLocation + FVector(0.0f, 0.0f, EyeProbeHeight), Enemy);
 }
 
 void UCompanionAIComponent::SetCombatRotationEnabled(bool bEnabled)
@@ -457,6 +496,174 @@ FVector UCompanionAIComponent::ComputeCombatMoveLocation(AActor* Enemy) const
 	return DesiredLocation;
 }
 
+bool UCompanionAIComponent::HasLineOfSightFrom(const FVector& From, AActor* Enemy) const
+{
+	UWorld* World = GetWorld();
+	if (!World || !Enemy)
+	{
+		return false;
+	}
+
+	FCollisionQueryParams Params(TEXT("CompanionTacticalLOS"), false, GetOwner());
+
+	// 적 상체(발밑이 아니라)를 겨냥해 판정한다 - 낮은 엄폐물 뒤에서 상체 사격이 가능한 상황을
+	// 발밑 트레이스가 "차단"으로 오판하지 않게.
+	const FVector To = Enemy->GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
+
+	FHitResult Hit;
+	const bool bBlocked = World->LineTraceSingleByChannel(Hit, From, To, ECC_Visibility, Params);
+	return !bBlocked || Hit.GetActor() == Enemy;
+}
+
+float UCompanionAIComponent::ScoreTacticalCandidate(const FVector& Candidate, AActor* Enemy, bool bCanFire) const
+{
+	float Score = 0.0f;
+
+	// 부분 엄폐 보너스: 눈높이 사선은 뚫려 있는데(bCanFire) 허리 높이는 막혀 있다
+	// = 낮은 엄폐물 뒤에서 상체만 내밀고 쏠 수 있는 위치.
+	if (bCanFire && !HasLineOfSightFrom(Candidate + FVector(0.0f, 0.0f, CoverProbeHeightLow), Enemy))
+	{
+		Score += 30.0f;
+	}
+
+	// 플레이어 이탈 감점: 허용 반경 초과분에 비례. (최종 선택 위치는 ComputeCombatMoveLocation과
+	// 동일한 당겨오기 클램프도 EvaluateTacticalPosition 끝에서 한 번 더 적용된다.)
+	if (const APawn* Player = CachedPlayerPawn.Get())
+	{
+		const float DistFromPlayer = FVector::Dist2D(Candidate, Player->GetActorLocation());
+		if (DistFromPlayer > MaxCombatDistanceFromPlayer)
+		{
+			Score -= (DistFromPlayer - MaxCombatDistanceFromPlayer) * 0.05f;
+		}
+	}
+
+	// 이동 비용 감점: 가까운 재배치를 선호하고, 상한(StrafeDistance*2)을 넘는 대시는 강하게 감점.
+	if (const AActor* Owner = GetOwner())
+	{
+		const float TravelDist = FVector::Dist2D(Candidate, Owner->GetActorLocation());
+		Score -= TravelDist * 0.01f;
+		if (TravelDist > StrafeDistance * 2.0f)
+		{
+			Score -= 25.0f;
+		}
+	}
+
+	// 히스테리시스: 직전 선택 위치 근처 후보에 보너스 - 평가 주기마다 좌우로 핑퐁하는 것을 막는다.
+	if (bHasTacticalLocation && FVector::Dist2D(Candidate, CachedTacticalLocation) <= StrafeDistance * 0.5f)
+	{
+		Score += 15.0f;
+	}
+
+	return Score;
+}
+
+bool UCompanionAIComponent::EvaluateTacticalPosition(AActor* Enemy, FVector& OutLocation) const
+{
+	const AActor* Owner = GetOwner();
+	UWorld* World = GetWorld();
+	UNavigationSystemV1* NavSystem = World ? UNavigationSystemV1::GetCurrent(World) : nullptr;
+	if (!Owner || !Enemy || !NavSystem)
+	{
+		return false;
+	}
+
+	const FVector EnemyLocation = Enemy->GetActorLocation();
+	const FVector OwnerLocation = Owner->GetActorLocation();
+
+	// 궤도 반경은 ComputeCombatMoveLocation과 동일한 공식(MinAttackDistance ~ 사거리*0.85).
+	FVector AwayFromEnemy = OwnerLocation - EnemyLocation;
+	AwayFromEnemy.Z = 0.0f;
+	float CurrentDistance = AwayFromEnemy.Size();
+	if (CurrentDistance < KINDA_SMALL_NUMBER)
+	{
+		AwayFromEnemy = FVector::ForwardVector;
+		CurrentDistance = 0.0f;
+	}
+	else
+	{
+		AwayFromEnemy /= CurrentDistance;
+	}
+
+	const float EffectiveAttackRange = CombatComponent.IsValid() ? CombatComponent->GetEffectiveAttackRange() : MinAttackDistance;
+	const float MaxOrbitDistance = FMath::Max(MinAttackDistance, EffectiveAttackRange * 0.85f);
+	const float DesiredDistance = CurrentDistance < MinAttackDistance
+		? MaxOrbitDistance
+		: FMath::Clamp(CurrentDistance, MinAttackDistance, MaxOrbitDistance);
+
+	// 현재 방위각 기준 좌우 대칭 각도 오프셋 - 랜덤이 아니라 결정적으로 링을 샘플한다.
+	static const float CandidateAngles[] = { 0.0f, 35.0f, -35.0f, 70.0f, -70.0f, 110.0f, -110.0f };
+
+	const bool bDebugDraw = CVarCompanionDebugDraw.GetValueOnGameThread() != 0;
+
+	// 사선 확보 후보 중 최고점만 고른다. 링 각도 7개가 전부 사선 막힘이면(좁은 통로/엄폐물이
+	// 많은 실내 등) 일부러 사선 없는 곳으로 이동시키지 않는다 - 그러면 도착 즉시
+	// IsEnemyInAttackRangeWithLineOfSight()가 매 틱 실패해 DoAttack이 아예 호출되지 않게 되고,
+	// 다음 재평가도 같은 기하 구조상 다시 실패하기 쉬워 사격이 영구 중단되는 결과를 낳는다.
+	// 대신 실패(false) 반환으로 호출자가 기존 ComputeCombatMoveLocation(현재 위치 기준 소폭
+	// 조정이라 사선을 깨뜨릴 가능성이 낮다)로 폴백하게 한다.
+	float BestScore = -FLT_MAX;
+	FVector BestLocation = FVector::ZeroVector;
+	bool bFoundVisible = false;
+
+	for (const float Angle : CandidateAngles)
+	{
+		const FVector Dir = AwayFromEnemy.RotateAngleAxis(Angle, FVector::UpVector);
+		FNavLocation NavLoc;
+		if (!NavSystem->ProjectPointToNavigation(EnemyLocation + Dir * DesiredDistance, NavLoc, FVector(300.0f, 300.0f, 500.0f)))
+		{
+			continue;
+		}
+
+		const FVector Candidate = NavLoc.Location;
+		const bool bCanFire = HasLineOfSightFrom(Candidate + FVector(0.0f, 0.0f, EyeProbeHeight), Enemy);
+
+		if (bDebugDraw)
+		{
+			DrawDebugSphere(World, Candidate, 30.0f, 8, bCanFire ? FColor::Green : FColor::Red, false, StrafeInterval, 0, 2.0f);
+		}
+
+		if (!bCanFire)
+		{
+			continue;
+		}
+
+		const float Score = ScoreTacticalCandidate(Candidate, Enemy, bCanFire);
+		if (Score > BestScore)
+		{
+			BestScore = Score;
+			BestLocation = Candidate;
+			bFoundVisible = true;
+		}
+	}
+
+	if (!bFoundVisible)
+	{
+		return false;
+	}
+
+	FVector Picked = BestLocation;
+
+	// ComputeCombatMoveLocation과 동일한 플레이어 이탈 하드 클램프.
+	if (CachedPlayerPawn.IsValid())
+	{
+		const FVector PlayerLocation = CachedPlayerPawn->GetActorLocation();
+		const float DistanceFromPlayer = FVector::Dist(Picked, PlayerLocation);
+		if (DistanceFromPlayer > MaxCombatDistanceFromPlayer)
+		{
+			const FVector TowardPlayer = (PlayerLocation - Picked).GetSafeNormal();
+			Picked += TowardPlayer * (DistanceFromPlayer - MaxCombatDistanceFromPlayer);
+		}
+	}
+
+	if (bDebugDraw)
+	{
+		DrawDebugSphere(World, Picked, 45.0f, 8, FColor::Yellow, false, StrafeInterval, 0, 3.0f);
+	}
+
+	OutLocation = Picked;
+	return true;
+}
+
 EBTNodeResult UCompanionAIComponent::DoAttack(float DeltaTime)
 {
 	AActor* Enemy = GetCurrentEnemyTarget();
@@ -466,15 +673,52 @@ EBTNodeResult UCompanionAIComponent::DoAttack(float DeltaTime)
 	}
 
 	StrafeTimer -= DeltaTime;
-	if (StrafeTimer <= 0.0f)
+	// 적이 마지막 평가 시점보다 크게 이동했으면 캐시된 위치가 낡았으므로 타이머와 무관하게 즉시 재평가.
+	const bool bEnemyMovedFar = bHasTacticalLocation &&
+		FVector::DistSquared2D(Enemy->GetActorLocation(), TacticalEvalEnemyLocation) >= FMath::Square(StrafeDistance);
+	// 캐시된 위치 자체가 더 이상 사선을 확보하지 못하면(적이 그 사이 살짝만 움직였거나, 도착 지점이
+	// 검증 지점과 살짝 어긋난 경우 등) 타이머/이동거리 트리거를 기다리지 않고 즉시 무효화 + 재평가한다.
+	// 그러지 않으면 ScoreTacticalCandidate의 히스테리시스 보너스(+15) 때문에 다음 재평가에서도 같은
+	// 막힌 자리로 다시 끌려가 영구히 사격이 멈추는 상태에 빠질 수 있다.
+	const bool bCachedLocationStale = bHasTacticalLocation &&
+		!HasLineOfSightFrom(CachedTacticalLocation + FVector(0.0f, 0.0f, EyeProbeHeight), Enemy);
+	if (StrafeTimer <= 0.0f || bEnemyMovedFar || bCachedLocationStale)
 	{
 		StrafeTimer = StrafeInterval;
 		StrafeDirection = FMath::RandBool() ? 1.0f : -1.0f;
+
+		if (bCachedLocationStale)
+		{
+			// 히스테리시스 보너스가 이미 막힌 걸로 확인된 자리를 재선택하지 않도록 먼저 지운다.
+			bHasTacticalLocation = false;
+		}
+
+		if (bTacticalPositioningEnabled)
+		{
+			// 평가 전에 캐시를 지우지 않는다 - ScoreTacticalCandidate의 히스테리시스 보너스가
+			// 직전 선택 위치(CachedTacticalLocation)를 참조하기 때문.
+			FVector Picked;
+			if (EvaluateTacticalPosition(Enemy, Picked))
+			{
+				CachedTacticalLocation = Picked;
+				bHasTacticalLocation = true;
+				TacticalEvalEnemyLocation = Enemy->GetActorLocation();
+			}
+			else
+			{
+				bHasTacticalLocation = false;
+			}
+		}
+		else
+		{
+			bHasTacticalLocation = false;
+		}
 	}
 
 	// 스트레이프 목표 지점이 벽 안/낭떠러지 등 내비메시 밖이면 MoveToLocation이 실패해 전투 중
 	// 이동이 끊긴다 - 내비메시로 투영해 가장 가까운 유효 지점으로 보낸다.
-	FVector CombatMoveLocation = ComputeCombatMoveLocation(Enemy);
+	// Utility 평가가 실패했거나 기능이 꺼져 있으면 기존 랜덤 스트레이프 계산으로 폴백.
+	FVector CombatMoveLocation = bHasTacticalLocation ? CachedTacticalLocation : ComputeCombatMoveLocation(Enemy);
 	if (UNavigationSystemV1* NavSystem = GetWorld() ? UNavigationSystemV1::GetCurrent(GetWorld()) : nullptr)
 	{
 		FNavLocation ProjectedMove;
