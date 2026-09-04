@@ -10,7 +10,7 @@ public class ProtoProject : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AIModule", "GameplayTags", "NavigationSystem" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "Sockets", "Networking", "AssetRegistry", "HTTP", "Json", "JsonUtilities", "AudioCaptureCore", "ImageWrapper" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "Sockets", "Networking", "AssetRegistry", "HTTP", "Json", "JsonUtilities", "AudioCaptureCore", "ImageWrapper", "MoviePlayer" });
 
 		// 기존 코드 아래에 이 구문을 추가합니다.
 		PublicIncludePaths.AddRange(new string[] {
