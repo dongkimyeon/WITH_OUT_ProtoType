@@ -11,10 +11,29 @@ void ULevelChangeSelectWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	if (SingleMap1Button) SingleMap1Button->OnClicked.AddDynamic(this, &ULevelChangeSelectWidget::OnClickSingleMap1);
-	if (SingleMap2Button) SingleMap2Button->OnClicked.AddDynamic(this, &ULevelChangeSelectWidget::OnClickSingleMap2);
-	if (MultiMap1Button) MultiMap1Button->OnClicked.AddDynamic(this, &ULevelChangeSelectWidget::OnClickMultiMap1);
-	if (MultiMap2Button) MultiMap2Button->OnClicked.AddDynamic(this, &ULevelChangeSelectWidget::OnClickMultiMap2);
+	// AddToViewport() 이후 RemoveFromParent()로 뗐다가 다시 AddToViewport()하면
+	// 슬레이트 위젯이 재생성되며 NativeConstruct가 다시 호출될 수 있다.
+	// RemoveDynamic으로 먼저 정리해서 델리게이트가 중복 바인딩되지 않게 한다.
+	if (SingleMap1Button)
+	{
+		SingleMap1Button->OnClicked.RemoveDynamic(this, &ULevelChangeSelectWidget::OnClickSingleMap1);
+		SingleMap1Button->OnClicked.AddDynamic(this, &ULevelChangeSelectWidget::OnClickSingleMap1);
+	}
+	if (SingleMap2Button)
+	{
+		SingleMap2Button->OnClicked.RemoveDynamic(this, &ULevelChangeSelectWidget::OnClickSingleMap2);
+		SingleMap2Button->OnClicked.AddDynamic(this, &ULevelChangeSelectWidget::OnClickSingleMap2);
+	}
+	if (MultiMap1Button)
+	{
+		MultiMap1Button->OnClicked.RemoveDynamic(this, &ULevelChangeSelectWidget::OnClickMultiMap1);
+		MultiMap1Button->OnClicked.AddDynamic(this, &ULevelChangeSelectWidget::OnClickMultiMap1);
+	}
+	if (MultiMap2Button)
+	{
+		MultiMap2Button->OnClicked.RemoveDynamic(this, &ULevelChangeSelectWidget::OnClickMultiMap2);
+		MultiMap2Button->OnClicked.AddDynamic(this, &ULevelChangeSelectWidget::OnClickMultiMap2);
+	}
 }
 
 void ULevelChangeSelectWidget::OnClickSingleMap1()
