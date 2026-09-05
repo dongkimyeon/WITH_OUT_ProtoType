@@ -223,6 +223,7 @@ private:
     void DebugCommandCompanionHolsterWeapon();
     void DebugCommandCompanionJump();
     void DebugCommandCompanionReload();
+    void ToggleEnemySoundsDebug();
     void DebugDecreaseHealth();
     void DebugDecreaseHunger();
     void DebugDecreaseThirst();

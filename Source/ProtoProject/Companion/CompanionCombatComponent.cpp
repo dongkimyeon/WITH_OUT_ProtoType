@@ -391,7 +391,11 @@ void UCompanionCombatComponent::ReloadWeapon()
 
 	const FName ReloadSectionName = EquippedWeapon->WeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
 	const float MontageLength = PlayCompanionMontage(CompanionUpperBodyMontage, ReloadSectionName);
-	if (MontageLength <= 0.0f)
+	if (MontageLength > 0.0f)
+	{
+		EquippedWeapon->PlayReloadSound();
+	}
+	else
 	{
 		EquippedWeapon->ReloadMagazine();
 		bIsReloadingWeapon = false;

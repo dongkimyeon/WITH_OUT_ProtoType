@@ -24,6 +24,9 @@ public:
     virtual void Tick(float DeltaTime) override;
     virtual void BeginPlay() override;
 
+    static void ToggleEnemySoundsEnabled();
+    static bool AreEnemySoundsEnabled();
+
     UFUNCTION(BlueprintCallable, Category = "Enemy|AI")
     bool HasTarget() const;
 

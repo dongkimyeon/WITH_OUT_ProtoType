@@ -23,6 +23,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Animation/AnimMontage.h"
+#include "../Enemy/EnemyBase.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Animation/AnimInstance.h"
 #include "TimerManager.h"
@@ -357,9 +358,21 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     // 이전엔 5/6/7/8/9/0/-/[ 숫자키에 흩어져 있던 디버그 명령들 - 전부 0번 키로 여는 디버그
     // 패널(ProtoDebugPanel) 버튼으로 옮겼다. 진입점을 하나로 모아 뭘 눌러야 할지 안 외워도 되게.
     PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::ToggleDebugPanel);
+    PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &AProtoCharacter::ToggleEnemySoundsDebug);
 #endif
 }
 
+void AProtoCharacter::ToggleEnemySoundsDebug()
+{
+    AEnemyBase::ToggleEnemySoundsEnabled();
+
+    if (GEngine)
+    {
+        const bool bEnabled = AEnemyBase::AreEnemySoundsEnabled();
+        GEngine->AddOnScreenDebugMessage(94001, 2.0f, bEnabled ? FColor::Green : FColor::Red,
+            bEnabled ? TEXT("Zombie Sounds: ON") : TEXT("Zombie Sounds: OFF"));
+    }
+}
 void AProtoCharacter::DebugCommandCompanionEngage()
 {
     ACompanionNPC* Companion = GetCompanionNPC();

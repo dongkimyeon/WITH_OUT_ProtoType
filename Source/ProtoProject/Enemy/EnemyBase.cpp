@@ -28,6 +28,8 @@ using FEnemyConditionNode = TBTConditionNode<AEnemyBase>;
 using FEnemyActionNode = TBTActionNode<AEnemyBase>;
 using EEnemyBTResult = EBTNodeResult;
 
+static bool bEnemySoundsEnabled = true;
+
 AEnemyBase::AEnemyBase()
 {
     PrimaryActorTick.bCanEverTick = true;
@@ -84,6 +86,16 @@ AEnemyBase::AEnemyBase()
     }
 }
 
+
+void AEnemyBase::ToggleEnemySoundsEnabled()
+{
+    bEnemySoundsEnabled = !bEnemySoundsEnabled;
+}
+
+bool AEnemyBase::AreEnemySoundsEnabled()
+{
+    return bEnemySoundsEnabled;
+}
 void AEnemyBase::BeginPlay()
 {
     Super::BeginPlay();
@@ -442,10 +454,12 @@ void AEnemyBase::MoveToTarget()
 
 void AEnemyBase::PlayEnemySound(USoundBase* Sound) const
 {
-    if (Sound)
+    if (!bEnemySoundsEnabled || !Sound)
     {
-        UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation(), EnemySoundVolume, EnemySoundPitch);
+        return;
     }
+
+    UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation(), EnemySoundVolume, EnemySoundPitch);
 }
 
 void AEnemyBase::PlayIdleSoundIfReady()
