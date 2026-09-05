@@ -24,6 +24,7 @@ APistol::APistol()
     CurrentAmmoInMagazine = MagazineCapacity;
     MaxReserveAmmo = 240;
     ReserveAmmo = MaxReserveAmmo;
+    ReloadSoundStartTime = 0.3f;
 
     PistolSkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("PistolSkeletalMesh"));
     PistolSkeletalMesh->SetupAttachment(WeaponMesh);
@@ -61,6 +62,12 @@ APistol::APistol()
     {
         PistolFireSounds.Add(FireSound03.Object);
     }
+    static ConstructorHelpers::FObjectFinder<USoundBase> ReloadSoundFinder(TEXT("/Game/FPS_Weapon_Bundle/Weapons/Sound/PistolReload.PistolReload"));
+    if (ReloadSoundFinder.Succeeded())
+    {
+        ReloadSound = ReloadSoundFinder.Object;
+    }
+
     static ConstructorHelpers::FObjectFinder<UParticleSystem> BloodEffectFinder(TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Blood/P_Blood_Splat_Cone.P_Blood_Splat_Cone"));
     if (BloodEffectFinder.Succeeded())
     {
@@ -414,6 +421,13 @@ void APistol::ReloadNewAmmoAttach()
     }
 
     SetWeaponMagazineHidden(false);
+}
+void APistol::PlayReloadSound()
+{
+    if (ReloadSound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, ReloadSound, GetActorLocation(), ReloadSoundVolume, ReloadSoundPitch, ReloadSoundStartTime);
+    }
 }
 
 

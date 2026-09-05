@@ -95,6 +95,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon|Reload")
     virtual void ReloadNewAmmoAttach();
 
+    UFUNCTION(BlueprintCallable, Category = "Weapon|Sound")
+    virtual void PlayReloadSound();
+
 protected:
     virtual void BeginPlay() override;
 

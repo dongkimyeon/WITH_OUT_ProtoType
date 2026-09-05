@@ -43,6 +43,17 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Sound", meta = (ClampMin = "0.0"))
     float FireSoundPitch = 1.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Sound")
+    USoundBase* ReloadSound = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Sound", meta = (ClampMin = "0.0"))
+    float ReloadSoundVolume = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Sound", meta = (ClampMin = "0.0"))
+    float ReloadSoundPitch = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Sound", meta = (ClampMin = "0.0"))
+    float ReloadSoundStartTime = 0.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|VFX")
     UParticleSystem* BloodHitEffect = nullptr;
@@ -53,6 +64,7 @@ public:
     virtual void ReloadAmmoDetach() override;
     virtual void ReloadNewAmmo(USkeletalMeshComponent* CharacterMesh) override;
     virtual void ReloadNewAmmoAttach() override;
+    virtual void PlayReloadSound() override;
 
 private:
     UPROPERTY()

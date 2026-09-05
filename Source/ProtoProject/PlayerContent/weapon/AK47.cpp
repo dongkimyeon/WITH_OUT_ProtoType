@@ -63,6 +63,12 @@ AAK47::AAK47()
     {
         RifleFireSounds.Add(FireSound03.Object);
     }
+    static ConstructorHelpers::FObjectFinder<USoundBase> ReloadSoundFinder(TEXT("/Game/FPS_Weapon_Bundle/Weapons/Sound/RifleReload.RifleReload"));
+    if (ReloadSoundFinder.Succeeded())
+    {
+        ReloadSound = ReloadSoundFinder.Object;
+    }
+
     static ConstructorHelpers::FObjectFinder<UParticleSystem> BloodEffectFinder(TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Blood/P_Blood_Splat_Cone.P_Blood_Splat_Cone"));
     if (BloodEffectFinder.Succeeded())
     {
@@ -314,6 +320,13 @@ void AAK47::ReloadNewAmmoAttach()
     }
 
     SetWeaponMagazineHidden(false);
+}
+void AAK47::PlayReloadSound()
+{
+    if (ReloadSound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, ReloadSound, GetActorLocation(), ReloadSoundVolume, ReloadSoundPitch, ReloadSoundStartTime);
+    }
 }
 
 AActor* AAK47::SpawnAmmoInHand(USkeletalMeshComponent* CharacterMesh)

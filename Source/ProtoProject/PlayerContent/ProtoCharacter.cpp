@@ -1528,7 +1528,11 @@ void AProtoCharacter::ReloadWeapon()
 
     const FName ReloadSectionName = CurrentWeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
     const float MontageLength = PlayAnimMontage(RifleReloadMontage, 1.0f, ReloadSectionName);
-    if (MontageLength <= 0.0f)
+    if (MontageLength > 0.0f)
+    {
+        CurrentWeapon->PlayReloadSound();
+    }
+    else
     {
         bIsReloading = false;
         SwappingAlpha = true;
@@ -1557,7 +1561,13 @@ void AProtoCharacter::PlayRemoteReloadMontage(EWeaponType ForWeaponType)
     }
 
     const FName ReloadSectionName = ForWeaponType == EWeaponType::Pistol ? PistolReloadSectionName : RifleReloadSectionName;
-    PlayAnimMontage(RifleReloadMontage, 1.0f, ReloadSectionName);
+    if (PlayAnimMontage(RifleReloadMontage, 1.0f, ReloadSectionName) > 0.0f)
+    {
+        if (AWeaponBase* ReloadWeaponActor = GetWeaponByType(ForWeaponType))
+        {
+            ReloadWeaponActor->PlayReloadSound();
+        }
+    }
 }
 
 void AProtoCharacter::ApplyRemoteWeaponEquip(EWeaponType ForWeaponType)

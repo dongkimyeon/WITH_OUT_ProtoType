@@ -118,6 +118,11 @@ void AWeaponBase::ReloadNewAmmo(USkeletalMeshComponent* CharacterMesh)
 void AWeaponBase::ReloadNewAmmoAttach()
 {
 }
+
+void AWeaponBase::PlayReloadSound()
+{
+}
+
 void AWeaponBase::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);

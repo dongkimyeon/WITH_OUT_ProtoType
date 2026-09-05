@@ -11,6 +11,7 @@ class UAIPerceptionStimuliSourceComponent;
 class UAnimMontage;
 class UBoxComponent;
 class UItemDataBase;
+class USoundBase;
 
 UCLASS()
 class PROTOPROJECT_API AEnemyBase : public ACharacter
@@ -153,6 +154,26 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Death", meta = (ClampMin = "0.0"))
     float RagdollLifeSpan = 8.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Sound")
+    TObjectPtr<USoundBase> IdleSound;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Sound")
+    TObjectPtr<USoundBase> AttackSound;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Sound")
+    TObjectPtr<USoundBase> ScreamSound;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Sound")
+    TObjectPtr<USoundBase> DieSound;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Sound", meta = (ClampMin = "0.0"))
+    float EnemySoundVolume = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Sound", meta = (ClampMin = "0.0"))
+    float EnemySoundPitch = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Sound", meta = (ClampMin = "0.0"))
+    float IdleSoundInterval = 4.0f;
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Debug")
     bool bEnableBehaviorDebug = true;
 
@@ -169,6 +190,8 @@ protected:
     void UpdateTarget();
     void PrintBehaviorDebug(const FString& Message, const FColor& Color = FColor::Cyan);
     void SpawnLoot();
+    void PlayEnemySound(USoundBase* Sound) const;
+    void PlayIdleSoundIfReady();
     void PauseMovementForMontage(UAnimMontage* Montage);
     void RestoreMovementAfterMontage(UAnimMontage* Montage = nullptr);
 
@@ -217,6 +240,7 @@ private:
     TSharedPtr<TBTNode<AEnemyBase>> BehaviorTreeRoot;
     float DebugPrintTimer = 0.0f;
     float MoveRequestTimer = 0.0f;
+    float LastIdleSoundTime = -999.0f;
     float DefaultMaxAcceleration = 2048.0f;
     FString LastBehaviorDebugMessage;
     TSet<TWeakObjectPtr<AActor>> DamagedActorsThisSwing;

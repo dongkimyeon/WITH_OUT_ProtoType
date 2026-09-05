@@ -11,6 +11,8 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Perception/AIPerceptionStimuliSourceComponent.h"
 #include "Perception/AISense_Sight.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
 #include "../PlayerContent/Item/ItemDataBase.h"
 #include "../PlayerContent/Item/DropItem.h"
 #include "../PlayerContent/ProtoCharacter.h"
@@ -57,6 +59,29 @@ AEnemyBase::AEnemyBase()
     LeftHandAttackBox->SetCollisionResponseToAllChannels(ECR_Ignore);
     LeftHandAttackBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     LeftHandAttackBox->SetGenerateOverlapEvents(false);
+    static ConstructorHelpers::FObjectFinder<USoundBase> IdleSoundFinder(TEXT("/Game/zombieAsset/Sound/ZombieIdle.ZombieIdle"));
+    if (IdleSoundFinder.Succeeded())
+    {
+        IdleSound = IdleSoundFinder.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> AttackSoundFinder(TEXT("/Game/zombieAsset/Sound/ZombieAttack.ZombieAttack"));
+    if (AttackSoundFinder.Succeeded())
+    {
+        AttackSound = AttackSoundFinder.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> ScreamSoundFinder(TEXT("/Game/zombieAsset/Sound/ZombieScream.ZombieScream"));
+    if (ScreamSoundFinder.Succeeded())
+    {
+        ScreamSound = ScreamSoundFinder.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> DieSoundFinder(TEXT("/Game/zombieAsset/Sound/ZombieDie.ZombieDie"));
+    if (DieSoundFinder.Succeeded())
+    {
+        DieSound = DieSoundFinder.Object;
+    }
 }
 
 void AEnemyBase::BeginPlay()
@@ -215,6 +240,10 @@ void AEnemyBase::Attack()
     if (AttackMontage)
     {
         bIsAttacking = PlayAnimMontage(AttackMontage) > 0.0f;
+        if (bIsAttacking)
+        {
+            PlayEnemySound(AttackSound);
+        }
         if (bIsAttacking)
         {
             PauseMovementForMontage(AttackMontage);
@@ -410,8 +439,37 @@ void AEnemyBase::MoveToTarget()
     PrintBehaviorDebug(TEXT("Enemy BT: MoveToTarget"), FColor::Yellow);
 }
 
+
+void AEnemyBase::PlayEnemySound(USoundBase* Sound) const
+{
+    if (Sound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation(), EnemySoundVolume, EnemySoundPitch);
+    }
+}
+
+void AEnemyBase::PlayIdleSoundIfReady()
+{
+    if (!IdleSound || bIsDead || bIsAttacking || HasTarget())
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    if (World->GetTimeSeconds() - LastIdleSoundTime >= IdleSoundInterval)
+    {
+        LastIdleSoundTime = World->GetTimeSeconds();
+        PlayEnemySound(IdleSound);
+    }
+}
 void AEnemyBase::Patrol()
 {
+    PlayIdleSoundIfReady();
     PrintBehaviorDebug(TEXT("Enemy BT: Patrol"), FColor::Green);
 }
 
@@ -423,6 +481,7 @@ void AEnemyBase::Die()
     }
 
     bIsDead = true;
+    PlayEnemySound(DieSound);
     bIsAttacking = false;
     EndAttackHitWindow();
 

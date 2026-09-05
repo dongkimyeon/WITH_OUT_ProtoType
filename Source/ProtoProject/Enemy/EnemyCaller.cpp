@@ -51,6 +51,7 @@ void AEnemyCaller::DoCall()
     {
         if (PlayAnimMontage(CallMontage, 1.0f, CallSectionName) > 0.0f)
         {
+            PlayEnemySound(ScreamSound);
             PauseMovementForMontage(CallMontage);
         }
     }
