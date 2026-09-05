@@ -198,8 +198,9 @@ void AItemSpawnPoint::HandleItemSpawnState(int32 SpawnPointId, const TArray<FPro
 		return;
 	}
 
-	for (const FProtoWorldItemEntry& Entry : Items)
+	for (int32 Index = 0; Index < Items.Num(); ++Index)
 	{
+		const FProtoWorldItemEntry& Entry = Items[Index];
 		UItemDataBase* ItemData = ResolveItemDataByAssetNameForSpawnPoint(Entry.ItemId.ToString());
 		if (!ItemData)
 		{
@@ -217,6 +218,14 @@ void AItemSpawnPoint::HandleItemSpawnState(int32 SpawnPointId, const TArray<FPro
 
 		Drop->ItemData = ItemData;
 		Drop->StackCount = Entry.StackCount;
+		// Same (spawn point name + index) formula SpawnLoot() uses for its
+		// own local pre-authoritative roll -- Index here is this item's
+		// position in the AUTHORITATIVE Items list (identical on every
+		// client, since it's the one thing the server just arbitrated),
+		// so this is what actually gives every client's copy of "the same"
+		// item a matching NetSlotId. See RequestPickup's comment for why
+		// that has to be true for pickup sync to work at all.
+		Drop->NetSlotId = GetTypeHash(GetName() + FString::FromInt(Index));
 		Drop->FinishSpawning(SpawnTransform);
 		SpawnedDrops.Add(Drop);
 	}

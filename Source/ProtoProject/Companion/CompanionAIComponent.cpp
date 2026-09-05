@@ -14,8 +14,6 @@
 #include "EngineUtils.h"
 #include "../PlayerContent/Inventory/InventoryGridComponent.h"
 #include "../PlayerContent/Item/DropItem.h"
-#include "../Network/ProtoNetClientSubsystem.h"
-#include "Engine/GameInstance.h"
 #include "CompanionLog.h"
 
 namespace
@@ -1027,47 +1025,11 @@ void UCompanionAIComponent::TryPickupItem(ADropItem* Item)
 		return;
 	}
 
-	// 플레이어 픽업(ADropItem::OnInteract_Implementation)과 동일하게, 습득 전에 서버로 루팅을
-	// 브로드캐스트한다 - 안 하면 다른 클라이언트 화면에는 아이템이 그대로 남아있게 된다.
-	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
-	{
-		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
-		{
-			NetClient->SendInteractLoot(static_cast<int32>(Item->GetUniqueID()));
-		}
-	}
-
-	const int32 CountToAdd = FMath::Max(1, Item->StackCount);
-	int32 AddedCount = 0;
-	for (; AddedCount < CountToAdd; ++AddedCount)
-	{
-		if (!InventoryComponent->AddItem(Item->ItemData))
-		{
-			break;
-		}
-	}
-
-	if (AddedCount == 0)
-	{
-		UE_LOG(LogCompanionAI, Warning, TEXT("[AI] 습득 실패: %s - 인벤토리에 자리 없음(Grid %dx%d, 아이템 크기 %dx%d)"),
-			*Item->ItemData->DisplayName.ToString(), InventoryComponent->GridColumns, InventoryComponent->GridRows,
-			Item->ItemData->GridWidth, Item->ItemData->GridHeight);
-	}
-
-	if (AddedCount >= CountToAdd)
-	{
-		Item->Destroy();
-	}
-	else if (AddedCount > 0)
-	{
-		// 인벤토리 공간이 모자라 일부만 주웠으면 남은 수량은 드롭 아이템으로 그대로 둔다.
-		Item->StackCount = CountToAdd - AddedCount;
-	}
-
-	if (AddedCount > 0)
-	{
-		UE_LOG(LogCompanionAI, Log, TEXT("[AI] 아이템 습득: %s x%d"), *Item->ItemData->DisplayName.ToString(), AddedCount);
-	}
+	// 플레이어 픽업(ADropItem::OnInteract_Implementation)과 동일한 진입점을 탄다 - 서버에
+	// 먼저 요청해서 허가받은 뒤에만 실제로 담고 삭제한다(중복 습득 방지). 자세한 흐름은
+	// ADropItem::RequestPickup 주석 참고.
+	UE_LOG(LogCompanionAI, Log, TEXT("[AI] 아이템 습득 요청: %s"), *Item->ItemData->DisplayName.ToString());
+	Item->RequestPickup(InventoryComponent.Get());
 }
 
 EBTNodeResult UCompanionAIComponent::DoFollow(float DeltaTime)

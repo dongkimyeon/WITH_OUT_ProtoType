@@ -115,6 +115,20 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnItemSpawnState, int32, Spaw
 // server doesn't echo C2S_InteractRequest back to its sender for doors).
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnDoorInteract, int32, DoorId, bool, bOpen);
 
+// Fired on S2C_InteractResult for a Loot interact_type, but ONLY when
+// result is Ok (first-claim-wins arbitration -- see Session.cpp's
+// C2S_InteractRequest case and EchoServer::ClaimItemPickup). Unlike
+// OnDoorInteract, this DOES fire for this client's own successful pickup
+// (it's broadcast to everyone including the requester, since the requester
+// needs to know it won before actually adding the item to an inventory) --
+// PickerPlayerId tells ADropItem::HandlePickupResult whether that's itself
+// or another client. A Denied result is never delegated at all: the loser
+// of a simultaneous-pickup race just waits for the winner's Ok broadcast
+// (which every client, including the loser, receives) to remove the item,
+// rather than acting on two separate, possibly out-of-order signals for
+// the same NetSlotId.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnItemPickupResult, int32, NetSlotId, int32, PickerPlayerId);
+
 // Fired on S2C_EnemyClaimResult, answering a SendEnemyClaimRequest for
 // EnemyId. bGranted true means this client is now the one running that
 // enemy's AI locally and should start calling SendEnemyState for it.
@@ -272,7 +286,11 @@ public:
 	bool SendAttackFire(FVector Origin, FVector Direction, uint8 WeaponSlot = 0);
 
 	// Weapon and item pickups both use InteractType::Loot; the protocol has
-	// no separate type to tell them apart.
+	// no separate type to tell them apart. TargetId must be the item's
+	// NetSlotId (see ADropItem::RequestPickup), not GetUniqueID() -- the
+	// server arbitrates first-claim-wins on this id and answers via
+	// OnItemPickupResult, so it has to mean the same ADropItem instance on
+	// every client, which only NetSlotId does.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendInteractLoot(int32 TargetId);
 
@@ -285,6 +303,24 @@ public:
 	// tell.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendDoorInteract(int32 DoorId, bool bOpen);
+
+	// Non-destructive lookup into every door state this client has EVER
+	// been told about (the C2S_Login roster replay AND live OnDoorInteract
+	// broadcasts both update the same cache -- see the .cpp handler).
+	// ADoor::BeginPlay() calls this immediately, in addition to binding
+	// OnDoorInteract for live updates: OnDoorInteract is a plain dynamic
+	// multicast delegate, so it doesn't replay past broadcasts to a door
+	// that spawns/streams in afterward (same problem
+	// ConsumePendingProgressRestore's comment describes for player
+	// progress) -- without this, a door already open when a client joins
+	// (or when a sublevel streams in) would render shut until someone
+	// happened to toggle it again. Unlike the Consume* functions above,
+	// this is a repeatable lookup, not a one-shot drain: many doors share
+	// this one cache. Returns false (OutIsOpen untouched) if this DoorId
+	// has never been toggled -- closed is the default every door already
+	// starts as, so there's nothing to catch up on.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool TryGetCachedDoorState(int32 DoorId, bool& OutIsOpen) const;
 
 	// Reports the local player's position/facing so others can see them move.
 	// Called periodically (throttled), not meant to be spammed every frame.
@@ -433,6 +469,9 @@ public:
 	FProtoOnDoorInteract OnDoorInteract;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnItemPickupResult OnItemPickupResult;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnEnemyClaimResult OnEnemyClaimResult;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
@@ -555,6 +594,14 @@ private:
 
 	bool bHasPendingInventoryRestore = false;
 	TArray<FProtoInventoryItemEntry> PendingRestoreInventory;
+
+	// See TryGetCachedDoorState above. Every door toggle this client has
+	// ever seen (C2S_Login replay or a live broadcast), never cleared on
+	// Disconnect -- unlike the pending-restore caches this isn't
+	// login-attempt-scoped data, it's just "the last known state of each
+	// door", which stays a harmless (if stale) guess even across a
+	// reconnect.
+	TMap<int32, bool> CachedDoorStates;
 
 	UPROPERTY()
 	TMap<int32, AActor*> RemotePlayers;

@@ -351,6 +351,16 @@ bool UProtoNetClientSubsystem::SendDoorInteract(int32 DoorId, bool bOpen)
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::TryGetCachedDoorState(int32 DoorId, bool& OutIsOpen) const
+{
+	if (const bool* Found = CachedDoorStates.Find(DoorId))
+	{
+		OutIsOpen = *Found;
+		return true;
+	}
+	return false;
+}
+
 bool UProtoNetClientSubsystem::SendMoveInput(FVector Position, FRotator Look, int32 Flags)
 {
 	if (!bMultiplayerVisualsEnabled)
@@ -906,15 +916,32 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 		case ProtoType::Net::Payload::S2C_InteractResult:
 			if (const auto* Result = Packet->payload_as_S2C_InteractResult())
 			{
-				// Only door open/close has a client-side meaning right now
-				// -- see SendDoorInteract's schema comment. Other
-				// interact_types (Loot/Extract/PlantItem/UseSwitch) are
-				// silently ignored here, same as the server ignores them.
+				// Door open/close and a granted Loot pickup are the only
+				// interact_types with client-side meaning right now -- see
+				// SendDoorInteract's/OnItemPickupResult's schema comments.
+				// Extract/PlantItem/UseSwitch, and a Denied Loot result, are
+				// silently ignored here, same as the server treats them
+				// (Denied is never meant to be acted on directly -- see
+				// OnItemPickupResult's comment for why).
 				if (Result->interact_type() == ProtoType::Net::InteractType::DoorOpen
 					|| Result->interact_type() == ProtoType::Net::InteractType::DoorClose)
 				{
-					OnDoorInteract.Broadcast(static_cast<int32>(Result->target_id()),
-						Result->interact_type() == ProtoType::Net::InteractType::DoorOpen);
+					const int32 DoorId = static_cast<int32>(Result->target_id());
+					const bool bOpen = Result->interact_type() == ProtoType::Net::InteractType::DoorOpen;
+
+					// Cache first: this same message shape is also how
+					// C2S_Login's roster loop replays already-toggled doors
+					// to a newly-joining client, and that replay can arrive
+					// before the matching ADoor even exists yet to catch
+					// the broadcast below -- see TryGetCachedDoorState.
+					CachedDoorStates.Add(DoorId, bOpen);
+					OnDoorInteract.Broadcast(DoorId, bOpen);
+				}
+				else if (Result->interact_type() == ProtoType::Net::InteractType::Loot
+					&& Result->result() == ProtoType::Net::ResultCode::Ok)
+				{
+					OnItemPickupResult.Broadcast(static_cast<int32>(Result->target_id()),
+						static_cast<int32>(Result->player_id()));
 				}
 			}
 			break;

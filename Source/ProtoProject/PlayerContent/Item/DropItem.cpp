@@ -92,27 +92,101 @@ void ADropItem::OnInteract_Implementation(AProtoCharacter* InPlayer)
 {
 	if (!InPlayer || !ItemData) return;
 
-	/*-------------------
-	 네트워킹: 아이템 습득 브로드캐스트
-	-------------------*/
-	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+	RequestPickup(InPlayer->GetInventoryComponent(), InPlayer);
+}
+
+void ADropItem::RequestPickup(UInventoryGridComponent* TargetInventory, AProtoCharacter* PickupAnimPlayer)
+{
+	if (!TargetInventory || !ItemData || bPickupRequested)
 	{
-		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
-		{
-			NetClient->SendInteractLoot(static_cast<int32>(GetUniqueID()));
-		}
+		return;
+	}
+
+	UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+
+	// NetSlotId == 0 means whatever spawned this drop never assigned it a
+	// stable, cross-client id (e.g. AEnemyBase::SpawnLoot's death drops --
+	// their contents aren't rolled through the server at all yet, a
+	// separate, bigger gap than this fix covers). Arbitrating pickup on an
+	// id shared by every such untagged drop in the level would permanently
+	// lock out every OTHER untagged drop the instant the first one is ever
+	// claimed -- treat it the same as "no one else to desync with" instead.
+	if (!NetClient || !NetClient->IsConnected() || NetSlotId == 0)
+	{
+		// Pick it up immediately, same as before this feature existed. A
+		// server round trip that will never arrive (not connected) or that
+		// would collide with every other untagged drop (NetSlotId == 0)
+		// would otherwise mean the item can never be picked up correctly.
+		ResolvePickup(TargetInventory, PickupAnimPlayer, /*bGrantedToMe=*/true);
+		return;
+	}
+
+	// Ask the server first: two clients could be interacting with this same
+	// synced ground item (spawned from the same S2C_ItemSpawnState/
+	// S2C_ContainerLootState roll) in the same instant, and adding it to an
+	// inventory before the server arbitrates would duplicate it. See
+	// OnItemPickupResult's schema comment for what happens next.
+	bPickupRequested = true;
+	PendingTargetInventory = TargetInventory;
+	PendingPickupAnimPlayer = PickupAnimPlayer;
+	NetClient->OnItemPickupResult.AddDynamic(this, &ADropItem::HandlePickupResult);
+	NetClient->SendInteractLoot(NetSlotId);
+}
+
+void ADropItem::HandlePickupResult(int32 ResolvedNetSlotId, int32 PickerPlayerId)
+{
+	if (ResolvedNetSlotId != NetSlotId)
+	{
+		// Every ADropItem in the level shares this one broadcast delegate --
+		// not our answer.
+		return;
+	}
+
+	UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+	if (NetClient)
+	{
+		// Ok is the only terminal state ever delegated (see
+		// OnItemPickupResult's comment) -- safe to stop listening now.
+		NetClient->OnItemPickupResult.RemoveDynamic(this, &ADropItem::HandlePickupResult);
+	}
+
+	const bool bGrantedToMe = NetClient && PickerPlayerId == NetClient->GetLocalPlayerId();
+	ResolvePickup(PendingTargetInventory.Get(), PendingPickupAnimPlayer.Get(), bGrantedToMe);
+}
+
+void ADropItem::ResolvePickup(UInventoryGridComponent* TargetInventory, AProtoCharacter* PickupAnimPlayer, bool bGrantedToMe)
+{
+	if (!bGrantedToMe)
+	{
+		// Another client's request won the race for this exact item -- it's
+		// gone from the world either way, just not into OUR inventory.
+		Destroy();
+		return;
+	}
+
+	if (!TargetInventory)
+	{
+		// Whoever wanted it (player or companion) is gone by the time the
+		// server answered -- nothing left to give it to. Leave the item be
+		// rather than silently deleting it into the void; the server
+		// already marked this NetSlotId claimed, so no one else can pick it
+		// up either, but that's a rare enough edge case (target destroyed
+		// mid-request) not to warrant more than that.
+		return;
 	}
 
 	const int32 CountToAdd = FMath::Max(1, StackCount);
 	int32 AddedCount = 0;
 	for (; AddedCount < CountToAdd; ++AddedCount)
 	{
-		if (!InPlayer->GetInventoryComponent()->AddItem(ItemData)) break;
+		if (!TargetInventory->AddItem(ItemData)) break;
 	}
 
-	if (AddedCount > 0)
+	if (AddedCount > 0 && PickupAnimPlayer)
 	{
-		InPlayer->PlayPickupAnimationIfUnarmed();
+		PickupAnimPlayer->PlayPickupAnimationIfUnarmed();
 	}
 
 	if (AddedCount >= CountToAdd)
@@ -121,10 +195,17 @@ void ADropItem::OnInteract_Implementation(AProtoCharacter* InPlayer)
 	}
 	else if (AddedCount > 0)
 	{
-		// 인벤토리 공간이 모자라 일부만 주웠으면 남은 수량만큼 드롭 아이템을 그대로 남겨둔다.
+		// Inventory ran out of room for the rest -- leave the remainder as
+		// a drop item locally. Known residual edge case: the server already
+		// considers this NetSlotId fully claimed (first-claim-wins isn't
+		// "claim N units"), so every other client already destroyed their
+		// copy of this item even though this client still shows a leftover
+		// stack. Rare (requires a full inventory) and pre-existing (the
+		// original single-player-only version had the same partial-pickup
+		// behavior); not fixed here.
 		StackCount = CountToAdd - AddedCount;
 	}
-	// AddedCount == 0이면 인벤토리가 꽉 차서 하나도 못 주운 것 - 그대로 둔다.
+	// AddedCount == 0 means the inventory was already full -- leave it be.
 }
 
 FText ADropItem::GetInteractPrompt_Implementation() const

@@ -49,12 +49,26 @@ void ADoor::BeginPlay()
 
 	CurrentYaw = DoorMesh->GetRelativeRotation().Yaw;
 
-	// 다른 클라이언트가 이 문을 열고/닫으면 우리 쪽도 같이 반영한다 (see
-	// UProtoNetClientSubsystem::OnDoorInteract's comment).
 	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
 	{
 		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
 		{
+			// Catch up immediately if this door was already toggled before
+			// this instance existed to hear it -- e.g. joining mid-session
+			// after someone else opened it (see
+			// TryGetCachedDoorState's comment). Snapped straight to the
+			// target yaw, not animated: this is this door's actual
+			// starting state, not a toggle happening right now.
+			bool bCachedOpen = false;
+			if (NetClient->TryGetCachedDoorState(GetDoorId(), bCachedOpen) && bCachedOpen)
+			{
+				const float Sign = bInvertSwing ? -1.f : 1.f;
+				SetOpen(true, Sign);
+				CurrentYaw = OpenTargetYaw;
+			}
+
+			// 다른 클라이언트가 이 문을 열고/닫으면 우리 쪽도 같이 반영한다 (see
+			// UProtoNetClientSubsystem::OnDoorInteract's comment).
 			NetClient->OnDoorInteract.AddDynamic(this, &ADoor::HandleDoorInteract);
 		}
 	}
