@@ -543,7 +543,7 @@ bool UProtoNetClientSubsystem::SendItemSpawnRoll(int32 SpawnPointId, const TArra
 	return SendPacketBytes(Bytes);
 }
 
-bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator Look)
+bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator Look, float Health, bool bIsDead)
 {
 	if (!IsConnected())
 		return false;
@@ -551,7 +551,7 @@ bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
 	const ProtoType::Net::Rotator LookRot(Look.Pitch, Look.Yaw, Look.Roll);
-	auto Req = ProtoType::Net::CreateC2S_CompanionMoveInput(Fbb, &PositionVec, &LookRot);
+	auto Req = ProtoType::Net::CreateC2S_CompanionMoveInput(Fbb, &PositionVec, &LookRot, Health, bIsDead);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_CompanionMoveInput, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
@@ -1008,7 +1008,8 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					UpdateRemoteCompanion(
 						State->owner_id(),
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
-						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator);
+						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
+						State->health(), State->is_dead());
 				}
 			}
 			break;
@@ -1132,7 +1133,7 @@ void UProtoNetClientSubsystem::RemoveRemotePlayer(uint32 PlayerId)
 	UE_LOG(LogProtoNet, Log, TEXT("Removed remote player %u"), PlayerId);
 }
 
-void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation)
+void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation, float Health, bool bIsDead)
 {
 	// See this function's header comment for why negated keys share the
 	// same maps as real remote players instead of a separate set.
@@ -1144,7 +1145,14 @@ void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVect
 	if (AActor** Existing = RemotePlayers.Find(Key))
 	{
 		if (IsValid(*Existing))
+		{
+			if (ACompanionNPC* ExistingCompanion = Cast<ACompanionNPC>(*Existing))
+			{
+				ExistingCompanion->MirroredHealth = Health;
+				ExistingCompanion->bIsMirroredDead = bIsDead;
+			}
 			return;
+		}
 		RemotePlayers.Remove(Key);
 	}
 
@@ -1167,6 +1175,8 @@ void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVect
 		if (RemoteCompanion)
 		{
 			RemoteCompanion->MarkAsRemotePuppet();
+			RemoteCompanion->MirroredHealth = Health;
+			RemoteCompanion->bIsMirroredDead = bIsDead;
 			RemoteCompanion->FinishSpawning(SpawnTransform);
 
 			// Same bootstrap UpdateRemotePlayer() above needs and why --
@@ -1236,6 +1246,13 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 	{
 		AActor* RemoteActor = Pair.Value;
 		if (!IsValid(RemoteActor))
+			continue;
+
+		// A dead remote companion should hold its last position, not keep
+		// walking toward wherever its owner's (also-frozen, per
+		// UCompanionAIComponent::TickComponent) real companion last
+		// reported -- see MirroredHealth/bIsMirroredDead's comment.
+		if (const ACompanionNPC* Companion = Cast<ACompanionNPC>(RemoteActor); Companion && Companion->bIsMirroredDead)
 			continue;
 
 		const FVector* TargetLocation = RemoteTargetLocation.Find(Pair.Key);

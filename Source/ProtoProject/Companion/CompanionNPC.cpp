@@ -97,7 +97,12 @@ void ACompanionNPC::Tick(float DeltaSeconds)
 			{
 				if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
 				{
-					NetClient->SendCompanionMoveInput(GetActorLocation(), GetActorRotation());
+					// CombatComponent is only ever null here for a remote
+					// puppet, which never reaches this branch
+					// (bOwnedByLocalPlayer is false for those).
+					const float Health = CombatComponent ? CombatComponent->CurrentHealth : MirroredHealth;
+					const bool bDead = CombatComponent && CombatComponent->IsDead();
+					NetClient->SendCompanionMoveInput(GetActorLocation(), GetActorRotation(), Health, bDead);
 				}
 			}
 		}

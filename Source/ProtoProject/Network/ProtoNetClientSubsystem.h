@@ -385,8 +385,10 @@ public:
 	// bMultiplayerVisualsEnabled for the SEND direction -- same reasoning
 	// as SendSaveInventory, this is "what my companion is doing" regardless
 	// of whether this client currently wants to see other players.
+	// Health/bIsDead ride along on the same periodic update rather than a
+	// separate message -- see C2S_CompanionMoveInput's schema comment.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool SendCompanionMoveInput(FVector Position, FRotator Look);
+	bool SendCompanionMoveInput(FVector Position, FRotator Look, float Health = 100.0f, bool bIsDead = false);
 
 	// Called once by the LOCAL player's own AProtoCharacter::SpawnCompanion()
 	// right after it spawns its companion, so remote companion puppets (see
@@ -547,9 +549,13 @@ private:
 	// wrong (nothing should be feeding it commands but its own owner).
 	// Falls back to the plain AProtoRemotePlayer placeholder if
 	// RemoteCompanionClass hasn't been set yet (see SetRemoteCompanionClass).
-	// Known gap: only position/facing are synced, not weapon/aim state, so
-	// a remote companion's puppet always renders unarmed.
-	void UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation);
+	// Health/bIsDead are mirrored onto the puppet's own MirroredHealth/
+	// bIsMirroredDead (its real CombatComponent is destroyed by
+	// MarkAsRemotePuppet, so there's nowhere else to keep it) --
+	// TickRemotePlayers() stops walking it around once bIsMirroredDead.
+	// Known gap: weapon/aim state isn't synced, so a remote companion's
+	// puppet always renders unarmed.
+	void UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation, float Health, bool bIsDead);
 
 	// Despawns a remote companion placeholder and clears its tracking
 	// entries. Also called from RemoveRemotePlayer -- a player's companion

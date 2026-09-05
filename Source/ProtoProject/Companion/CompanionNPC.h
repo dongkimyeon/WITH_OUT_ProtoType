@@ -84,6 +84,19 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Companion")
 	bool bIsRemotePuppet = false;
 
+	// Mirrored health/dead state for a REMOTE puppet ONLY (bIsRemotePuppet) --
+	// MarkAsRemotePuppet() destroys CombatComponent entirely (see its own
+	// comment), so a remote puppet has nowhere else to keep this. Written
+	// only by UProtoNetClientSubsystem::UpdateRemoteCompanion, read by
+	// TickRemotePlayers() to stop walking a dead companion around. The
+	// real, locally-owned companion's health/dead state stays on
+	// CombatComponent as always -- this is never touched for one of those.
+	UPROPERTY(BlueprintReadOnly, Category = "Companion")
+	float MirroredHealth = 100.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Companion")
+	bool bIsMirroredDead = false;
+
 	// Player ABP와 같은 이름으로 노출하는 동료 애니메이션용 상태값.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
 	bool bIsSprint = false;
