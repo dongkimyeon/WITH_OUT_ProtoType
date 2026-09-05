@@ -7,6 +7,8 @@
 #include "ConsumableItemData.h"
 #include "DropItem.h"
 #include "../ProtoCharacter.h"
+#include "../../Network/ProtoNetClientSubsystem.h"
+#include "Engine/GameInstance.h"
 
 void UInventoryScreenWidget::NativeConstruct()
 {
@@ -80,7 +82,42 @@ bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* D
 	if (!CachedInventoryComponent->CanPlaceAt(TargetPosition, ItemSize)) return false;
 
 	FInventoryItemInstance SourceInstance;
-	const int32 StackCount = DragOp->SourceInventoryComponent->FindInstanceById(DragOp->InstanceId, SourceInstance) ? SourceInstance.StackCount : 1;
+	const bool bFoundSource = DragOp->SourceInventoryComponent->FindInstanceById(DragOp->InstanceId, SourceInstance);
+	const int32 StackCount = bFoundSource ? SourceInstance.StackCount : 1;
+
+	// NetSlotId != 0 means the source item lives in a world-shared
+	// container (see FInventoryItemInstance::NetSlotId's comment) --
+	// another player could be dragging the exact same item right now, so
+	// ask the server first instead of moving it immediately. Falls through
+	// to the old immediate path if not connected: no one else to race
+	// against, and a round trip that will never answer would otherwise mean
+	// the item can never be taken at all in that mode.
+	UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+	if (bFoundSource && SourceInstance.NetSlotId != 0 && NetClient && NetClient->IsConnected())
+	{
+		FPendingExternalTransfer Pending;
+		Pending.SourceInventory = DragOp->SourceInventoryComponent;
+		Pending.TargetInventory = CachedInventoryComponent;
+		Pending.SourceScreenWidget = DragOp->SourceScreenWidget;
+		Pending.SourceInstanceId = DragOp->InstanceId;
+		Pending.TargetPosition = TargetPosition;
+		Pending.bTargetRotated = bDropRotated;
+		Pending.ItemData = ItemData;
+		Pending.StackCount = StackCount;
+		PendingExternalTransfers.Add(SourceInstance.NetSlotId, Pending);
+
+		NetClient->OnItemPickupResult.AddUniqueDynamic(this, &UInventoryScreenWidget::HandleExternalTransferPickupResult);
+		NetClient->SendInteractLoot(SourceInstance.NetSlotId);
+
+		// Leaves both grids showing the item until the server answers (see
+		// HandleExternalTransferPickupResult) -- same trade-off
+		// ADropItem::RequestPickup accepts for ground items: a brief,
+		// harmless visual inconsistency during the round trip beats
+		// optimistically moving something that might not actually be ours.
+		ActiveDragOp = nullptr;
+		return true;
+	}
 
 	DragOp->SourceInventoryComponent->RemoveInstanceById(DragOp->InstanceId);
 	CachedInventoryComponent->AddItemAt(ItemData, TargetPosition, bDropRotated, StackCount);
@@ -93,6 +130,50 @@ bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* D
 
 	ActiveDragOp = nullptr;
 	return true;
+}
+
+void UInventoryScreenWidget::HandleExternalTransferPickupResult(int32 NetSlotId, int32 PickerPlayerId)
+{
+	FPendingExternalTransfer Pending;
+	if (!PendingExternalTransfers.RemoveAndCopyValue(NetSlotId, Pending))
+	{
+		// Every screen showing a world-shared grid binds this same
+		// broadcast delegate -- not our transfer.
+		return;
+	}
+
+	UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+	const bool bGrantedToMe = NetClient && PickerPlayerId == NetClient->GetLocalPlayerId();
+
+	UInventoryGridComponent* SourceInventory = Pending.SourceInventory.Get();
+	if (SourceInventory)
+	{
+		// Gone from the shared container either way -- someone got it, even
+		// if it wasn't us.
+		SourceInventory->RemoveInstanceById(Pending.SourceInstanceId);
+	}
+
+	if (bGrantedToMe)
+	{
+		if (UInventoryGridComponent* TargetInventory = Pending.TargetInventory.Get())
+		{
+			TargetInventory->AddItemAt(Pending.ItemData, Pending.TargetPosition, Pending.bTargetRotated, Pending.StackCount);
+		}
+	}
+
+	if (UInventoryScreenBase* SourceScreen = Pending.SourceScreenWidget.Get())
+	{
+		SourceScreen->RefreshGrid(SourceInventory);
+	}
+	RefreshGrid(Pending.TargetInventory.Get());
+
+	// Stop listening only once nothing else is outstanding -- avoids
+	// dropping another concurrent transfer's eventual answer.
+	if (PendingExternalTransfers.Num() == 0 && NetClient)
+	{
+		NetClient->OnItemPickupResult.RemoveDynamic(this, &UInventoryScreenWidget::HandleExternalTransferPickupResult);
+	}
 }
 
 void UInventoryScreenWidget::InitializeEquipment(UEquipmentComponent* InEquipmentComponent)

@@ -126,8 +126,9 @@ void ALootContainer::HandleContainerLootState(int32 ContainerId, const TArray<FP
 	}
 
 	ContainerInventory->Items.Empty();
-	for (const FProtoInventoryItemEntry& Entry : Items)
+	for (int32 Index = 0; Index < Items.Num(); ++Index)
 	{
+		const FProtoInventoryItemEntry& Entry = Items[Index];
 		UItemDataBase* ItemData = ResolveItemDataByAssetName(Entry.ItemId.ToString());
 		if (!ItemData)
 		{
@@ -135,6 +136,16 @@ void ALootContainer::HandleContainerLootState(int32 ContainerId, const TArray<FP
 			continue;
 		}
 
-		ContainerInventory->AddItemAt(ItemData, FIntPoint(Entry.GridX, Entry.GridY), Entry.bRotated, Entry.StackCount);
+		if (ContainerInventory->AddItemAt(ItemData, FIntPoint(Entry.GridX, Entry.GridY), Entry.bRotated, Entry.StackCount))
+		{
+			// Same (container name + index-in-authoritative-list) formula
+			// ADropItem/AItemSpawnPoint use -- Index here is this item's
+			// position in the AUTHORITATIVE Items list (identical on every
+			// client), so this is what lets every client's copy of "the
+			// same" box item agree on a NetSlotId for pickup arbitration
+			// (see FInventoryItemInstance::NetSlotId's comment). AddItemAt
+			// always appends, so the instance we just added is Items.Last().
+			ContainerInventory->Items.Last().NetSlotId = GetTypeHash(GetName() + FString::FromInt(Index));
+		}
 	}
 }

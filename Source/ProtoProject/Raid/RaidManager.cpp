@@ -4,6 +4,7 @@
 #include "RaidTimerWidget.h"
 #include "../PlayerContent/ProtoCharacter.h"
 #include "../PlayerContent/PlayerStatusComponent.h"
+#include "../Network/ProtoNetClientSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
@@ -136,6 +137,19 @@ void ARaidManager::ReturnToHub()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[RaidManager] ExtractionFailLevel이 지정되지 않아 복귀할 수 없습니다."));
 		return;
+	}
+
+	// Same reasoning as AExitPoint's successful-extraction path: without
+	// this, the rest of the party's mirror of this (already ragdolled via
+	// S2C_PlayerDied) player just stands frozen forever once we've loaded
+	// away into ExtractionFailLevel, instead of despawning like a real
+	// disconnect would.
+	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->SendSetVisible(false);
+		}
 	}
 
 	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), ExtractionFailLevel);

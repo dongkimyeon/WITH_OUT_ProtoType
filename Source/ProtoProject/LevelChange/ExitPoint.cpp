@@ -3,6 +3,7 @@
 
 #include "ExitPoint.h"
 #include "../PlayerContent/ProtoCharacter.h"
+#include "../Network/ProtoNetClientSubsystem.h"
 #include "ExitPointWidget.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -81,6 +82,25 @@ void AExitPoint::Tick(float DeltaTime)
 		{
 			ExitPointWidgetInstance->RemoveFromParent();
 			ExitPointWidgetInstance = nullptr;
+		}
+
+		// Tell the rest of the party we're leaving via extraction -- same
+		// mechanism a Single-map level travel already uses (see
+		// UProtoNetClientSubsystem::SendSetVisible's schema comment), which
+		// makes the server broadcast S2C_PlayerLeft so everyone else
+		// despawns our (and our companion's) mirror instead of it just
+		// standing there frozen once we've loaded into SafePlaceLevel. Not
+		// SetMultiplayerVisualsEnabled(false): that also stops THIS
+		// client's own future send/receive, which isn't ours to decide here
+		// -- SafePlaceLevel's own BeginPlay logic (same as any other level
+		// travel) is what re-establishes visibility correctly for wherever
+		// we're actually headed.
+		if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+		{
+			if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+			{
+				NetClient->SendSetVisible(false);
+			}
 		}
 
 		UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), SafePlaceLevel);

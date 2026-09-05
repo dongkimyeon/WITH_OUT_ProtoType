@@ -123,6 +123,32 @@ private:
 	void DropItemToWorld(UItemDragDropOperation* DragOp);
 	void SpawnDropItemActor(UItemDataBase* ItemData, int32 StackCount);
 
+	// A cross-grid drop whose SOURCE instance carries a nonzero NetSlotId
+	// (a world-shared ALootContainer item -- see
+	// FInventoryItemInstance::NetSlotId) can't be moved immediately: another
+	// player could be grabbing the exact same item right now, so the server
+	// has to arbitrate first (same first-claim-wins flow as
+	// ADropItem::RequestPickup, reusing its OnItemPickupResult delegate).
+	// Keyed by NetSlotId in PendingExternalTransfers below so
+	// HandleExternalTransferPickupResult can find its way back to the drop
+	// that's still waiting on an answer.
+	struct FPendingExternalTransfer
+	{
+		TWeakObjectPtr<UInventoryGridComponent> SourceInventory;
+		TWeakObjectPtr<UInventoryGridComponent> TargetInventory;
+		TWeakObjectPtr<UInventoryScreenBase> SourceScreenWidget;
+		FGuid SourceInstanceId;
+		FIntPoint TargetPosition = FIntPoint::ZeroValue;
+		bool bTargetRotated = false;
+		UItemDataBase* ItemData = nullptr;
+		int32 StackCount = 1;
+	};
+
+	UFUNCTION()
+	void HandleExternalTransferPickupResult(int32 NetSlotId, int32 PickerPlayerId);
+
+	TMap<int32, FPendingExternalTransfer> PendingExternalTransfers;
+
 	UPROPERTY()
 	UInventoryGridComponent* CachedInventoryComponent = nullptr;
 

@@ -27,6 +27,17 @@ struct FInventoryItemInstance
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
     FGuid InstanceId;
 
+    // Stable id for server-authoritative pickup arbitration when this
+    // instance lives in a WORLD-shared grid -- currently only
+    // ALootContainer::HandleContainerLootState assigns this (from the
+    // authoritative roll's index, same formula as ADropItem::NetSlotId).
+    // 0 (the default) means "no arbitration needed": a player/companion's
+    // own grid, or a personal per-account stash (AStorageContainer), since
+    // no other player can ever reach those at the same time. See
+    // UInventoryScreenWidget::OnItemDroppedFromExternal.
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
+    int32 NetSlotId = 0;
+
     FIntPoint GetEffectiveSize() const
     {
         if (!ItemData) 
