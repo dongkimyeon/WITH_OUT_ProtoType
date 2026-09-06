@@ -558,6 +558,21 @@ private:
     bool bIsInvetoryOpened = false;
     bool bIsDead = false;
 
+    // BeginPlay() calls this once immediately, same as it always has --
+    // but IsLocallyControlled() isn't guaranteed to already report true at
+    // that exact moment (ARaidManager::TryAcquireLocalPlayer has to poll
+    // Tick() for the very same reason: "로컬 플레이어는 아직 스폰 전일 수
+    // 있으므로"). If it's not ready yet, BeginPlay leaves
+    // bLocalPlayerSetupDone false and Tick() retries this every frame
+    // until it succeeds, instead of this character silently never binding
+    // OnInventoryChanged (so nothing it does ever gets saved) or consuming
+    // its restored position/inventory (so nothing carries over) for its
+    // entire lifetime. No-ops (returns false without doing anything) if
+    // IsLocallyControlled() still isn't true yet; safe to call repeatedly
+    // since it only actually runs once bLocalPlayerSetupDone is set.
+    bool bLocalPlayerSetupDone = false;
+    bool TrySetupLocalPlayerOnce();
+
     // 사망 시 지니고 있던 것을 전부 소실시킨다: 그리드 인벤토리 비우기 + 장비 슬롯 ClearAll +
     // 퀵슬롯 ClearAll. 허브의 StorageContainer(스태시)는 별개라 손대지 않는다.
     void WipeCarriedInventoryOnDeath();
