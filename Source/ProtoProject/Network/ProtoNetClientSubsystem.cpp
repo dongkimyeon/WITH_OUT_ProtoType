@@ -719,6 +719,13 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			case ProtoType::Net::Payload::S2C_AttackResult:
 			case ProtoType::Net::Payload::S2C_CompanionMoveState:
 			case ProtoType::Net::Payload::S2C_PlayerDied:
+			case ProtoType::Net::Payload::S2C_EnemyAttackResult:
+				// Defense in depth alongside EchoServer::EnemyAiLoop's own
+				// visibility filter (see Session::IsVisible's comment): a
+				// stray hit computed the same server tick this client's
+				// C2S_SetVisible(false) is still in flight would otherwise
+				// land HandleEnemyAttackPlayer damage on a player who isn't
+				// even in a zombie-having level anymore.
 				return;
 			default:
 				break;
