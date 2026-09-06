@@ -315,11 +315,12 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
             FVector PendingRestorePosition;
             FRotator PendingRestoreLook;
             uint8 PendingRestoreWeaponType = 0;
-            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType))
+            bool bPendingApplyTransform = false;
+            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType, bPendingApplyTransform))
             {
-                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingProgressRestore: pos=%s weaponType=%d"),
-                    *PendingRestorePosition.ToString(), PendingRestoreWeaponType);
-                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType);
+                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingProgressRestore: pos=%s weaponType=%d applyTransform=%d"),
+                    *PendingRestorePosition.ToString(), PendingRestoreWeaponType, bPendingApplyTransform);
+                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType, bPendingApplyTransform);
             }
         }
     }
@@ -2328,31 +2329,9 @@ void AProtoCharacter::GrantStartingRifleIfMissing()
         {
             if (IsStartingRifle(EquipmentComponent->GetEquippedItem(Slot).ItemData))
             {
-                const FRotator CurrentLook = Controller ? Controller->GetControlRotation() : GetActorRotation();
-                const TArray<FProtoInventoryItemEntry> InventorySnapshot = BuildInventorySnapshot();
-                const TArray<FProtoEquipmentEntry> EquipmentSnapshot = BuildEquipmentSnapshot();
-                const TArray<FProtoQuickSlotEntry> QuickSlotSnapshot = BuildQuickSlotSnapshot();
-                UE_LOG(LogTemp, Log, TEXT("[InvSync] EndPlay(LevelTransition): caching %d item(s), %d equipment, %d quick slot(s)"),
-                    InventorySnapshot.Num(), EquipmentSnapshot.Num(), QuickSlotSnapshot.Num());
-                NetClient->CacheStateForLevelTransition(
-                    GetActorLocation(), CurrentLook, static_cast<uint8>(CurrentWeaponType), InventorySnapshot,
-                    EquipmentSnapshot, QuickSlotSnapshot);
                 return;
-
             }
         }
-    }
-    else if (EndPlayReason == EEndPlayReason::LevelTransition)
-    {
-        // Landing here (LevelTransition but the cache above was skipped) is
-        // exactly the "인벤토리가 동기화되지 않음" symptom, from one of two
-        // causes: bIsDead (correct -- WipeCarriedInventoryOnDeath already
-        // emptied it, nothing SHOULD carry over) or !bLocalPlayerSetupDone
-        // (a bug -- TrySetupLocalPlayerOnce never completed for this
-        // character, e.g. IsLocallyControlled() never went true before the
-        // level unloaded).
-        UE_LOG(LogTemp, Log, TEXT("[InvSync] EndPlay(LevelTransition): NOT caching (bLocalPlayerSetupDone=%d bIsDead=%d)"),
-            bLocalPlayerSetupDone, bIsDead);
     }
 
     if (QuickSlotComponent)
