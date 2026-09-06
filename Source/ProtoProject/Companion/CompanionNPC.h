@@ -97,6 +97,22 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Companion")
 	bool bIsMirroredDead = false;
 
+	// Same idea as MirroredHealth/bIsMirroredDead above, for the equipped
+	// weapon/aim state a remote puppet has no CombatComponent/AIComponent/
+	// Controller left to derive on its own (see MarkAsRemotePuppet). Fed
+	// into the SAME CurrentWeaponType/bIsAiming/AimPitch properties below
+	// that the Animation Blueprint already reads for a real, locally-owned
+	// companion -- see Tick()'s bIsRemotePuppet branch. Written only by
+	// UProtoNetClientSubsystem::UpdateRemoteCompanion.
+	UPROPERTY(BlueprintReadOnly, Category = "Companion")
+	EWeaponType MirroredWeaponType = EWeaponType::None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Companion")
+	bool bMirroredIsAiming = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Companion")
+	float MirroredAimPitch = 0.0f;
+
 	// Player ABP와 같은 이름으로 노출하는 동료 애니메이션용 상태값.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Companion|Animation")
 	bool bIsSprint = false;
