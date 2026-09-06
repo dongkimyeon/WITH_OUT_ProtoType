@@ -854,28 +854,81 @@ void AProtoCharacter::Interact(const FInputActionValue& Value)
 
     if (NearbyInteractables.IsEmpty()) return;
 
+    // Aim-assisted: a sphere sweep (not a thin line) from the camera itself
+    // (not 400cm out) so small objects like a dropped bandage don't need
+    // pixel-precise centering, and standing close doesn't put the object
+    // behind the trace's start point -- both were why interacting "only
+    // worked at certain angles"/"items don't pick up well" with the old
+    // thin 400-700cm-band line trace. Still gated on NearbyInteractables
+    // (the object's own InteractBox overlap) as defense in depth against
+    // interacting through a wall the sphere happened to sweep past.
     APlayerController* PC = Cast<APlayerController>(Controller);
-    if (!PC) return;
+    AActor* BestActor = nullptr;
 
-    FVector CamLoc;
-    FRotator CamRot;
-    PC->GetPlayerViewPoint(CamLoc, CamRot);
-
-    FHitResult Hit;
-    FCollisionQueryParams Params;
-    Params.AddIgnoredActor(this);
-
-    const FVector TraceStart = CamLoc + CamRot.Vector() * 400.f;
-    const FVector TraceEnd   = CamLoc + CamRot.Vector() * 700.f;
-    GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
-    // Demo build: interaction trace debug line disabled.
-
-    AActor* HitActor = Hit.GetActor();
-    if (!IsValid(HitActor) || !NearbyInteractables.Contains(HitActor)) return;
-
-    if (HitActor->Implements<UInteractable>() && IInteractable::Execute_CanInteract(HitActor, this))
+    if (PC)
     {
-        IInteractable::Execute_OnInteract(HitActor, this);
+        FVector CamLoc;
+        FRotator CamRot;
+        PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+        constexpr float SweepRadius = 40.0f;
+        constexpr float SweepRange = 300.0f;
+        const FVector TraceEnd = CamLoc + CamRot.Vector() * SweepRange;
+
+        FCollisionQueryParams Params;
+        Params.AddIgnoredActor(this);
+
+        TArray<FHitResult> Hits;
+        GetWorld()->SweepMultiByChannel(Hits, CamLoc, TraceEnd, FQuat::Identity,
+            ECC_Visibility, FCollisionShape::MakeSphere(SweepRadius), Params);
+
+        // Closest-along-the-sweep hit that's both Interactable and actually
+        // in range wins -- SweepMultiByChannel already returns hits ordered
+        // nearest-first.
+        for (const FHitResult& Hit : Hits)
+        {
+            AActor* HitActor = Hit.GetActor();
+            if (!IsValid(HitActor) || !NearbyInteractables.Contains(HitActor))
+            {
+                continue;
+            }
+            if (HitActor->Implements<UInteractable>() && IInteractable::Execute_CanInteract(HitActor, this))
+            {
+                BestActor = HitActor;
+                break;
+            }
+        }
+    }
+
+    if (!BestActor)
+    {
+        // Sweep found nothing (looking away, or PC missing) -- fall back to
+        // the nearest valid candidate already in range rather than leaving
+        // interaction stuck on aim alone.
+        float BestDistSq = TNumericLimits<float>::Max();
+        for (AActor* Candidate : NearbyInteractables)
+        {
+            if (!IsValid(Candidate) || !Candidate->Implements<UInteractable>())
+            {
+                continue;
+            }
+            if (!IInteractable::Execute_CanInteract(Candidate, this))
+            {
+                continue;
+            }
+
+            const float DistSq = FVector::DistSquared(GetActorLocation(), Candidate->GetActorLocation());
+            if (DistSq < BestDistSq)
+            {
+                BestDistSq = DistSq;
+                BestActor = Candidate;
+            }
+        }
+    }
+
+    if (BestActor)
+    {
+        IInteractable::Execute_OnInteract(BestActor, this);
     }
 }
 
