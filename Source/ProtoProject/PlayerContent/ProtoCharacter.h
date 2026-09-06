@@ -386,20 +386,26 @@ public:
     void SetRemoteAiming(bool bAiming, float Pitch);
 
     // Bound (locally-controlled instance only, in BeginPlay) to
-    // UProtoNetClientSubsystem::OnProgressRestored: silently shows the saved
-    // weapon (no swap animation -- this is initial spawn state, not a live
-    // transition). Falls back to SpawnFallbackRemoteWeapon() if
-    // CurrentRifle/CurrentPistol aren't populated yet (see GetWeaponByType).
-    // Position is intentionally IGNORED -- every level is always entered at
-    // its own PlayerStart, never a restored/cached coordinate. A saved or
-    // cached position can belong to a totally different level's geometry
-    // (mid-raid at force-quit time, or after any level transition in
-    // general) with no reliable way to tell whether reapplying it is safe --
-    // this was the "강제종료한 플레이어의 위치가 이상한곳으로 고정되는
-    // 문제" bug. Always using PlayerStart sidesteps the whole class of
-    // problem instead of trying to track which transitions are "safe".
+    // UProtoNetClientSubsystem::OnProgressRestored (S2C_LoginSuccess only).
+    // 어댑터: HandleProgressRestored(..., bApplyTransform=false)로 호출한다.
+    // 로그인은 항상 SafePlaceLevel로 이동하는데(TitleLevelWidget::
+    // HandleLoginSucceeded), 저장된 Position은 어느 레벨 좌표인지 알 수 없다 --
+    // 레이드 도중 강제종료하면 그 좌표가 그대로 저장되고, 다음 로그인 때
+    // SafePlaceLevel의 전혀 다른 지형에 적용되어 "강제종료한 플레이어의
+    // 위치가 이상한곳으로 고정되는 문제"가 생겼다. 레벨 이동 이월과 마찬가지로
+    // 항상 그 레벨 자신의 PlayerStart에서 시작하고, WeaponType(들고 있던 무기)만
+    // 이월한다 -- Look/WeaponType은 레벨 지형과 무관해서 안전하게 복원 가능.
     UFUNCTION()
-    void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType);
+    void HandleProgressRestoredFromServer(FVector Position, FRotator Look, uint8 WeaponType);
+
+    // bApplyTransform is now always false from every caller (fresh DB login
+    // included -- see HandleProgressRestoredFromServer's comment) -- Position/
+    // Look are never applied, every level is always entered at its own
+    // PlayerStart. Only WeaponType (the weapon held, not where you're
+    // standing) still restores, showing the saved weapon with no swap
+    // animation (initial spawn state, not a live transition).
+    // CurrentRifle/CurrentPistol이 아직이면 SpawnFallbackRemoteWeapon() 폴백.
+    void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType, bool bApplyTransform);
 
     /*-------------------
      네트워킹: 인벤토리 동기화 (로컬 플레이어만)
@@ -490,6 +496,18 @@ public:
     // for one of these, that item is silently dropped (falls back to just
     // not being equipped) rather than displacing something else.
     void RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipmentEntry>& Equipment, const TArray<FProtoQuickSlotEntry>& QuickSlots);
+
+    // 인벤토리 그리드/장비/퀵슬롯 어디에도 DA_Item_AK47이 없으면 그리드에 1정 추가한다.
+    // TrySetupLocalPlayerOnce 말미(복원 완료 + 저장 델리게이트 바인딩 후)에서 1회 호출 --
+    // 신규 시작과 사망 후 빈손 복귀 모두에서 "기본 무기 1정"을 보장하되, 레벨 이동으로
+    // 이미 소지한 AK47이 복원된 경우 중복 지급하지 않는다.
+    void GrantStartingRifleIfMissing();
+
+    // 레벨 이동을 시작하는 코드(ULevelChangeSelectWidget::RequestLevelChange,
+    // AExitPoint 익스트랙션 성공)가 OpenLevel 직전에 호출한다. 현재 무기/인벤토리/장비/
+    // 퀵슬롯/위치를 UProtoNetClientSubsystem에 캐시해 다음 레벨에서 복원되게 한다.
+    // EndPlay(LevelTransition)에서도 백업으로 호출되며, 사망 상태면 아무것도 하지 않는다.
+    void CacheTravelStateToNetClient();
 
     bool bIsRestoringInventory = false;
 

@@ -257,6 +257,8 @@ void AProtoCharacter::BeginPlay()
         if (TestBandage) InventoryComponent->AddItem(TestBandage);
         if (TestBandage) InventoryComponent->AddItem(TestBandage);*/
     }
+    // 기본 지급 무기(AK47)는 인벤토리 복원이 끝난 뒤 TrySetupLocalPlayerOnce 말미에서
+    // GrantStartingRifleIfMissing()로 지급한다(레벨 이동마다 중복 누적되지 않도록).
 
 }
 
@@ -271,7 +273,7 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
         {
-            NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
+            NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestoredFromServer);
             NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
             NetClient->OnEnemyAttackPlayer.AddDynamic(this, &AProtoCharacter::HandleEnemyAttackPlayer);
 
@@ -294,6 +296,7 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
             // spawning a second, equipment-system-unaware weapon actor moments before the real
             // one from RestoreEquipmentAndQuickSlots landed. Confirmed as a real bug by reading
             // (not by a live repro -- this needs a PIE playtest to confirm it's fixed).
+
             TArray<FProtoInventoryItemEntry> PendingInventory;
             TArray<FProtoEquipmentEntry> PendingEquipment;
             TArray<FProtoQuickSlotEntry> PendingQuickSlots;
@@ -312,11 +315,15 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
             FVector PendingRestorePosition;
             FRotator PendingRestoreLook;
             uint8 PendingRestoreWeaponType = 0;
-            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType))
+            bool bPendingRestoreApplyTransform = false;
+            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType, bPendingRestoreApplyTransform))
             {
-                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingProgressRestore: weaponType=%d (position ignored -- always spawn at PlayerStart)"),
-                    PendingRestoreWeaponType);
-                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType);
+                // bPendingRestoreApplyTransform is always false now (see
+                // HandleProgressRestored's comment) -- logged anyway in case
+                // that ever changes again.
+                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingProgressRestore: weaponType=%d applyTransform=%d (position ignored -- always spawn at PlayerStart)"),
+                    PendingRestoreWeaponType, bPendingRestoreApplyTransform);
+                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType, bPendingRestoreApplyTransform);
             }
         }
     }
@@ -342,6 +349,10 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
     }
 
     SpawnCompanion();
+
+    // 인벤토리/장비/퀵슬롯 복원이 모두 끝나고 저장 델리게이트도 바인딩된 이 시점에서,
+    // AK47을 하나도 들고 있지 않으면 1정 지급한다(신규 시작 / 사망 후 빈손 복귀 대응).
+    GrantStartingRifleIfMissing();
 
     // Only the locally-controlled player's own HUD should go on screen; this
     // BeginPlay also runs for remote players spawned by
@@ -1716,7 +1727,18 @@ void AProtoCharacter::SetRemoteAiming(bool bAiming, float Pitch)
     AimPitch = FMath::Clamp(FRotator::NormalizeAxis(Pitch), -30.0f, 30.0f);
 }
 
-void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType)
+void AProtoCharacter::HandleProgressRestoredFromServer(FVector Position, FRotator Look, uint8 WeaponType)
+{
+    // OnProgressRestored 델리게이트(S2C_LoginSuccess에서만 발동) 전용 어댑터 --
+    // bApplyTransform=false: 로그인은 항상 SafePlaceLevel로 이동하는데, 저장된
+    // Position은 어느 레벨 좌표인지 알 수 없어(레이드 도중 강제종료 시 그 좌표가
+    // 그대로 저장됨) 그대로 적용하면 "강제종료한 플레이어의 위치가 이상한곳으로
+    // 고정되는 문제"가 생긴다. 레벨 이동 이월과 동일하게 항상 PlayerStart에서
+    // 시작하고, 들고 있던 무기(WeaponType)만 이월한다.
+    HandleProgressRestored(Position, Look, WeaponType, /*bApplyTransform=*/false);
+}
+
+void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType, bool bApplyTransform)
 {
     // This can run two ways: BeginPlay's direct ConsumePendingProgressRestore()
     // pull (which already cleared the pending cache), or the live
@@ -1732,17 +1754,22 @@ void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, ui
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
         {
-            FVector UnusedPos; FRotator UnusedLook; uint8 UnusedWeapon;
-            NetClient->ConsumePendingProgressRestore(UnusedPos, UnusedLook, UnusedWeapon);
+            FVector UnusedPos; FRotator UnusedLook; uint8 UnusedWeapon; bool bUnusedApply;
+            NetClient->ConsumePendingProgressRestore(UnusedPos, UnusedLook, UnusedWeapon, bUnusedApply);
         }
     }
 
-    // Position is deliberately never applied -- see this function's header
-    // comment. Every level is always entered at its own PlayerStart.
-
-    if (Controller)
+    // bApplyTransform은 이제 모든 호출부에서 항상 false다(레벨 이동 이월, 서버
+    // 로그인 복원 둘 다 -- HandleProgressRestoredFromServer의 주석 참고) -- 위치/
+    // 시선은 절대 건드리지 않고, 목적지 PlayerStart에서 시작한다. 아래 무기 비주얼
+    // 복원만 수행한다.
+    if (bApplyTransform)
     {
-        Controller->SetControlRotation(Look);
+        SetActorLocation(Position);
+        if (Controller)
+        {
+            Controller->SetControlRotation(Look);
+        }
     }
 
     const EWeaponType RestoredType = static_cast<EWeaponType>(WeaponType);
@@ -2061,6 +2088,17 @@ void AProtoCharacter::WipeCarriedInventoryOnDeath()
         // OnInventoryChanged → HandleInventoryChanged가 빈 인벤토리를 서버에 저장하고 UI를 갱신한다.
         InventoryComponent->OnInventoryChanged.Broadcast();
     }
+
+    // ClearAll()은 원래 아이템이 있던 슬롯에 대해서만 OnEquipmentChanged/OnQuickSlotChanged를
+    // 브로드캐스트하므로, 이미 비어 있던 경우 SendSaveEquipment/SendSaveQuickSlots가 나가지
+    // 않을 수 있다. 사망 시 서버 상태를 확실히 비우기 위해 3종 스냅샷을 무조건 전송한다.
+    UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    if (UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr)
+    {
+        NetClient->SendSaveInventory(BuildInventorySnapshot());
+        NetClient->SendSaveEquipment(BuildEquipmentSnapshot());
+        NetClient->SendSaveQuickSlots(BuildQuickSlotSnapshot());
+    }
 }
 
 TArray<FProtoInventoryItemEntry> AProtoCharacter::BuildInventorySnapshot() const
@@ -2242,36 +2280,84 @@ void AProtoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
     // this character's entire lifetime, so it's a reliable stand-in here.
     if (bLocalPlayerSetupDone && EndPlayReason == EEndPlayReason::LevelTransition && !bIsDead)
     {
-        if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
-        {
-            if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
-            {
-                const FRotator CurrentLook = Controller ? Controller->GetControlRotation() : GetActorRotation();
-                const TArray<FProtoInventoryItemEntry> InventorySnapshot = BuildInventorySnapshot();
-                const TArray<FProtoEquipmentEntry> EquipmentSnapshot = BuildEquipmentSnapshot();
-                const TArray<FProtoQuickSlotEntry> QuickSlotSnapshot = BuildQuickSlotSnapshot();
-                UE_LOG(LogTemp, Log, TEXT("[InvSync] EndPlay(LevelTransition): caching %d item(s), %d equipment, %d quick slot(s)"),
-                    InventorySnapshot.Num(), EquipmentSnapshot.Num(), QuickSlotSnapshot.Num());
-                NetClient->CacheStateForLevelTransition(
-                    GetActorLocation(), CurrentLook, static_cast<uint8>(CurrentWeaponType), InventorySnapshot,
-                    EquipmentSnapshot, QuickSlotSnapshot);
-            }
-        }
-    }
-    else if (EndPlayReason == EEndPlayReason::LevelTransition)
-    {
-        // Landing here (LevelTransition but the cache above was skipped) is
-        // exactly the "인벤토리가 동기화되지 않음" symptom, from one of two
-        // causes: bIsDead (correct -- WipeCarriedInventoryOnDeath already
-        // emptied it, nothing SHOULD carry over) or !bLocalPlayerSetupDone
-        // (a bug -- TrySetupLocalPlayerOnce never completed for this
-        // character, e.g. IsLocallyControlled() never went true before the
-        // level unloaded).
-        UE_LOG(LogTemp, Log, TEXT("[InvSync] EndPlay(LevelTransition): NOT caching (bLocalPlayerSetupDone=%d bIsDead=%d)"),
-            bLocalPlayerSetupDone, bIsDead);
+        CacheTravelStateToNetClient();
     }
 
     Super::EndPlay(EndPlayReason);
+}
+
+void AProtoCharacter::CacheTravelStateToNetClient()
+{
+    // 사망 시에는 호출하지 않는다(호출자 책임) -- 소지품을 다음 레벨로 이월하면 안 되므로.
+    // 레벨 이동을 시작하는 쪽(ULevelChangeSelectWidget / AExitPoint)에서 OpenLevel 직전에
+    // 명시적으로 부르고, EndPlay(LevelTransition)에서도 백업으로 부른다. 두 번 불려도
+    // ConsumePending*가 멱등이라 무해하다 -- EEndPlayReason 값에 의존하지 않게 하는 것이 목적.
+    if (bIsDead)
+    {
+        return;
+    }
+
+    UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+    if (!NetClient)
+    {
+        return;
+    }
+
+    NetClient->CacheStateForLevelTransition(
+        static_cast<uint8>(CurrentWeaponType), BuildInventorySnapshot(),
+        BuildEquipmentSnapshot(), BuildQuickSlotSnapshot());
+}
+
+void AProtoCharacter::GrantStartingRifleIfMissing()
+{
+    if (!InventoryComponent)
+    {
+        return;
+    }
+
+    static const FString StartingRifleAssetName(TEXT("DA_Item_AK47"));
+
+    auto IsStartingRifle = [](const UItemDataBase* Data)
+    {
+        return Data && Data->GetName() == StartingRifleAssetName;
+    };
+
+    for (const FInventoryItemInstance& Item : InventoryComponent->Items)
+    {
+        if (IsStartingRifle(Item.ItemData))
+        {
+            return;
+        }
+    }
+
+    if (EquipmentComponent)
+    {
+        static const EEquipmentSlot AllSlots[] = { EEquipmentSlot::Helmet, EEquipmentSlot::Vest, EEquipmentSlot::Weapon1, EEquipmentSlot::Weapon2 };
+        for (EEquipmentSlot Slot : AllSlots)
+        {
+            if (IsStartingRifle(EquipmentComponent->GetEquippedItem(Slot).ItemData))
+            {
+                return;
+            }
+        }
+    }
+
+    if (QuickSlotComponent)
+    {
+        for (int32 SlotIndex = 0; SlotIndex < QuickSlotComponent->NumSlots; ++SlotIndex)
+        {
+            if (IsStartingRifle(QuickSlotComponent->GetQuickSlotEntry(SlotIndex).ItemData))
+            {
+                return;
+            }
+        }
+    }
+
+    if (UItemDataBase* StartingRifle = ResolveItemDataByName(StartingRifleAssetName))
+    {
+        InventoryComponent->AddItem(StartingRifle);
+    }
 }
 
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)

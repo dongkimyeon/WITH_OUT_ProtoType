@@ -131,6 +131,7 @@ void UProtoNetClientSubsystem::Disconnect()
 	// A failed/aborted connection shouldn't leak this login's restore data
 	// into whatever the next successful login turns out to be.
 	bHasPendingProgressRestore = false;
+	bPendingProgressApplyTransform = false;
 	bHasPendingInventoryRestore = false;
 	PendingRestoreInventory.Empty();
 	PendingRestoreEquipment.Empty();
@@ -142,7 +143,7 @@ bool UProtoNetClientSubsystem::IsConnected() const
 	return Socket != nullptr && Socket->GetConnectionState() == SCS_Connected;
 }
 
-bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType)
+bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType, bool& bOutApplyTransform)
 {
 	if (!bHasPendingProgressRestore)
 		return false;
@@ -150,6 +151,8 @@ bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPositio
 	OutPosition = PendingRestorePosition;
 	OutLook = PendingRestoreLook;
 	OutWeaponType = PendingRestoreWeaponType;
+	// false면 위치/시선은 무시하고 무기 타입만 적용한다(레벨 이동 이월).
+	bOutApplyTransform = bPendingProgressApplyTransform;
 	bHasPendingProgressRestore = false;
 	return true;
 }
@@ -703,14 +706,22 @@ bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position
 	return SendPacketBytes(Bytes);
 }
 
-void UProtoNetClientSubsystem::CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType,
+void UProtoNetClientSubsystem::CacheStateForLevelTransition(uint8 WeaponType,
 	const TArray<FProtoInventoryItemEntry>& InventoryItems, const TArray<FProtoEquipmentEntry>& Equipment,
 	const TArray<FProtoQuickSlotEntry>& QuickSlots)
 {
+	// 레벨 이동(LevelChanger / ExitPoint)은 목적지의 PlayerStart에서 시작해야 한다.
+	// 위치/시선은 이월하지 않고(bPendingProgressApplyTransform = false), 장착 무기 타입만
+	// 이월해 다음 레벨에서 손에 든 무기 비주얼이 유지되게 한다. 서버 로그인
+	// (S2C_LoginSuccess + has_saved_progress) 쪽도 동일하게 항상 false -- 어느 레벨
+	// 좌표인지 알 수 없는 저장 위치를 그대로 적용하면 안 된다(강제종료 버그, 그쪽
+	// 핸들러의 주석 참고). 결과적으로 위치/시선은 이제 어떤 경로로도 절대 적용되지
+	// 않는다 -- 모든 진입은 항상 그 레벨 자신의 PlayerStart에서 시작한다.
 	bHasPendingProgressRestore = true;
-	PendingRestorePosition = Position;
-	PendingRestoreLook = Look;
+	PendingRestorePosition = FVector::ZeroVector;
+	PendingRestoreLook = FRotator::ZeroRotator;
 	PendingRestoreWeaponType = WeaponType;
+	bPendingProgressApplyTransform = false;
 
 	bHasPendingInventoryRestore = true;
 	PendingRestoreInventory = InventoryItems;
@@ -785,6 +796,14 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					PendingRestorePosition = RestoredPosition;
 					PendingRestoreLook = RestoredLook;
 					PendingRestoreWeaponType = Success->weapon_type();
+					// 항상 false: 로그인은 무조건 SafePlaceLevel로 이동하는데
+					// (TitleLevelWidget::HandleLoginSucceeded), PlayerProgress에는 이 위치가
+					// 어느 레벨 좌표인지 정보가 없다 -- 레이드(싱글/멀티맵) 도중 강제종료하면
+					// 그 좌표가 그대로 저장되고, 다음 로그인 때 SafePlaceLevel의 전혀 다른
+					// 지형에 그대로 적용되어 "강제종료한 플레이어의 위치가 이상한곳으로
+					// 고정되는 문제"가 발생했다. 레벨 이동 이월(CacheStateForLevelTransition)과
+					// 마찬가지로 항상 PlayerStart에서 시작하고, WeaponType만 이월한다.
+					bPendingProgressApplyTransform = false;
 
 					OnProgressRestored.Broadcast(RestoredPosition, RestoredLook, Success->weapon_type());
 				}

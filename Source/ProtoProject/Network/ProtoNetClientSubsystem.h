@@ -276,12 +276,19 @@ public:
 	// already happened, once, in addition to the (still useful, for the old
 	// in-game Slate popup where the character already exists) broadcasts.
 	// Returns false (and leaves the outputs untouched) if there's nothing
-	// pending or it was already consumed. OutPosition is kept for callers
-	// that still want it (logging, or a future feature), but
-	// AProtoCharacter::HandleProgressRestored deliberately never applies it
-	// with SetActorLocation -- see FProtoOnProgressRestored's comment.
+	// pending or it was already consumed.
+	// bOutApplyTransform is now always false from every caller (level-
+	// transition carryover AND a fresh DB login alike) -- see
+	// CacheStateForLevelTransition's comment and the S2C_LoginSuccess
+	// handler's comment for why a server-saved position can't be trusted
+	// either (it may belong to a different level's coordinate space, e.g.
+	// a raid coordinate saved right before a force-quit, misapplied inside
+	// SafePlaceLevel on the next login -- the "강제종료한 플레이어의 위치가
+	// 이상한곳으로 고정되는 문제" bug). OutPosition/OutLook are still
+	// populated (kept for logging or a future feature) but every level is
+	// now always entered at its own PlayerStart regardless.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType);
+	bool ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType, bool& bOutApplyTransform);
 
 	// OutEquipment/OutQuickSlots are populated either from a real DB login
 	// (S2C_LoginSuccess.equipment/quick_slots, see C2S_SaveEquipment/
@@ -302,8 +309,10 @@ public:
 	// this, every level change silently dropped whatever the player was
 	// holding (including, until Equipment/QuickSlots were added here,
 	// anything actually equipped rather than just sitting in the grid).
+	// 위치/시선은 이월하지 않는다(목적지 PlayerStart 사용) -- 장착 무기 타입 + 인벤토리/장비/
+	// 퀵슬롯만 이월. 위치 복원은 오직 S2C_LoginSuccess 경로에서만.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	void CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType,
+	void CacheStateForLevelTransition(uint8 WeaponType,
 		const TArray<FProtoInventoryItemEntry>& InventoryItems, const TArray<FProtoEquipmentEntry>& Equipment,
 		const TArray<FProtoQuickSlotEntry>& QuickSlots);
 
@@ -703,6 +712,9 @@ private:
 	FVector PendingRestorePosition = FVector::ZeroVector;
 	FRotator PendingRestoreLook = FRotator::ZeroRotator;
 	uint8 PendingRestoreWeaponType = 0;
+	// true: PendingRestorePosition/Look를 실제로 적용(S2C_LoginSuccess).
+	// false: 레벨 이동 이월 -- 위치 무시, PendingRestoreWeaponType만 적용.
+	bool bPendingProgressApplyTransform = false;
 
 	bool bHasPendingInventoryRestore = false;
 	TArray<FProtoInventoryItemEntry> PendingRestoreInventory;

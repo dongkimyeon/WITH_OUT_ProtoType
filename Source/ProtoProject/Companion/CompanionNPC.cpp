@@ -13,8 +13,57 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "../PlayerContent/Inventory/InventoryGridComponent.h"
+#include "../PlayerContent/Item/ItemDataBase.h"
 #include "../PlayerContent/weapon/WeaponBase.h"
 #include "../Network/ProtoNetClientSubsystem.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+
+namespace
+{
+	// 애셋 이름 -> UItemDataBase* 조회. AItemSpawnPoint/ALootContainer가 각자
+	// 들고 있는 것과 같은 로직의 파일 로컬 복사본(서로 관계 없는 클래스들이라
+	// 공유하지 않는다는 그쪽 주석과 동일한 이유).
+	UItemDataBase* ResolveItemDataByAssetNameForCompanion(const FString& AssetName)
+	{
+		static TMap<FString, TWeakObjectPtr<UItemDataBase>> Cache;
+
+		if (const TWeakObjectPtr<UItemDataBase>* Cached = Cache.Find(AssetName))
+		{
+			if (Cached->IsValid())
+			{
+				return Cached->Get();
+			}
+			Cache.Remove(AssetName);
+		}
+
+		FAssetRegistryModule& AssetRegistryModule =
+			FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+		if (AssetRegistryModule.Get().IsLoadingAssets())
+		{
+			AssetRegistryModule.Get().SearchAllAssets(/*bSynchronousSearch=*/true);
+		}
+
+		TArray<FAssetData> AssetDataList;
+		AssetRegistryModule.Get().GetAssetsByClass(UItemDataBase::StaticClass()->GetClassPathName(), AssetDataList, /*bSearchSubClasses=*/true);
+
+		for (const FAssetData& AssetData : AssetDataList)
+		{
+			if (AssetData.AssetName.ToString() != AssetName)
+			{
+				continue;
+			}
+
+			if (UItemDataBase* Resolved = Cast<UItemDataBase>(AssetData.GetAsset()))
+			{
+				Cache.Add(AssetName, Resolved);
+				return Resolved;
+			}
+		}
+
+		return nullptr;
+	}
+}
 
 ACompanionNPC::ACompanionNPC()
 {
@@ -171,6 +220,14 @@ void ACompanionNPC::BeginPlay()
 	// 대화 응답(순수 텍스트)은 곧바로 TTS로. 액션(Function Calling)은 Router가 받아 AIComponent에 배선.
 	BrainComponent->OnReplyReady.AddDynamic(SpeechComponent, &UCompanionSpeechComponent::Speak);
 	BrainComponent->OnActionRequested.AddDynamic(CommandRouterComponent, &UCompanionCommandRouterComponent::HandleActionRequested);
+
+	// 기본 지급 무기(AK47) 1정. 아래 EquipWeaponFromInventory가 이걸 집어 장착한다.
+	// 컴패니언은 영속성이 없어(서버 저장 없음, 레벨마다 빈 인벤토리로 새로 스폰) 매 스폰 무조건 지급해도
+	// 저장을 오염시키지 않는다 -- 플레이어처럼 "이미 보유하면 스킵"할 필요가 없다.
+	if (UItemDataBase* StartingRifle = ResolveItemDataByAssetNameForCompanion(TEXT("DA_Item_AK47")))
+	{
+		InventoryComponent->AddItem(StartingRifle);
+	}
 
 	// 무기는 인벤토리 내용에 따라 결정된다(있으면 장착, 없으면 맨손) - 스폰 시점 1회 + 이후 인벤토리가
 	// 바뀔 때마다(탐색으로 줍거나 버릴 때) 재평가.
