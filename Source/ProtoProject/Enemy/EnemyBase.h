@@ -279,6 +279,17 @@ private:
     FVector MirroredTargetLocation = FVector::ZeroVector;
     FRotator MirroredTargetRotation = FRotator::ZeroRotator;
     bool bHasMirroredTarget = false;
+
+    // Turn rate (see FMath::RInterpTo) Tick() uses to rotate toward
+    // MirroredTargetRotation instead of snapping straight to it. The server
+    // only broadcasts S2C_EnemyState every NetSyncInterval-ish 150ms (see
+    // EchoServer::kTickInterval), so a hard SetActorRotation() every time a
+    // new one arrives visibly whips the enemy's facing around in discrete
+    // ~150ms jumps -- confirmed jerky in a live multiplayer test. Position
+    // doesn't need the same treatment: it's already smoothed by walking
+    // there continuously via AddMovementInput below, same as
+    // UProtoNetClientSubsystem::TickRemotePlayers.
+    static constexpr float MirroredRotationInterpSpeed = 10.0f;
 };
 
 

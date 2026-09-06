@@ -180,7 +180,13 @@ void AEnemyBase::Tick(float DeltaTime)
         // rather than snapping straight there).
         if (bHasMirroredTarget && !bIsDead)
         {
-            SetActorRotation(MirroredTargetRotation);
+            // Smooth turn instead of snapping straight to the latest
+            // ~150ms-old server sample (see MirroredRotationInterpSpeed's
+            // comment) -- FMath::RInterpTo takes the shortest path around,
+            // so this doesn't spin the long way when Yaw wraps.
+            const FRotator NewRotation = FMath::RInterpTo(
+                GetActorRotation(), MirroredTargetRotation, DeltaTime, MirroredRotationInterpSpeed);
+            SetActorRotation(NewRotation);
 
             FVector ToTarget = MirroredTargetLocation - GetActorLocation();
             ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height

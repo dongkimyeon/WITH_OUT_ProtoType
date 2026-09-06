@@ -1411,8 +1411,21 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 			// or roll the remote body to match the sender's look-up/down,
 			// which reads as the whole mesh tipping toward the camera. Only
 			// Yaw drives the actor's (and therefore the mesh's) rotation.
+			// Smooth turn instead of snapping straight to the latest sample --
+			// position updates arrive throttled (NetSyncInterval-ish, ~150ms
+			// apart), so a hard SetActorRotation() every time one lands
+			// visibly whips the body's facing around in discrete steps. See
+			// AEnemyBase::MirroredRotationInterpSpeed for the same fix
+			// applied to enemies (identical root cause, reported jerky in
+			// the same live multiplayer test). FMath::RInterpTo takes the
+			// shortest path around, so this doesn't spin the long way when
+			// Yaw wraps.
 			if (TargetRotation)
-				RemoteCharacter->SetActorRotation(FRotator(0.0f, TargetRotation->Yaw, 0.0f));
+			{
+				const FRotator NewRotation = FMath::RInterpTo(RemoteCharacter->GetActorRotation(),
+					FRotator(0.0f, TargetRotation->Yaw, 0.0f), DeltaTime, /*InterpSpeed=*/10.0f);
+				RemoteCharacter->SetActorRotation(NewRotation);
+			}
 
 			FVector ToTarget = *TargetLocation - RemoteCharacter->GetActorLocation();
 			ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
