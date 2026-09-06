@@ -3,6 +3,7 @@
 
 #include "ExitPoint.h"
 #include "../PlayerContent/ProtoCharacter.h"
+#include "../PlayerContent/PlayerStatusComponent.h"
 #include "../Network/ProtoNetClientSubsystem.h"
 #include "ExitPointWidget.h"
 #include "Kismet/GameplayStatics.h"
@@ -75,6 +76,13 @@ void AExitPoint::Tick(float DeltaTime)
 	RemainingTime -= DeltaTime;
 	if (RemainingTime <= 0.f)
 	{
+		// 익스트랙션 성공. 허브(안전구역)로 넘어가기 전에 생존 시뮬레이션을 끄고
+		// 감염/배고픔/목마름을 안전 상태로 되돌린다.
+		if (UPlayerStatusComponent* Status = OverlappingPlayer->FindComponentByClass<UPlayerStatusComponent>())
+		{
+			Status->ResetSurvivalState();
+		}
+
 		OverlappingPlayer = nullptr;
 		RemainingTime = ExitDuration;
 

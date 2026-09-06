@@ -73,6 +73,16 @@ void UPlayerStatusComponent::SetStamina(float newStamina)
 	OnStaminaChanged.Broadcast(Stamina, MaxStamina);
 }
 
+void UPlayerStatusComponent::ResetSurvivalState()
+{
+	bSurvivalSimActive = false;
+	bInfectionOverdue = false;
+
+	SetInfection(0.0f);
+	SetHunger(MaxHunger);
+	SetThirst(MaxThirst);
+}
+
 // Called when the game starts
 void UPlayerStatusComponent::BeginPlay()
 {

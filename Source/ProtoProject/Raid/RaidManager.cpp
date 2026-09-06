@@ -26,6 +26,9 @@ void ARaidManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (LocalStatus.IsValid())
 	{
 		LocalStatus->OnPlayerDied.RemoveDynamic(this, &ARaidManager::HandlePlayerDied);
+		// 레이드 맵이 언로드되면 생존 시뮬레이션도 확실히 끈다. 폰이 트래블을 넘어
+		// 유지되는 경우 허브(안전구역)에서 감염/굶주림으로 체력이 계속 깎이는 것을 막는다.
+		LocalStatus->ResetSurvivalState();
 	}
 
 	if (TimerWidgetInstance)
@@ -111,6 +114,13 @@ void ARaidManager::HandlePlayerDied()
 	// 캐릭터가 지니고 있던 것(그리드/장비/퀵슬롯)은 AProtoCharacter::HandleDeath에서 전부 소실 처리한다.
 	// 안전 창고(허브의 StorageContainer = 스태시)는 별개이므로 손대지 않는다.
 	// RaidManager는 사망 연출과 허브 복귀만 담당한다.
+
+	if (LocalStatus.IsValid())
+	{
+		// 사망 시점에 생존 시뮬레이션을 끄고 스탯을 안전 상태로 되돌린다.
+		// 사망 화면 대기 중이나 허브 복귀 후에 굶주림 데미지가 이어지지 않게 한다.
+		LocalStatus->ResetSurvivalState();
+	}
 
 	if (DeathScreenWidgetClass && !DeathScreenInstance)
 	{

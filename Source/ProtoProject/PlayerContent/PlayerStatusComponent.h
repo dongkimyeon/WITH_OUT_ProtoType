@@ -113,6 +113,11 @@ public:
     // ARaidManager가 레이드 제한시간(15분) 경과 시 호출한다.
     void SetInfectionOverdue(bool bOverdue) { bInfectionOverdue = bOverdue; }
 
+    // 레이드 종료(익스트랙션 성공 / 사망 후 허브 복귀 / 레이드 맵 언로드) 시 호출한다.
+    // 생존 시뮬레이션을 끄고 감염/배고픔/목마름을 안전 상태로 되돌린다.
+    // 폰이 레벨 트래블을 넘어 유지되더라도 허브(안전구역)에서 체력이 계속 깎이지 않게 한다.
+    void ResetSurvivalState();
+
     bool IsDead() const { return bIsDead; }
 
     // 목마름/배고픔이 모두 임계치를 넘어야 달릴 수 있다.
