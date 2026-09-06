@@ -138,7 +138,7 @@ void ADropItem::RequestPickup(UInventoryGridComponent* TargetInventory, AProtoCh
 	NetClient->SendInteractLoot(NetSlotId);
 }
 
-void ADropItem::HandlePickupResult(int32 ResolvedNetSlotId, int32 PickerPlayerId)
+void ADropItem::HandlePickupResult(int32 ResolvedNetSlotId, int32 PickerPlayerId, bool bGranted)
 {
 	if (ResolvedNetSlotId != NetSlotId)
 	{
@@ -151,12 +151,14 @@ void ADropItem::HandlePickupResult(int32 ResolvedNetSlotId, int32 PickerPlayerId
 	UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
 	if (NetClient)
 	{
-		// Ok is the only terminal state ever delegated (see
-		// OnItemPickupResult's comment) -- safe to stop listening now.
+		// Ok or Denied, this NetSlotId's outcome is final either way --
+		// safe to stop listening now.
 		NetClient->OnItemPickupResult.RemoveDynamic(this, &ADropItem::HandlePickupResult);
 	}
 
-	const bool bGrantedToMe = NetClient && PickerPlayerId == NetClient->GetLocalPlayerId();
+	// bGranted false (Denied) means this was never a race to begin with --
+	// bGrantedToMe short-circuits to false without even checking PickerPlayerId.
+	const bool bGrantedToMe = bGranted && NetClient && PickerPlayerId == NetClient->GetLocalPlayerId();
 	ResolvePickup(PendingTargetInventory.Get(), PendingPickupAnimPlayer.Get(), bGrantedToMe);
 }
 

@@ -1043,13 +1043,11 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 		case ProtoType::Net::Payload::S2C_InteractResult:
 			if (const auto* Result = Packet->payload_as_S2C_InteractResult())
 			{
-				// Door open/close and a granted Loot pickup are the only
-				// interact_types with client-side meaning right now -- see
-				// SendDoorInteract's/OnItemPickupResult's schema comments.
-				// Extract/PlantItem/UseSwitch, and a Denied Loot result, are
-				// silently ignored here, same as the server treats them
-				// (Denied is never meant to be acted on directly -- see
-				// OnItemPickupResult's comment for why).
+				// Door open/close and Loot are the only interact_types with
+				// client-side meaning right now -- see SendDoorInteract's/
+				// OnItemPickupResult's schema comments. Extract/PlantItem/
+				// UseSwitch are silently ignored here, same as the server
+				// treats them.
 				if (Result->interact_type() == ProtoType::Net::InteractType::DoorOpen
 					|| Result->interact_type() == ProtoType::Net::InteractType::DoorClose)
 				{
@@ -1064,11 +1062,14 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					CachedDoorStates.Add(DoorId, bOpen);
 					OnDoorInteract.Broadcast(DoorId, bOpen);
 				}
-				else if (Result->interact_type() == ProtoType::Net::InteractType::Loot
-					&& Result->result() == ProtoType::Net::ResultCode::Ok)
+				else if (Result->interact_type() == ProtoType::Net::InteractType::Loot)
 				{
+					// Both Ok and Denied are delegated now -- see
+					// OnItemPickupResult's schema comment for why a Denied
+					// result can't just be ignored.
 					OnItemPickupResult.Broadcast(static_cast<int32>(Result->target_id()),
-						static_cast<int32>(Result->player_id()));
+						static_cast<int32>(Result->player_id()),
+						Result->result() == ProtoType::Net::ResultCode::Ok);
 				}
 			}
 			break;

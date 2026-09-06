@@ -132,7 +132,7 @@ bool UInventoryScreenWidget::OnItemDroppedFromExternal(UItemDragDropOperation* D
 	return true;
 }
 
-void UInventoryScreenWidget::HandleExternalTransferPickupResult(int32 NetSlotId, int32 PickerPlayerId)
+void UInventoryScreenWidget::HandleExternalTransferPickupResult(int32 NetSlotId, int32 PickerPlayerId, bool bGranted)
 {
 	FPendingExternalTransfer Pending;
 	if (!PendingExternalTransfers.RemoveAndCopyValue(NetSlotId, Pending))
@@ -144,7 +144,9 @@ void UInventoryScreenWidget::HandleExternalTransferPickupResult(int32 NetSlotId,
 
 	UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
 	UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
-	const bool bGrantedToMe = NetClient && PickerPlayerId == NetClient->GetLocalPlayerId();
+	// bGranted false (Denied) means this was never a race to begin with --
+	// bGrantedToMe short-circuits to false without even checking PickerPlayerId.
+	const bool bGrantedToMe = bGranted && NetClient && PickerPlayerId == NetClient->GetLocalPlayerId();
 
 	UInventoryGridComponent* SourceInventory = Pending.SourceInventory.Get();
 	if (SourceInventory)

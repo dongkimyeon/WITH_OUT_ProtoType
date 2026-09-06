@@ -145,7 +145,7 @@ private:
 	};
 
 	UFUNCTION()
-	void HandleExternalTransferPickupResult(int32 NetSlotId, int32 PickerPlayerId);
+	void HandleExternalTransferPickupResult(int32 NetSlotId, int32 PickerPlayerId, bool bGranted);
 
 	TMap<int32, FPendingExternalTransfer> PendingExternalTransfers;
 

@@ -89,9 +89,12 @@ protected:
 private:
 	// Fired once the server answers THIS item's pickup request (see
 	// RequestPickup) -- filters OnItemPickupResult by NetSlotId, since every
-	// ADropItem in the level shares that one broadcast delegate.
+	// ADropItem in the level shares that one broadcast delegate. bGranted
+	// false (a Denied result, always about OUR OWN request) means exactly
+	// the same thing as "Ok, granted to someone else" -- see
+	// UProtoNetClientSubsystem::OnItemPickupResult's comment.
 	UFUNCTION()
-	void HandlePickupResult(int32 ResolvedNetSlotId, int32 PickerPlayerId);
+	void HandlePickupResult(int32 ResolvedNetSlotId, int32 PickerPlayerId, bool bGranted);
 
 	void ResolvePickup(UInventoryGridComponent* TargetInventory, AProtoCharacter* PickupAnimPlayer, bool bGrantedToMe);
 

@@ -152,19 +152,29 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnItemSpawnState, int32, Spaw
 // server doesn't echo C2S_InteractRequest back to its sender for doors).
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnDoorInteract, int32, DoorId, bool, bOpen);
 
-// Fired on S2C_InteractResult for a Loot interact_type, but ONLY when
-// result is Ok (first-claim-wins arbitration -- see Session.cpp's
-// C2S_InteractRequest case and EchoServer::ClaimItemPickup). Unlike
-// OnDoorInteract, this DOES fire for this client's own successful pickup
-// (it's broadcast to everyone including the requester, since the requester
-// needs to know it won before actually adding the item to an inventory) --
-// PickerPlayerId tells ADropItem::HandlePickupResult whether that's itself
-// or another client. A Denied result is never delegated at all: the loser
-// of a simultaneous-pickup race just waits for the winner's Ok broadcast
-// (which every client, including the loser, receives) to remove the item,
-// rather than acting on two separate, possibly out-of-order signals for
-// the same NetSlotId.
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnItemPickupResult, int32, NetSlotId, int32, PickerPlayerId);
+// Fired on every S2C_InteractResult for a Loot interact_type -- both Ok
+// (first-claim-wins arbitration, see Session.cpp's C2S_InteractRequest
+// case and EchoServer::ClaimItemPickup) AND Denied. Unlike OnDoorInteract,
+// Ok DOES fire for this client's own successful pickup (it's broadcast to
+// everyone including the requester, since the requester needs to know it
+// won before actually adding the item to an inventory) -- bGranted true
+// plus PickerPlayerId tells ADropItem::HandlePickupResult whether that's
+// itself or another client.
+//
+// bGranted false (Denied, always unicast to the loser) means exactly the
+// same thing visually as "Ok, granted to someone else": this NetSlotId is
+// gone, destroy whatever local copy exists, just without an inventory to
+// credit. Earlier versions of this delegate never fired for Denied at all
+// (the assumption being a loser could just wait for the actual winner's Ok
+// broadcast instead) -- that broke down whenever this NetSlotId had
+// already been claimed by someone LONG before this particular ADropItem
+// instance even existed to hear that original broadcast (e.g. the same
+// server process, still up from an earlier test run, already had it
+// marked claimed): the item would render as a normal, interactable pickup
+// forever, but every attempt would silently do nothing (a "ghost" item).
+// Denied being delegated (and destroying the local copy) fixes that
+// regardless of whether the claim was truly simultaneous or long-stale.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FProtoOnItemPickupResult, int32, NetSlotId, int32, PickerPlayerId, bool, bGranted);
 
 // Fired on S2C_EnemyClaimResult, answering a SendEnemyClaimRequest for
 // EnemyId. bGranted true means this client is now the one running that
