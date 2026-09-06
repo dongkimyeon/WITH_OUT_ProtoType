@@ -263,6 +263,22 @@ private:
     // as AProtoCharacter's NetSyncInterval. Only sent while bIsNetworkOwner.
     float NetSyncTimer = 0.0f;
     static constexpr float NetSyncInterval = 0.15f;
+
+    // Latest position/facing HandleEnemyState was told about, for a
+    // non-owned enemy (server-driven, or another client's claimed copy).
+    // Tick()'s !bIsNetworkOwner branch walks toward this every frame
+    // (AddMovementInput, same technique
+    // UProtoNetClientSubsystem::TickRemotePlayers uses for remote players/
+    // companions) instead of HandleEnemyState teleporting straight to it
+    // with SetActorLocationAndRotation -- a raw teleport skips
+    // CharacterMovementComponent's floor sweep/gravity (visible as the
+    // enemy floating whenever the server's tracked Z doesn't exactly match
+    // this client's copy of the ground) and produces no real velocity for
+    // the walk/run animation blend (visible as it sliding in place instead
+    // of playing its walk cycle).
+    FVector MirroredTargetLocation = FVector::ZeroVector;
+    FRotator MirroredTargetRotation = FRotator::ZeroRotator;
+    bool bHasMirroredTarget = false;
 };
 
 

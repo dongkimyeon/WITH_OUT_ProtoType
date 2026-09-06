@@ -173,9 +173,24 @@ void AEnemyBase::Tick(float DeltaTime)
 
     if (!bIsNetworkOwner)
     {
-        // Another client owns this enemy's AI -- HandleEnemyState applies
-        // its reported position/health/death directly as each update
-        // arrives, so there's no local BT/pathing/targeting to run here.
+        // Another client (or the server) owns this enemy's AI -- no local
+        // BT/pathing/targeting to run, just walk toward whatever
+        // HandleEnemyState last recorded (see MirroredTargetLocation's
+        // comment for why this has to go through CharacterMovementComponent
+        // rather than snapping straight there).
+        if (bHasMirroredTarget && !bIsDead)
+        {
+            SetActorRotation(MirroredTargetRotation);
+
+            FVector ToTarget = MirroredTargetLocation - GetActorLocation();
+            ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
+
+            constexpr float ArrivalToleranceCm = 5.0f;
+            if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
+            {
+                AddMovementInput(ToTarget.GetSafeNormal(), 1.0f, /*bForce=*/true);
+            }
+        }
         return;
     }
 
@@ -649,7 +664,25 @@ void AEnemyBase::HandleEnemyState(int32 EnemyId, FVector Position, FRotator Look
         return;
     }
 
-    SetActorLocationAndRotation(Position, FRotator(0.0f, Look.Yaw, 0.0f));
+    MirroredTargetRotation = FRotator(0.0f, Look.Yaw, 0.0f);
+    MirroredTargetLocation = Position;
+
+    if (!bHasMirroredTarget)
+    {
+        // First update ever received for this enemy: snap instead of
+        // walking there. This instance was spawned at its LEVEL-PLACED
+        // position (unlike a remote player/companion puppet, which is
+        // spawned fresh at the network-reported spot -- see
+        // UProtoNetClientSubsystem::UpdateRemoteCompanion), so if this
+        // client joined mid-session after the enemy had already wandered
+        // far from that spawn point, walking the whole distance here would
+        // look like it sprinting cross-map to catch up. Every update after
+        // this one goes through Tick()'s smooth walk instead (see
+        // MirroredTargetLocation's comment).
+        SetActorLocationAndRotation(Position, MirroredTargetRotation);
+        bHasMirroredTarget = true;
+    }
+
     CurrentHealth = Health;
 
     if (bIsDeadState && !bIsDead)
