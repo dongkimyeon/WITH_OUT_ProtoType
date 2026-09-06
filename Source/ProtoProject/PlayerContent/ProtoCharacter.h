@@ -386,11 +386,18 @@ public:
     void SetRemoteAiming(bool bAiming, float Pitch);
 
     // Bound (locally-controlled instance only, in BeginPlay) to
-    // UProtoNetClientSubsystem::OnProgressRestored: moves this player to
-    // their saved MSSQL position and silently shows their saved weapon (no
-    // swap animation -- this is initial spawn state, not a live transition).
-    // Falls back to SpawnFallbackRemoteWeapon() if CurrentRifle/CurrentPistol
-    // aren't populated yet (see GetWeaponByType).
+    // UProtoNetClientSubsystem::OnProgressRestored: silently shows the saved
+    // weapon (no swap animation -- this is initial spawn state, not a live
+    // transition). Falls back to SpawnFallbackRemoteWeapon() if
+    // CurrentRifle/CurrentPistol aren't populated yet (see GetWeaponByType).
+    // Position is intentionally IGNORED -- every level is always entered at
+    // its own PlayerStart, never a restored/cached coordinate. A saved or
+    // cached position can belong to a totally different level's geometry
+    // (mid-raid at force-quit time, or after any level transition in
+    // general) with no reliable way to tell whether reapplying it is safe --
+    // this was the "강제종료한 플레이어의 위치가 이상한곳으로 고정되는
+    // 문제" bug. Always using PlayerStart sidesteps the whole class of
+    // problem instead of trying to track which transitions are "safe".
     UFUNCTION()
     void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType);
 

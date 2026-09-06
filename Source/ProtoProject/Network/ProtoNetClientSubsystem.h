@@ -20,7 +20,20 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProtoOnConnected);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnDisconnected, const FString&, Reason);
 // Fired once, right after S2C_LoginSuccess, only when the account had a
 // saved PlayerProgress row. AProtoCharacter's locally-controlled instance
-// binds this in BeginPlay() to move/re-equip itself to where it left off.
+// binds this in BeginPlay() to re-equip itself to where it left off.
+// Position is intentionally NOT restored (see HandleProgressRestored) --
+// every level's own PlayerStart is used instead, always. A level transition
+// (fresh DB login, Single/Multi toggle, or an extraction back to
+// SafePlaceLevel) can land a saved coordinate in a completely different
+// level's geometry -- inside a wall, off the nav mesh, in the void -- with
+// no way to tell whether it's actually safe to reapply. This was the
+// "강제종료한 플레이어의 위치가 이상한곳으로 고정되는 문제" bug (a
+// force-quit mid-raid saves a raid coordinate that a later login misapplies
+// inside SafePlaceLevel); rather than track which level each save belongs to
+// and reason about which transitions are "safe", always spawning at
+// PlayerStart sidesteps the whole problem -- including the same risk on a
+// normal extraction, which this delegate's Position alone couldn't have
+// protected against anyway.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FProtoOnProgressRestored, FVector, Position, FRotator, Look, uint8, WeaponType);
 
 // Mirrors ProtoType::Net::LoginFailReason 1:1 (raw flatbuffers enums aren't
@@ -263,7 +276,10 @@ public:
 	// already happened, once, in addition to the (still useful, for the old
 	// in-game Slate popup where the character already exists) broadcasts.
 	// Returns false (and leaves the outputs untouched) if there's nothing
-	// pending or it was already consumed.
+	// pending or it was already consumed. OutPosition is kept for callers
+	// that still want it (logging, or a future feature), but
+	// AProtoCharacter::HandleProgressRestored deliberately never applies it
+	// with SetActorLocation -- see FProtoOnProgressRestored's comment.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType);
 

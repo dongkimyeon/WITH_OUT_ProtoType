@@ -314,8 +314,8 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
             uint8 PendingRestoreWeaponType = 0;
             if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType))
             {
-                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingProgressRestore: pos=%s weaponType=%d"),
-                    *PendingRestorePosition.ToString(), PendingRestoreWeaponType);
+                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingProgressRestore: weaponType=%d (position ignored -- always spawn at PlayerStart)"),
+                    PendingRestoreWeaponType);
                 HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType);
             }
         }
@@ -1737,7 +1737,9 @@ void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, ui
         }
     }
 
-    SetActorLocation(Position);
+    // Position is deliberately never applied -- see this function's header
+    // comment. Every level is always entered at its own PlayerStart.
+
     if (Controller)
     {
         Controller->SetControlRotation(Look);
