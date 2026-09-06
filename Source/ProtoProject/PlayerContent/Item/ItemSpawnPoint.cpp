@@ -34,6 +34,15 @@ namespace
 		FAssetRegistryModule& AssetRegistryModule =
 			FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
+		// See AProtoCharacter::ResolveItemDataByName's comment: force the
+		// background discovery scan to finish if it hasn't yet, instead of
+		// risking a silent "couldn't resolve" on every item because
+		// GetAssetsByClass below only saw a partial scan.
+		if (AssetRegistryModule.Get().IsLoadingAssets())
+		{
+			AssetRegistryModule.Get().SearchAllAssets(/*bSynchronousSearch=*/true);
+		}
+
 		TArray<FAssetData> AssetDataList;
 		AssetRegistryModule.Get().GetAssetsByClass(UItemDataBase::StaticClass()->GetClassPathName(), AssetDataList, /*bSearchSubClasses=*/true);
 

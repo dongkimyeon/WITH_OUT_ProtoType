@@ -102,6 +102,14 @@ void AProtoCharacter::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
+    // See TrySetupLocalPlayerOnce's header comment: BeginPlay already tried
+    // this once, this just keeps retrying (no-ops instantly once done) in
+    // case IsLocallyControlled() wasn't ready yet at that exact moment.
+    if (!bLocalPlayerSetupDone)
+    {
+        TrySetupLocalPlayerOnce();
+    }
+
     // 사망 후에는 래그돌 상태이므로 무기 IK/스왑/네트워크 위치 전송을 멈춘다.
     if (bIsDead)
     {
@@ -217,52 +225,10 @@ void AProtoCharacter::BeginPlay()
     /*-------------------
      네트워킹: 저장된 진행 상황 복원 구독 (로컬 플레이어만)
     -------------------*/
-    if (IsLocallyControlled())
-    {
-        if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
-        {
-            if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
-            {
-                NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
-                NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
-                NetClient->OnEnemyAttackPlayer.AddDynamic(this, &AProtoCharacter::HandleEnemyAttackPlayer);
-
-                // Login via TitleLevel completes (S2C_LoginSuccess arrives,
-                // OnProgressRestored/OnInventoryRestored fire) before this
-                // character even exists -- it only spawns once
-                // HandleLoginSucceeded's OpenLevelBySoftObjectPtr() finishes
-                // loading this level, which is after the broadcasts above
-                // already fired to nobody. Pull whatever was cached instead
-                // of only relying on the (still correct for the old in-game
-                // Slate popup flow) broadcast.
-                FVector PendingRestorePosition;
-                FRotator PendingRestoreLook;
-                uint8 PendingRestoreWeaponType = 0;
-                if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType))
-                {
-                    HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType);
-                }
-
-                TArray<FProtoInventoryItemEntry> PendingInventory;
-                if (NetClient->ConsumePendingInventoryRestore(PendingInventory))
-                {
-                    HandleInventoryRestored(PendingInventory);
-                }
-            }
-        }
-
-        if (InventoryComponent)
-        {
-            InventoryComponent->OnInventoryChanged.AddDynamic(this, &AProtoCharacter::HandleInventoryChanged);
-        }
-
-        if (StatusComponent)
-        {
-            StatusComponent->OnPlayerDied.AddDynamic(this, &AProtoCharacter::HandleDeath);
-        }
-
-        SpawnCompanion();
-    }
+    // Tries immediately; if IsLocallyControlled() isn't ready yet at this
+    // exact BeginPlay moment, Tick() keeps retrying until it succeeds --
+    // see TrySetupLocalPlayerOnce's header comment.
+    TrySetupLocalPlayerOnce();
 
     if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
     {
@@ -292,26 +258,80 @@ void AProtoCharacter::BeginPlay()
         if (TestBandage) InventoryComponent->AddItem(TestBandage);*/
     }
 
-    // Only the locally-controlled player's own HUD should go on screen; this
-    // BeginPlay also runs for remote players spawned by
-    // UProtoNetClientSubsystem (see ProtoNetClientSubsystem.cpp), which have
-    // no local controller.
-    if (IsLocallyControlled())
-    {
-        if (DefaultUIClass)
-        {
-            DefaultUI = CreateWidget<UPlayerDefalutUI>(GetWorld(), DefaultUIClass);
-            if (DefaultUI)
-            {
-                DefaultUI->AddToViewport();
+}
 
-                if (CachedCompanionNPC)
-                {
-                    DefaultUI->AddCompanionStatusLabel(CachedCompanionNPC);
-                }
+bool AProtoCharacter::TrySetupLocalPlayerOnce()
+{
+    if (bLocalPlayerSetupDone || !IsLocallyControlled())
+    {
+        return bLocalPlayerSetupDone;
+    }
+
+    if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
+            NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
+            NetClient->OnEnemyAttackPlayer.AddDynamic(this, &AProtoCharacter::HandleEnemyAttackPlayer);
+
+            // Login via TitleLevel completes (S2C_LoginSuccess arrives,
+            // OnProgressRestored/OnInventoryRestored fire) before this
+            // character even exists -- it only spawns once
+            // HandleLoginSucceeded's OpenLevelBySoftObjectPtr() finishes
+            // loading this level, which is after the broadcasts above
+            // already fired to nobody. Pull whatever was cached instead
+            // of only relying on the (still correct for the old in-game
+            // Slate popup flow) broadcast.
+            FVector PendingRestorePosition;
+            FRotator PendingRestoreLook;
+            uint8 PendingRestoreWeaponType = 0;
+            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType))
+            {
+                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType);
+            }
+
+            TArray<FProtoInventoryItemEntry> PendingInventory;
+            if (NetClient->ConsumePendingInventoryRestore(PendingInventory))
+            {
+                HandleInventoryRestored(PendingInventory);
             }
         }
     }
+
+    if (InventoryComponent)
+    {
+        InventoryComponent->OnInventoryChanged.AddDynamic(this, &AProtoCharacter::HandleInventoryChanged);
+    }
+
+    if (StatusComponent)
+    {
+        StatusComponent->OnPlayerDied.AddDynamic(this, &AProtoCharacter::HandleDeath);
+    }
+
+    SpawnCompanion();
+
+    // Only the locally-controlled player's own HUD should go on screen; this
+    // BeginPlay also runs for remote players spawned by
+    // UProtoNetClientSubsystem (see ProtoNetClientSubsystem.cpp), which have
+    // no local controller (and so never reach here at all, per the early
+    // IsLocallyControlled() check above).
+    if (DefaultUIClass)
+    {
+        DefaultUI = CreateWidget<UPlayerDefalutUI>(GetWorld(), DefaultUIClass);
+        if (DefaultUI)
+        {
+            DefaultUI->AddToViewport();
+
+            if (CachedCompanionNPC)
+            {
+                DefaultUI->AddCompanionStatusLabel(CachedCompanionNPC);
+            }
+        }
+    }
+
+    bLocalPlayerSetupDone = true;
+    return true;
 }
 
 void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -1736,6 +1756,21 @@ UItemDataBase* AProtoCharacter::ResolveItemDataByName(const FString& AssetName) 
     FAssetRegistryModule& AssetRegistryModule =
         FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
+    // The background discovery scan isn't guaranteed to have finished by
+    // the time this runs -- this can fire from BeginPlay right after a
+    // fresh app launch or a level travel, both of which can land well
+    // before a content-heavy project's initial scan completes. If it's
+    // still running, GetAssetsByClass below would silently return
+    // whatever's been discovered SO FAR, which can be missing entries and
+    // fail every single lookup with no error (just "couldn't resolve item
+    // asset" warnings from the caller) -- force it to finish first rather
+    // than risk that. No-op (returns immediately) once the scan is done,
+    // which is the overwhelmingly common case, so this costs nothing then.
+    if (AssetRegistryModule.Get().IsLoadingAssets())
+    {
+        AssetRegistryModule.Get().SearchAllAssets(/*bSynchronousSearch=*/true);
+    }
+
     TArray<FAssetData> AssetDataList;
     AssetRegistryModule.Get().GetAssetsByClass(UItemDataBase::StaticClass()->GetClassPathName(), AssetDataList, /*bSearchSubClasses=*/true);
 
@@ -1969,7 +2004,14 @@ void AProtoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
     // 사망으로 인한 레벨 이동이면 위치/시선/무기/인벤토리를 다음 레벨로 이월하지 않는다.
     // 허브에서 PlayerStart + 기본 스탯(체력100/감염0/허기·갈증100)으로 새로 시작한다.
     // (인벤토리는 WipeCarriedInventoryOnDeath에서 이미 비우고 서버에도 빈 상태로 저장됨)
-    if (IsLocallyControlled() && EndPlayReason == EEndPlayReason::LevelTransition && !bIsDead)
+    // bLocalPlayerSetupDone instead of a fresh IsLocallyControlled() call --
+    // by this point in a LevelTransition teardown, Controller may already
+    // be unpossessed/null (the same "not ready yet" timing IsLocallyControlled()
+    // has at the OTHER end of this character's life -- see
+    // TrySetupLocalPlayerOnce's header comment), which would silently skip
+    // this whole cache and lose the inventory. Once true, it stays true for
+    // this character's entire lifetime, so it's a reliable stand-in here.
+    if (bLocalPlayerSetupDone && EndPlayReason == EEndPlayReason::LevelTransition && !bIsDead)
     {
         if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
         {
