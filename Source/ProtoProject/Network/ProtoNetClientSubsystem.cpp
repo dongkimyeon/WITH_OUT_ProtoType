@@ -131,6 +131,7 @@ void UProtoNetClientSubsystem::Disconnect()
 	// A failed/aborted connection shouldn't leak this login's restore data
 	// into whatever the next successful login turns out to be.
 	bHasPendingProgressRestore = false;
+	bPendingProgressApplyTransform = false;
 	bHasPendingInventoryRestore = false;
 	PendingRestoreInventory.Empty();
 	PendingRestoreEquipment.Empty();
@@ -142,7 +143,7 @@ bool UProtoNetClientSubsystem::IsConnected() const
 	return Socket != nullptr && Socket->GetConnectionState() == SCS_Connected;
 }
 
-bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType)
+bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType, bool& bOutApplyTransform)
 {
 	if (!bHasPendingProgressRestore)
 		return false;
@@ -150,6 +151,8 @@ bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPositio
 	OutPosition = PendingRestorePosition;
 	OutLook = PendingRestoreLook;
 	OutWeaponType = PendingRestoreWeaponType;
+	// false면 위치/시선은 무시하고 무기 타입만 적용한다(레벨 이동 이월).
+	bOutApplyTransform = bPendingProgressApplyTransform;
 	bHasPendingProgressRestore = false;
 	return true;
 }
@@ -703,14 +706,19 @@ bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position
 	return SendPacketBytes(Bytes);
 }
 
-void UProtoNetClientSubsystem::CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType,
+void UProtoNetClientSubsystem::CacheStateForLevelTransition(uint8 WeaponType,
 	const TArray<FProtoInventoryItemEntry>& InventoryItems, const TArray<FProtoEquipmentEntry>& Equipment,
 	const TArray<FProtoQuickSlotEntry>& QuickSlots)
 {
+	// 레벨 이동(LevelChanger / ExitPoint)은 목적지의 PlayerStart에서 시작해야 한다.
+	// 위치/시선은 이월하지 않고(bPendingProgressApplyTransform = false), 장착 무기 타입만
+	// 이월해 다음 레벨에서 손에 든 무기 비주얼이 유지되게 한다. 위치 복원은 오직 서버
+	// 로그인(S2C_LoginSuccess + has_saved_progress)에서만 일어난다.
 	bHasPendingProgressRestore = true;
-	PendingRestorePosition = Position;
-	PendingRestoreLook = Look;
+	PendingRestorePosition = FVector::ZeroVector;
+	PendingRestoreLook = FRotator::ZeroRotator;
 	PendingRestoreWeaponType = WeaponType;
+	bPendingProgressApplyTransform = false;
 
 	bHasPendingInventoryRestore = true;
 	PendingRestoreInventory = InventoryItems;
@@ -782,6 +790,8 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					PendingRestorePosition = RestoredPosition;
 					PendingRestoreLook = RestoredLook;
 					PendingRestoreWeaponType = Success->weapon_type();
+					// 서버 저장 위치이므로 실제로 이동시킨다(레벨 이동 이월과 달리).
+					bPendingProgressApplyTransform = true;
 
 					OnProgressRestored.Broadcast(RestoredPosition, RestoredLook, Success->weapon_type());
 				}

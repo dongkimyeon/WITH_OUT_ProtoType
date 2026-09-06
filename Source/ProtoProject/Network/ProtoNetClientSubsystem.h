@@ -264,8 +264,11 @@ public:
 	// in-game Slate popup where the character already exists) broadcasts.
 	// Returns false (and leaves the outputs untouched) if there's nothing
 	// pending or it was already consumed.
+	// bOutApplyTransform: true면 OutPosition/OutLook를 실제로 적용한다(서버 로그인 복원).
+	// false면 레벨 이동 이월이므로 위치는 무시하고 OutWeaponType만 적용한다 -- 목적지
+	// PlayerStart에서 시작하되 손에 든 무기 비주얼은 유지.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType);
+	bool ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType, bool& bOutApplyTransform);
 
 	// OutEquipment/OutQuickSlots are populated either from a real DB login
 	// (S2C_LoginSuccess.equipment/quick_slots, see C2S_SaveEquipment/
@@ -286,8 +289,10 @@ public:
 	// this, every level change silently dropped whatever the player was
 	// holding (including, until Equipment/QuickSlots were added here,
 	// anything actually equipped rather than just sitting in the grid).
+	// 위치/시선은 이월하지 않는다(목적지 PlayerStart 사용) -- 장착 무기 타입 + 인벤토리/장비/
+	// 퀵슬롯만 이월. 위치 복원은 오직 S2C_LoginSuccess 경로에서만.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	void CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType,
+	void CacheStateForLevelTransition(uint8 WeaponType,
 		const TArray<FProtoInventoryItemEntry>& InventoryItems, const TArray<FProtoEquipmentEntry>& Equipment,
 		const TArray<FProtoQuickSlotEntry>& QuickSlots);
 
@@ -687,6 +692,9 @@ private:
 	FVector PendingRestorePosition = FVector::ZeroVector;
 	FRotator PendingRestoreLook = FRotator::ZeroRotator;
 	uint8 PendingRestoreWeaponType = 0;
+	// true: PendingRestorePosition/Look를 실제로 적용(S2C_LoginSuccess).
+	// false: 레벨 이동 이월 -- 위치 무시, PendingRestoreWeaponType만 적용.
+	bool bPendingProgressApplyTransform = false;
 
 	bool bHasPendingInventoryRestore = false;
 	TArray<FProtoInventoryItemEntry> PendingRestoreInventory;

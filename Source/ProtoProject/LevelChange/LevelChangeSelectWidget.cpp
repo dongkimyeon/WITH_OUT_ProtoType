@@ -6,6 +6,7 @@
 #include  "Kismet/GameplayStatics.h"
 #include "Engine/GameInstance.h"
 #include "../Network/ProtoNetClientSubsystem.h"
+#include "../PlayerContent/ProtoCharacter.h"
 
 void ULevelChangeSelectWidget::NativeConstruct()
 {
@@ -74,6 +75,13 @@ void ULevelChangeSelectWidget::RequestLevelChange(ELevelChangeMode Mode, const T
 		{
 			NetClient->SetMultiplayerVisualsEnabled(Mode == ELevelChangeMode::Multi);
 		}
+	}
+
+	// 허브에서 들고 가는 인벤토리 그리드/장비/퀵슬롯을 다음 레벨로 이월한다. EndPlay(LevelTransition)에도
+	// 백업 경로가 있지만, OpenLevel 직전 여기서 명시적으로 캐시해 EEndPlayReason 값에 의존하지 않게 한다.
+	if (AProtoCharacter* LocalCharacter = Cast<AProtoCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0)))
+	{
+		LocalCharacter->CacheTravelStateToNetClient();
 	}
 
 	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), Level);

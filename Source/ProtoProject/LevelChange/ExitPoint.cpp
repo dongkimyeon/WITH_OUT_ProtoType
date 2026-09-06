@@ -83,6 +83,10 @@ void AExitPoint::Tick(float DeltaTime)
 			Status->ResetSurvivalState();
 		}
 
+		// 파밍한 아이템/장착한 장비·퀵슬롯을 다음 레벨(SafePlace)로 이월한다. EndPlay(LevelTransition)에도
+		// 백업 경로가 있지만, OpenLevel 직전 여기서 명시적으로 캐시해 EEndPlayReason 값에 의존하지 않게 한다.
+		OverlappingPlayer->CacheTravelStateToNetClient();
+
 		OverlappingPlayer = nullptr;
 		RemainingTime = ExitDuration;
 

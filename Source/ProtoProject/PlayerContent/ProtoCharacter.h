@@ -386,13 +386,15 @@ public:
     void SetRemoteAiming(bool bAiming, float Pitch);
 
     // Bound (locally-controlled instance only, in BeginPlay) to
-    // UProtoNetClientSubsystem::OnProgressRestored: moves this player to
-    // their saved MSSQL position and silently shows their saved weapon (no
-    // swap animation -- this is initial spawn state, not a live transition).
-    // Falls back to SpawnFallbackRemoteWeapon() if CurrentRifle/CurrentPistol
-    // aren't populated yet (see GetWeaponByType).
+    // UProtoNetClientSubsystem::OnProgressRestored (S2C_LoginSuccess only).
+    // 어댑터: 서버 저장 위치이므로 bApplyTransform=true로 HandleProgressRestored 호출.
     UFUNCTION()
-    void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType);
+    void HandleProgressRestoredFromServer(FVector Position, FRotator Look, uint8 WeaponType);
+
+    // bApplyTransform=true: 저장된 MSSQL 위치로 이동 + 저장 무기 표시(초기 스폰 상태, 스왑 애니 없음).
+    // bApplyTransform=false: 레벨 이동 이월 -- 위치/시선은 건드리지 않고(목적지 PlayerStart 유지)
+    //   무기 비주얼만 복원. CurrentRifle/CurrentPistol이 아직이면 SpawnFallbackRemoteWeapon() 폴백.
+    void HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType, bool bApplyTransform);
 
     /*-------------------
      네트워킹: 인벤토리 동기화 (로컬 플레이어만)
@@ -483,6 +485,18 @@ public:
     // for one of these, that item is silently dropped (falls back to just
     // not being equipped) rather than displacing something else.
     void RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipmentEntry>& Equipment, const TArray<FProtoQuickSlotEntry>& QuickSlots);
+
+    // 인벤토리 그리드/장비/퀵슬롯 어디에도 DA_Item_AK47이 없으면 그리드에 1정 추가한다.
+    // TrySetupLocalPlayerOnce 말미(복원 완료 + 저장 델리게이트 바인딩 후)에서 1회 호출 --
+    // 신규 시작과 사망 후 빈손 복귀 모두에서 "기본 무기 1정"을 보장하되, 레벨 이동으로
+    // 이미 소지한 AK47이 복원된 경우 중복 지급하지 않는다.
+    void GrantStartingRifleIfMissing();
+
+    // 레벨 이동을 시작하는 코드(ULevelChangeSelectWidget::RequestLevelChange,
+    // AExitPoint 익스트랙션 성공)가 OpenLevel 직전에 호출한다. 현재 무기/인벤토리/장비/
+    // 퀵슬롯/위치를 UProtoNetClientSubsystem에 캐시해 다음 레벨에서 복원되게 한다.
+    // EndPlay(LevelTransition)에서도 백업으로 호출되며, 사망 상태면 아무것도 하지 않는다.
+    void CacheTravelStateToNetClient();
 
     bool bIsRestoringInventory = false;
 

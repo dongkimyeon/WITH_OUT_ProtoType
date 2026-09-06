@@ -257,6 +257,8 @@ void AProtoCharacter::BeginPlay()
         if (TestBandage) InventoryComponent->AddItem(TestBandage);
         if (TestBandage) InventoryComponent->AddItem(TestBandage);*/
     }
+    // 기본 지급 무기(AK47)는 인벤토리 복원이 끝난 뒤 TrySetupLocalPlayerOnce 말미에서
+    // GrantStartingRifleIfMissing()로 지급한다(레벨 이동마다 중복 누적되지 않도록).
 
 }
 
@@ -271,7 +273,7 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
         {
-            NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestored);
+            NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestoredFromServer);
             NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
             NetClient->OnEnemyAttackPlayer.AddDynamic(this, &AProtoCharacter::HandleEnemyAttackPlayer);
 
@@ -286,9 +288,10 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
             FVector PendingRestorePosition;
             FRotator PendingRestoreLook;
             uint8 PendingRestoreWeaponType = 0;
-            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType))
+            bool bPendingApplyTransform = false;
+            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType, bPendingApplyTransform))
             {
-                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType);
+                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType, bPendingApplyTransform);
             }
 
             TArray<FProtoInventoryItemEntry> PendingInventory;
@@ -323,6 +326,10 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
     }
 
     SpawnCompanion();
+
+    // 인벤토리/장비/퀵슬롯 복원이 모두 끝나고 저장 델리게이트도 바인딩된 이 시점에서,
+    // AK47을 하나도 들고 있지 않으면 1정 지급한다(신규 시작 / 사망 후 빈손 복귀 대응).
+    GrantStartingRifleIfMissing();
 
     // Only the locally-controlled player's own HUD should go on screen; this
     // BeginPlay also runs for remote players spawned by
@@ -1697,7 +1704,14 @@ void AProtoCharacter::SetRemoteAiming(bool bAiming, float Pitch)
     AimPitch = FMath::Clamp(FRotator::NormalizeAxis(Pitch), -30.0f, 30.0f);
 }
 
-void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType)
+void AProtoCharacter::HandleProgressRestoredFromServer(FVector Position, FRotator Look, uint8 WeaponType)
+{
+    // OnProgressRestored 델리게이트(S2C_LoginSuccess에서만 발동) 전용 어댑터 --
+    // 서버 저장 위치이므로 항상 실제로 이동시킨다.
+    HandleProgressRestored(Position, Look, WeaponType, /*bApplyTransform=*/true);
+}
+
+void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, uint8 WeaponType, bool bApplyTransform)
 {
     // This can run two ways: BeginPlay's direct ConsumePendingProgressRestore()
     // pull (which already cleared the pending cache), or the live
@@ -1713,15 +1727,20 @@ void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, ui
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
         {
-            FVector UnusedPos; FRotator UnusedLook; uint8 UnusedWeapon;
-            NetClient->ConsumePendingProgressRestore(UnusedPos, UnusedLook, UnusedWeapon);
+            FVector UnusedPos; FRotator UnusedLook; uint8 UnusedWeapon; bool bUnusedApply;
+            NetClient->ConsumePendingProgressRestore(UnusedPos, UnusedLook, UnusedWeapon, bUnusedApply);
         }
     }
 
-    SetActorLocation(Position);
-    if (Controller)
+    // 레벨 이동 이월(bApplyTransform == false)이면 위치/시선은 건드리지 않는다 --
+    // 목적지 PlayerStart에서 시작하고, 아래 무기 비주얼 복원만 수행한다.
+    if (bApplyTransform)
     {
-        Controller->SetControlRotation(Look);
+        SetActorLocation(Position);
+        if (Controller)
+        {
+            Controller->SetControlRotation(Look);
+        }
     }
 
     const EWeaponType RestoredType = static_cast<EWeaponType>(WeaponType);
@@ -2024,6 +2043,17 @@ void AProtoCharacter::WipeCarriedInventoryOnDeath()
         // OnInventoryChanged → HandleInventoryChanged가 빈 인벤토리를 서버에 저장하고 UI를 갱신한다.
         InventoryComponent->OnInventoryChanged.Broadcast();
     }
+
+    // ClearAll()은 원래 아이템이 있던 슬롯에 대해서만 OnEquipmentChanged/OnQuickSlotChanged를
+    // 브로드캐스트하므로, 이미 비어 있던 경우 SendSaveEquipment/SendSaveQuickSlots가 나가지
+    // 않을 수 있다. 사망 시 서버 상태를 확실히 비우기 위해 3종 스냅샷을 무조건 전송한다.
+    UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    if (UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr)
+    {
+        NetClient->SendSaveInventory(BuildInventorySnapshot());
+        NetClient->SendSaveEquipment(BuildEquipmentSnapshot());
+        NetClient->SendSaveQuickSlots(BuildQuickSlotSnapshot());
+    }
 }
 
 TArray<FProtoInventoryItemEntry> AProtoCharacter::BuildInventorySnapshot() const
@@ -2198,19 +2228,84 @@ void AProtoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
     // this character's entire lifetime, so it's a reliable stand-in here.
     if (bLocalPlayerSetupDone && EndPlayReason == EEndPlayReason::LevelTransition && !bIsDead)
     {
-        if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+        CacheTravelStateToNetClient();
+    }
+
+    Super::EndPlay(EndPlayReason);
+}
+
+void AProtoCharacter::CacheTravelStateToNetClient()
+{
+    // 사망 시에는 호출하지 않는다(호출자 책임) -- 소지품을 다음 레벨로 이월하면 안 되므로.
+    // 레벨 이동을 시작하는 쪽(ULevelChangeSelectWidget / AExitPoint)에서 OpenLevel 직전에
+    // 명시적으로 부르고, EndPlay(LevelTransition)에서도 백업으로 부른다. 두 번 불려도
+    // ConsumePending*가 멱등이라 무해하다 -- EEndPlayReason 값에 의존하지 않게 하는 것이 목적.
+    if (bIsDead)
+    {
+        return;
+    }
+
+    UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+    if (!NetClient)
+    {
+        return;
+    }
+
+    NetClient->CacheStateForLevelTransition(
+        static_cast<uint8>(CurrentWeaponType), BuildInventorySnapshot(),
+        BuildEquipmentSnapshot(), BuildQuickSlotSnapshot());
+}
+
+void AProtoCharacter::GrantStartingRifleIfMissing()
+{
+    if (!InventoryComponent)
+    {
+        return;
+    }
+
+    static const FString StartingRifleAssetName(TEXT("DA_Item_AK47"));
+
+    auto IsStartingRifle = [](const UItemDataBase* Data)
+    {
+        return Data && Data->GetName() == StartingRifleAssetName;
+    };
+
+    for (const FInventoryItemInstance& Item : InventoryComponent->Items)
+    {
+        if (IsStartingRifle(Item.ItemData))
         {
-            if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+            return;
+        }
+    }
+
+    if (EquipmentComponent)
+    {
+        static const EEquipmentSlot AllSlots[] = { EEquipmentSlot::Helmet, EEquipmentSlot::Vest, EEquipmentSlot::Weapon1, EEquipmentSlot::Weapon2 };
+        for (EEquipmentSlot Slot : AllSlots)
+        {
+            if (IsStartingRifle(EquipmentComponent->GetEquippedItem(Slot).ItemData))
             {
-                const FRotator CurrentLook = Controller ? Controller->GetControlRotation() : GetActorRotation();
-                NetClient->CacheStateForLevelTransition(
-                    GetActorLocation(), CurrentLook, static_cast<uint8>(CurrentWeaponType), BuildInventorySnapshot(),
-                    BuildEquipmentSnapshot(), BuildQuickSlotSnapshot());
+                return;
             }
         }
     }
 
-    Super::EndPlay(EndPlayReason);
+    if (QuickSlotComponent)
+    {
+        for (int32 SlotIndex = 0; SlotIndex < QuickSlotComponent->NumSlots; ++SlotIndex)
+        {
+            if (IsStartingRifle(QuickSlotComponent->GetQuickSlotEntry(SlotIndex).ItemData))
+            {
+                return;
+            }
+        }
+    }
+
+    if (UItemDataBase* StartingRifle = ResolveItemDataByName(StartingRifleAssetName))
+    {
+        InventoryComponent->AddItem(StartingRifle);
+    }
 }
 
 void AProtoCharacter::AttachCurrentWeaponToSocket(FName SocketName)
