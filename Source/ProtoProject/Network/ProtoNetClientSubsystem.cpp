@@ -511,6 +511,43 @@ bool UProtoNetClientSubsystem::SendSaveQuickSlots(const TArray<FProtoQuickSlotEn
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendRequestStash()
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto Req = ProtoType::Net::CreateC2S_RequestStash(Fbb);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_RequestStash, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendSaveStash(const TArray<FProtoInventoryItemEntry>& Items)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+
+	TArray<flatbuffers::Offset<ProtoType::Net::InventoryItemEntry>> ItemOffsets;
+	ItemOffsets.Reserve(Items.Num());
+	for (const FProtoInventoryItemEntry& Item : Items)
+	{
+		auto ItemIdOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Item.ItemId.ToString()));
+		ItemOffsets.Add(ProtoType::Net::CreateInventoryItemEntry(
+			Fbb, ItemIdOffset,
+			static_cast<int16_t>(Item.GridX), static_cast<int16_t>(Item.GridY),
+			Item.bRotated, static_cast<int16_t>(Item.StackCount)));
+	}
+	auto ItemsVector = Fbb.CreateVector(ItemOffsets.GetData(), ItemOffsets.Num());
+
+	auto Req = ProtoType::Net::CreateC2S_SaveStash(Fbb, ItemsVector);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_SaveStash, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
 {
 	// Not gated by bMultiplayerVisualsEnabled -- this call is what changes
@@ -1010,6 +1047,33 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						}
 					}
 				}
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_StashState:
+			if (const auto* State = Packet->payload_as_S2C_StashState())
+			{
+				// Unicast to the requester only -- no container-id filter
+				// needed, unlike OnContainerLootState (see this delegate's
+				// comment).
+				TArray<FProtoInventoryItemEntry> Items;
+				if (const auto* Entries = State->items())
+				{
+					Items.Reserve(Entries->size());
+					for (const auto* Entry : *Entries)
+					{
+						if (!Entry || !Entry->item_id())
+							continue;
+						FProtoInventoryItemEntry ItemEntry;
+						ItemEntry.ItemId = FName(UTF8_TO_TCHAR(Entry->item_id()->c_str()));
+						ItemEntry.GridX = Entry->grid_x();
+						ItemEntry.GridY = Entry->grid_y();
+						ItemEntry.bRotated = Entry->rotated();
+						ItemEntry.StackCount = Entry->stack_count();
+						Items.Add(ItemEntry);
+					}
+				}
+				OnStashState.Broadcast(Items);
 			}
 			break;
 

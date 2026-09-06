@@ -145,6 +145,13 @@ struct FProtoWorldItemEntry
 // client can't leave stale items behind.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnInventoryRestored, const TArray<FProtoInventoryItemEntry>&, Items);
 
+// Fired on S2C_StashState -- the reply to SendRequestStash, this account's
+// full saved SafePlace stash (empty array if nothing's saved). Unlike
+// OnContainerLootState, this is unicast to the requester only (see
+// C2S_RequestStash's schema comment), so there's no container-id filter
+// needed -- receiving this at all means it's this account's own stash.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnStashState, const TArray<FProtoInventoryItemEntry>&, Items);
+
 // Fired whenever the server answers a container loot roll (see
 // SendContainerLootRoll) with the authoritative contents for ContainerId --
 // either this client's own roll (if it was first) or another client's
@@ -440,6 +447,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendSaveQuickSlots(const TArray<FProtoQuickSlotEntry>& Items);
 
+	// SafePlace 개인 창고(dbo.PlayerStash) 요청/저장 -- SendSaveInventory와 동일한 이유로
+	// SetMultiplayerVisualsEnabled에 게이팅하지 않는다(계정 영속 데이터, 다른 플레이어가 보는
+	// 게 아님). 서버는 OnStashState로 답한다(계정당 유니캐스트, 다른 클라이언트에 브로드캐스트
+	// 되지 않음 -- 루팅 컨테이너와 달리 개인 데이터라서).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendRequestStash();
+
+	// Same "always full contents, not a diff" contract as SendSaveInventory.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendSaveStash(const TArray<FProtoInventoryItemEntry>& Items);
+
 	// See C2S_SetVisible's schema comment -- called by
 	// SetMultiplayerVisualsEnabled(false) so other clients despawn this
 	// player instead of freezing it in place as a "ghost" (this session
@@ -570,6 +588,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnInventoryRestored OnInventoryRestored;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnStashState OnStashState;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnContainerLootState OnContainerLootState;
