@@ -45,6 +45,27 @@ void ACompanionNPC::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	if (bIsRemotePuppet)
+	{
+		// No CombatComponent/AIComponent/Controller left to compute these
+		// from (MarkAsRemotePuppet destroyed/never-possessed them) -- feed
+		// in whatever the owner last reported instead (see
+		// UProtoNetClientSubsystem::UpdateRemoteCompanion). Same
+		// CurrentWeaponType/bIsAiming/AimPitch properties the Animation
+		// Blueprint already reads for a real, locally-owned companion, so
+		// no ABP changes are needed for this to render correctly.
+		bHasWeapon = MirroredWeaponType != EWeaponType::None;
+		CurrentWeaponType = MirroredWeaponType;
+		bIsAiming = bHasWeapon && bMirroredIsAiming;
+		AimPitch = MirroredAimPitch;
+		// Joint/LeftHandTransform (left-hand IK) and bIsReloading/
+		// bIsSprint aren't synced -- known gap, see UpdateRemoteCompanion's
+		// comment. Left at whatever they last were (their own defaults,
+		// for a freshly-spawned puppet) rather than recomputed from local
+		// components that don't exist here.
+		return;
+	}
+
 	AWeaponBase* EquippedWeapon = CombatComponent ? CombatComponent->GetEquippedWeapon() : nullptr;
 	bHasWeapon = IsValid(EquippedWeapon);
 	CurrentWeaponType = bHasWeapon ? EquippedWeapon->WeaponType : EWeaponType::None;
@@ -102,7 +123,8 @@ void ACompanionNPC::Tick(float DeltaSeconds)
 					// (bOwnedByLocalPlayer is false for those).
 					const float Health = CombatComponent ? CombatComponent->CurrentHealth : MirroredHealth;
 					const bool bDead = CombatComponent && CombatComponent->IsDead();
-					NetClient->SendCompanionMoveInput(GetActorLocation(), GetActorRotation(), Health, bDead);
+					NetClient->SendCompanionMoveInput(GetActorLocation(), GetActorRotation(), Health, bDead,
+						static_cast<uint8>(CurrentWeaponType), bIsAiming, AimPitch);
 				}
 			}
 		}

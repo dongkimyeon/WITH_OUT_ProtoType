@@ -543,7 +543,8 @@ bool UProtoNetClientSubsystem::SendItemSpawnRoll(int32 SpawnPointId, const TArra
 	return SendPacketBytes(Bytes);
 }
 
-bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator Look, float Health, bool bIsDead)
+bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator Look, float Health, bool bIsDead,
+	uint8 WeaponType, bool bIsAiming, float AimPitch)
 {
 	if (!IsConnected())
 		return false;
@@ -551,7 +552,8 @@ bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator
 	flatbuffers::FlatBufferBuilder Fbb;
 	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
 	const ProtoType::Net::Rotator LookRot(Look.Pitch, Look.Yaw, Look.Roll);
-	auto Req = ProtoType::Net::CreateC2S_CompanionMoveInput(Fbb, &PositionVec, &LookRot, Health, bIsDead);
+	auto Req = ProtoType::Net::CreateC2S_CompanionMoveInput(Fbb, &PositionVec, &LookRot, Health, bIsDead,
+		WeaponType, bIsAiming, AimPitch);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_CompanionMoveInput, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
@@ -1009,7 +1011,8 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						State->owner_id(),
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
 						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
-						State->health(), State->is_dead());
+						State->health(), State->is_dead(),
+						State->weapon_type(), State->is_aiming(), State->aim_pitch());
 				}
 			}
 			break;
@@ -1133,7 +1136,8 @@ void UProtoNetClientSubsystem::RemoveRemotePlayer(uint32 PlayerId)
 	UE_LOG(LogProtoNet, Log, TEXT("Removed remote player %u"), PlayerId);
 }
 
-void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation, float Health, bool bIsDead)
+void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation, float Health, bool bIsDead,
+	uint8 WeaponType, bool bIsAiming, float AimPitch)
 {
 	// See this function's header comment for why negated keys share the
 	// same maps as real remote players instead of a separate set.
@@ -1150,6 +1154,9 @@ void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVect
 			{
 				ExistingCompanion->MirroredHealth = Health;
 				ExistingCompanion->bIsMirroredDead = bIsDead;
+				ExistingCompanion->MirroredWeaponType = static_cast<EWeaponType>(WeaponType);
+				ExistingCompanion->bMirroredIsAiming = bIsAiming;
+				ExistingCompanion->MirroredAimPitch = AimPitch;
 			}
 			return;
 		}
@@ -1177,6 +1184,9 @@ void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVect
 			RemoteCompanion->MarkAsRemotePuppet();
 			RemoteCompanion->MirroredHealth = Health;
 			RemoteCompanion->bIsMirroredDead = bIsDead;
+			RemoteCompanion->MirroredWeaponType = static_cast<EWeaponType>(WeaponType);
+			RemoteCompanion->bMirroredIsAiming = bIsAiming;
+			RemoteCompanion->MirroredAimPitch = AimPitch;
 			RemoteCompanion->FinishSpawning(SpawnTransform);
 
 			// Same bootstrap UpdateRemotePlayer() above needs and why --

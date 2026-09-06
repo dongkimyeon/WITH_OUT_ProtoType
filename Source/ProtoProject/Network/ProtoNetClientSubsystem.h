@@ -385,10 +385,13 @@ public:
 	// bMultiplayerVisualsEnabled for the SEND direction -- same reasoning
 	// as SendSaveInventory, this is "what my companion is doing" regardless
 	// of whether this client currently wants to see other players.
-	// Health/bIsDead ride along on the same periodic update rather than a
-	// separate message -- see C2S_CompanionMoveInput's schema comment.
+	// Health/bIsDead/WeaponType/bIsAiming/AimPitch all ride along on the
+	// same periodic update rather than a separate message -- see
+	// C2S_CompanionMoveInput's schema comment. WeaponType is EWeaponType
+	// (same uint8 convention as SendWeaponReload/SendWeaponEquip above).
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool SendCompanionMoveInput(FVector Position, FRotator Look, float Health = 100.0f, bool bIsDead = false);
+	bool SendCompanionMoveInput(FVector Position, FRotator Look, float Health = 100.0f, bool bIsDead = false,
+		uint8 WeaponType = 0, bool bIsAiming = false, float AimPitch = 0.0f);
 
 	// Called once by the LOCAL player's own AProtoCharacter::SpawnCompanion()
 	// right after it spawns its companion, so remote companion puppets (see
@@ -549,13 +552,18 @@ private:
 	// wrong (nothing should be feeding it commands but its own owner).
 	// Falls back to the plain AProtoRemotePlayer placeholder if
 	// RemoteCompanionClass hasn't been set yet (see SetRemoteCompanionClass).
-	// Health/bIsDead are mirrored onto the puppet's own MirroredHealth/
-	// bIsMirroredDead (its real CombatComponent is destroyed by
-	// MarkAsRemotePuppet, so there's nowhere else to keep it) --
-	// TickRemotePlayers() stops walking it around once bIsMirroredDead.
-	// Known gap: weapon/aim state isn't synced, so a remote companion's
-	// puppet always renders unarmed.
-	void UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation, float Health, bool bIsDead);
+	// Health/bIsDead/WeaponType/bIsAiming/AimPitch are all mirrored onto
+	// the puppet's own Mirrored* properties (its real CombatComponent/
+	// AIComponent/Controller are destroyed or never possessed by
+	// MarkAsRemotePuppet, so there's nowhere else to derive these from --
+	// see ACompanionNPC::Tick's bIsRemotePuppet branch, which feeds them
+	// into the same CurrentWeaponType/bIsAiming/AimPitch properties the
+	// Animation Blueprint already reads for the real, locally-owned
+	// companion). TickRemotePlayers() stops walking it around once
+	// bIsMirroredDead. Known gap: reload state and left-hand IK aren't
+	// synced, just the equipped weapon and aim direction.
+	void UpdateRemoteCompanion(uint32 OwnerId, const FVector& Location, const FRotator& Rotation, float Health, bool bIsDead,
+		uint8 WeaponType, bool bIsAiming, float AimPitch);
 
 	// Despawns a remote companion placeholder and clears its tracking
 	// entries. Also called from RemoveRemotePlayer -- a player's companion
