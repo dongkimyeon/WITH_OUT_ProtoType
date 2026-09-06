@@ -19,15 +19,9 @@ ADropItem::ADropItem()
 	StaticMeshComp->SetMobility(EComponentMobility::Movable);
 	StaticMeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
 	StaticMeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-	StaticMeshComp->SetSimulatePhysics(true);
-	StaticMeshComp->SetEnableGravity(true);
-	// 기본 질량(메시 부피 기반 자동 산출)이 너무 가벼워서 캐릭터가 스치기만 해도 멀리 날아가고,
-	// 감쇠가 거의 없어 튕겨나간 속도로 바닥을 뚫고 지나가 사라진다 - 무게를 실어주고 감쇠를 걸고,
-	// 고속 충돌에도 바닥을 통과하지 않게 CCD를 켠다.
-	StaticMeshComp->SetMassOverrideInKg(NAME_None, 2.0f, true);
-	StaticMeshComp->SetLinearDamping(1.0f);
-	StaticMeshComp->SetAngularDamping(2.0f);
-	StaticMeshComp->SetUseCCD(true);
+	// 물리 시뮬레이션 활성화와 질량 오버라이드는 BeginPlay에서 한다. 생성자(특히 CDO 생성 시점)에서
+	// 호출하면 GEngine 초기화 전이라 FBodyInstance::GetSimplePhysicalMaterial 이 LogPhysics:Error 를
+	// 찍고, 이 에러가 쿡 커맨드렛 종료 코드를 1로 만들어 패키징이 실패한다.
 
 	BoundingBox = CreateDefaultSubobject<UBoxComponent>(TEXT("BoundingBox"));
 	BoundingBox->SetupAttachment(StaticMeshComp);
@@ -69,6 +63,16 @@ void ADropItem::OnConstruction(const FTransform& Transform)
 void ADropItem::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 떨어뜨리면 중력에 반응해 바닥에 안착한다. 기본 질량(메시 부피 기반 자동 산출)이 너무 가벼워서
+	// 캐릭터가 스치기만 해도 멀리 날아가고, 감쇠가 거의 없어 튕겨나간 속도로 바닥을 뚫고 지나가 사라진다
+	// - 무게를 실어주고 감쇠를 걸고, 고속 충돌에도 바닥을 통과하지 않게 CCD를 켠다.
+	StaticMeshComp->SetSimulatePhysics(true);
+	StaticMeshComp->SetEnableGravity(true);
+	StaticMeshComp->SetMassOverrideInKg(NAME_None, 2.0f, true);
+	StaticMeshComp->SetLinearDamping(1.0f);
+	StaticMeshComp->SetAngularDamping(2.0f);
+	StaticMeshComp->SetUseCCD(true);
 
 	InteractBox->OnComponentBeginOverlap.AddDynamic(this, &ADropItem::OnInteractBeginOverlap);
 	InteractBox->OnComponentEndOverlap.AddDynamic(this, &ADropItem::OnInteractEndOverlap);
