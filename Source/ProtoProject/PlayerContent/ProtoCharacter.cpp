@@ -1775,14 +1775,25 @@ void AProtoCharacter::HandleProgressRestored(FVector Position, FRotator Look, ui
     const EWeaponType RestoredType = static_cast<EWeaponType>(WeaponType);
     if (RestoredType == EWeaponType::None)
     {
+        UE_LOG(LogTemp, Log, TEXT("[InvSync] HandleProgressRestored: RestoredType=None, nothing to show in-hand"));
         return;
     }
 
     AWeaponBase* RestoredWeapon = GetWeaponByType(RestoredType);
+    const bool bFoundFromEquipment = RestoredWeapon != nullptr;
     if (!RestoredWeapon)
     {
+        // Expected to be non-null here if RestoreEquipmentAndQuickSlots
+        // already ran and actually equipped a matching weapon into
+        // CurrentRifle/CurrentPistol (see this function's header comment on
+        // restore ordering) -- landing in the fallback path means either
+        // that equip failed (see RestoreEquipmentAndQuickSlots's own
+        // warning), or WeaponType just doesn't match anything actually
+        // equipped (stale/inconsistent save).
         RestoredWeapon = SpawnFallbackRemoteWeapon(RestoredType);
     }
+    UE_LOG(LogTemp, Log, TEXT("[InvSync] HandleProgressRestored: RestoredType=%d, found via equipment=%d, fallback spawned=%d"),
+        static_cast<int32>(RestoredType), bFoundFromEquipment, !bFoundFromEquipment && RestoredWeapon != nullptr);
     if (!RestoredWeapon)
     {
         // Fallback spawn also failed (e.g. no RemoteRifleClass/RemotePistolClass
@@ -2216,8 +2227,21 @@ void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipment
             continue;
         }
 
-        EquipmentComponent->EquipFromInventory(InventoryComponent, InventoryComponent->Items.Last().InstanceId, static_cast<EEquipmentSlot>(Entry.Slot));
-        ++EquipPlacedCount;
+        const FGuid TempInstanceId = InventoryComponent->Items.Last().InstanceId;
+        if (EquipmentComponent->EquipFromInventory(InventoryComponent, TempInstanceId, static_cast<EEquipmentSlot>(Entry.Slot)))
+        {
+            ++EquipPlacedCount;
+        }
+        else
+        {
+            // EquipFromInventory can fail silently (e.g. CanEquipToSlot
+            // rejects the item for this slot) -- without this check the log
+            // below claims success while the item is actually just sitting
+            // in the grid where AddItemAt above put it, not equipped. Leave
+            // it there rather than dropping it outright.
+            UE_LOG(LogTemp, Warning, TEXT("RestoreEquipmentAndQuickSlots: EquipFromInventory failed for '%s' -> slot %d, left in inventory grid instead"),
+                *Entry.ItemId.ToString(), Entry.Slot);
+        }
     }
 
     int32 QuickSlotPlacedCount = 0;
@@ -2243,8 +2267,15 @@ void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipment
             continue;
         }
 
-        QuickSlotComponent->RegisterFromInventory(Entry.SlotIndex, InventoryComponent, InventoryComponent->Items.Last().InstanceId);
-        ++QuickSlotPlacedCount;
+        if (QuickSlotComponent->RegisterFromInventory(Entry.SlotIndex, InventoryComponent, InventoryComponent->Items.Last().InstanceId))
+        {
+            ++QuickSlotPlacedCount;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("RestoreEquipmentAndQuickSlots: RegisterFromInventory failed for '%s' -> quick slot %d, left in inventory grid instead"),
+                *Entry.ItemId.ToString(), Entry.SlotIndex);
+        }
     }
 
     UE_LOG(LogTemp, Log, TEXT("[InvSync] RestoreEquipmentAndQuickSlots: equipped %d/%d, quick-slotted %d/%d"),
