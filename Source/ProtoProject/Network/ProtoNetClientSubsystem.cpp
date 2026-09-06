@@ -542,7 +542,13 @@ bool UProtoNetClientSubsystem::SendPlayerDied()
 
 bool UProtoNetClientSubsystem::SendContainerLootRoll(int32 ContainerId, const TArray<FProtoInventoryItemEntry>& Items)
 {
-	if (!IsConnected())
+	// Gated by bMultiplayerVisualsEnabled (see the header comment): a
+	// Single map's containerId lives in the SAME server-wide, process-
+	// lifetime containerLoot_ map a Multi map's does (keyed only by the
+	// placed actor's name hash, with no per-session/per-map partitioning),
+	// so without this, two clients each thinking they're in their own
+	// private Single-map run would actually be racing each other's rolls.
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;
@@ -570,7 +576,9 @@ bool UProtoNetClientSubsystem::SendContainerLootRoll(int32 ContainerId, const TA
 
 bool UProtoNetClientSubsystem::SendItemSpawnRoll(int32 SpawnPointId, const TArray<FProtoWorldItemEntry>& Items)
 {
-	if (!IsConnected())
+	// Same reasoning as SendContainerLootRoll's gate -- itemSpawnRolls_ is
+	// the same kind of server-wide, unpartitioned map.
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;
@@ -616,7 +624,17 @@ bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator
 
 bool UProtoNetClientSubsystem::SendEnemyClaimRequest(int32 EnemyId)
 {
-	if (!IsConnected())
+	// Gated by bMultiplayerVisualsEnabled: enemyOwners_ is a server-wide,
+	// process-lifetime map (enemy_id -> owning session), with no per-
+	// session/per-map partitioning -- without this, two clients each in
+	// what they think is their own private Single map would compete for
+	// the SAME enemy_id's ownership (same placed-actor name hash), and the
+	// loser would just mirror the winner's unrelated game instead of
+	// running its own local AI. A Single map never actually needed the
+	// claim round trip anyway: bIsNetworkOwner defaults to true and simply
+	// stays true forever when this never gets sent, which is exactly
+	// "run your own local AI, no one else to arbitrate against."
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;
@@ -631,7 +649,12 @@ bool UProtoNetClientSubsystem::SendEnemyClaimRequest(int32 EnemyId)
 
 bool UProtoNetClientSubsystem::SendEnemyState(int32 EnemyId, FVector Position, FRotator Look, float Health, bool bIsDead)
 {
-	if (!IsConnected())
+	// See SendEnemyClaimRequest's gate: with claiming gated off, a Single
+	// map's enemies are always bIsNetworkOwner=true and would otherwise
+	// keep calling this every tick regardless -- broadcasting a Single-map
+	// zombie's state to every other connected session (including other
+	// Single-map players' own, unrelated runs) serves no purpose there.
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;
@@ -648,7 +671,10 @@ bool UProtoNetClientSubsystem::SendEnemyState(int32 EnemyId, FVector Position, F
 
 bool UProtoNetClientSubsystem::SendEnemyDamage(int32 EnemyId, float Damage)
 {
-	if (!IsConnected())
+	// See SendEnemyClaimRequest's gate -- this is only ever meaningful
+	// against a claimed owner elsewhere, which can't exist once claiming
+	// itself is gated off for a Single map.
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;

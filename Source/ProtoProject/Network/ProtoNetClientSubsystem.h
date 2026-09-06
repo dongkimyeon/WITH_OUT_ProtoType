@@ -423,10 +423,15 @@ public:
 	// server answers via OnContainerLootState with the authoritative
 	// contents -- either this roll, if it's the first for ContainerId, or
 	// an earlier client's -- so every client agrees on what's in the box.
+	// Gated by bMultiplayerVisualsEnabled: containerLoot_ is a server-wide,
+	// unpartitioned map (see this function's .cpp comment), so a Single
+	// map keeps its roll purely local instead of racing some other
+	// session's identically-named container.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendContainerLootRoll(int32 ContainerId, const TArray<FProtoInventoryItemEntry>& Items);
 
-	// Same idea as SendContainerLootRoll, for an AItemSpawnPoint's
+	// Same idea as SendContainerLootRoll (including the
+	// bMultiplayerVisualsEnabled gate and why), for an AItemSpawnPoint's
 	// scattered world drops (see AItemSpawnPoint::SpawnLoot). The server
 	// answers via OnItemSpawnState with the authoritative drops -- either
 	// this roll, if it's the first for SpawnPointId, or an earlier
@@ -464,19 +469,31 @@ public:
 
 	// Sent once, right after BeginPlay, by every placed AEnemyBase -- "I'm
 	// ready to drive this enemy's AI if nobody already is." See
-	// OnEnemyClaimResult for the answer.
+	// OnEnemyClaimResult for the answer. Gated by bMultiplayerVisualsEnabled
+	// (see this function's .cpp comment): a Single map's enemy_id claim
+	// would otherwise contend with any other session's identically-named,
+	// supposedly-unrelated enemy in the same server-wide enemyOwners_ map.
+	// Never sending this for a Single map is fine on its own -- an enemy's
+	// bIsNetworkOwner already defaults to true, so it just always runs its
+	// own local AI, no claim needed when there's no one to claim against.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendEnemyClaimRequest(int32 EnemyId);
 
 	// Throttled, called only by whichever client owns EnemyId (i.e. only
 	// after OnEnemyClaimResult granted it) -- see C2S_EnemyState's schema
-	// comment.
+	// comment. Same bMultiplayerVisualsEnabled gate as SendEnemyClaimRequest
+	// and for the same reason: with claiming gated off, a Single map's
+	// enemies are always their own owner and would otherwise broadcast
+	// their state to every other connected session for no reason.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendEnemyState(int32 EnemyId, FVector Position, FRotator Look, float Health, bool bIsDead);
 
 	// Called by a NON-owning client whose own local hit detection landed a
 	// shot on EnemyId, so the server can relay it to whichever client
-	// actually owns that enemy's health. See C2S_EnemyDamage's schema comment.
+	// actually owns that enemy's health. See C2S_EnemyDamage's schema
+	// comment. Same bMultiplayerVisualsEnabled gate as SendEnemyClaimRequest
+	// -- meaningless once claiming (and therefore ever NOT being the owner)
+	// can't happen for a Single map.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendEnemyDamage(int32 EnemyId, float Damage);
 
