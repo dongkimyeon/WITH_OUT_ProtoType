@@ -716,6 +716,9 @@ void UProtoNetClientSubsystem::CacheStateForLevelTransition(FVector Position, FR
 	PendingRestoreInventory = InventoryItems;
 	PendingRestoreEquipment = Equipment;
 	PendingRestoreQuickSlots = QuickSlots;
+
+	UE_LOG(LogProtoNet, Log, TEXT("[InvSync] CacheStateForLevelTransition: cached %d item(s), %d equipment, %d quick slot(s)"),
+		InventoryItems.Num(), Equipment.Num(), QuickSlots.Num());
 }
 
 /*-------------------
