@@ -410,6 +410,21 @@ public:
     UFUNCTION()
     void HandleInventoryChanged();
 
+    // Same "push the full current contents, no-op while restoring" idea as
+    // HandleInventoryChanged, for EquipmentComponent's/QuickSlotComponent's
+    // own separate storage -- bound to their OnEquipmentChanged/
+    // OnQuickSlotChanged (a second listener alongside HandleEquipmentChanged's
+    // existing weapon-mesh-visual one; multicast delegates support both).
+    // Guarded by bIsRestoringEquipment rather than bIsRestoringInventory:
+    // RestoreEquipmentAndQuickSlots runs after HandleInventoryRestored has
+    // already finished (and reset bIsRestoringInventory), so that flag is
+    // already back to false by the time these would fire.
+    UFUNCTION()
+    void HandleEquipmentChangedForSave(EEquipmentSlot ChangedSlot);
+
+    UFUNCTION()
+    void HandleQuickSlotChangedForSave(int32 SlotIndex);
+
     // Bound (locally-controlled instance only, in BeginPlay) to
     // UProtoNetClientSubsystem::OnEnemyAttackPlayer -- a server-driven
     // (Multi map) zombie's own melee timing landed on this player. The
@@ -450,7 +465,30 @@ public:
     // as wire-format entries" snapshot.
     TArray<FProtoInventoryItemEntry> BuildInventorySnapshot() const;
 
+    // Same idea as BuildInventorySnapshot, for EquipmentComponent's/
+    // QuickSlotComponent's own separate storage -- EndPlay-only (unlike the
+    // grid, these never went through the server, see
+    // ConsumePendingInventoryRestore's comment), so there's no
+    // OnInventoryChanged-equivalent save path to share this with.
+    TArray<FProtoEquipmentEntry> BuildEquipmentSnapshot() const;
+    TArray<FProtoQuickSlotEntry> BuildQuickSlotSnapshot() const;
+
+    // Restores EndPlay's Equipment/QuickSlot snapshots after a level
+    // transition. Both APIs only know how to move an item that's already
+    // sitting in the grid (EquipFromInventory/RegisterFromInventory), so
+    // this adds each one to InventoryComponent first (temporarily) and
+    // immediately equips/registers it out again -- reusing that
+    // already-tested move logic instead of a separate "set this slot
+    // directly" path. Known gap: if the just-restored grid has no room left
+    // for one of these, that item is silently dropped (falls back to just
+    // not being equipped) rather than displacing something else.
+    void RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipmentEntry>& Equipment, const TArray<FProtoQuickSlotEntry>& QuickSlots);
+
     bool bIsRestoringInventory = false;
+
+    // See HandleEquipmentChangedForSave/HandleQuickSlotChangedForSave's
+    // comment: set for the duration of RestoreEquipmentAndQuickSlots only.
+    bool bIsRestoringEquipment = false;
 
     UFUNCTION(BlueprintCallable, Category = "Interaction|Animation")
     void PlayPickupAnimationIfUnarmed();

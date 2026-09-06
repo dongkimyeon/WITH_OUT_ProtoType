@@ -69,6 +69,43 @@ struct FProtoInventoryItemEntry
 	int32 StackCount = 1;
 };
 
+// One equipped item (helmet/vest/weapon1/weapon2 -- see EEquipmentSlot) for
+// level-transition carryover only (see CacheStateForLevelTransition):
+// UEquipmentComponent's own EquippedSlots storage is entirely separate from
+// InventoryGridComponent's grid, so it needs its own snapshot/restore, not
+// just FProtoInventoryItemEntry's grid position fields.
+USTRUCT(BlueprintType)
+struct FProtoEquipmentEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	FName ItemId;
+
+	// EEquipmentSlot, as a plain int32 so this header doesn't need to
+	// include EquipmentComponent.h just for the enum.
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	int32 Slot = 0;
+};
+
+// One quick slot assignment, same level-transition-carryover-only reasoning
+// as FProtoEquipmentEntry above (UQuickSlotComponent's Slots array is its
+// own separate storage too).
+USTRUCT(BlueprintType)
+struct FProtoQuickSlotEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	FName ItemId;
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	int32 SlotIndex = 0;
+
+	UPROPERTY(BlueprintReadWrite, Category = "ProtoNet")
+	int32 StackCount = 1;
+};
+
 // One loose item dropped in the open world by an AItemSpawnPoint's roll --
 // a fixed world Position instead of a grid slot (see FProtoInventoryItemEntry
 // for that). ItemId is the item Data Asset's own object name, same as above.
@@ -220,19 +257,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType);
 
+	// OutEquipment/OutQuickSlots are populated either from a real DB login
+	// (S2C_LoginSuccess.equipment/quick_slots, see C2S_SaveEquipment/
+	// C2S_SaveQuickSlots's schema comments) or from
+	// CacheStateForLevelTransition below -- whichever populated OutItems
+	// too, since all three are cached and consumed together as one package.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool ConsumePendingInventoryRestore(TArray<FProtoInventoryItemEntry>& OutItems);
+	bool ConsumePendingInventoryRestore(TArray<FProtoInventoryItemEntry>& OutItems,
+		TArray<FProtoEquipmentEntry>& OutEquipment, TArray<FProtoQuickSlotEntry>& OutQuickSlots);
 
 	// Same pending-restore cache as above, but seeded directly from local
 	// state instead of a server round-trip -- called by
-	// AProtoCharacter::EndPlay(LevelTransition) so weapon/inventory survive
-	// moving between levels within the same login session (Test ->
-	// Single/Multi via LevelChanger and back). Those transitions don't
-	// involve a fresh login, so there's no S2C_LoginSuccess to populate the
-	// cache the normal way -- without this, every level change silently
-	// dropped whatever the player was holding.
+	// AProtoCharacter::EndPlay(LevelTransition) so weapon/inventory/
+	// equipment/quick slots survive moving between levels within the same
+	// login session (Test -> Single/Multi via LevelChanger and back). Those
+	// transitions don't involve a fresh login, so there's no
+	// S2C_LoginSuccess to populate the cache the normal way -- without
+	// this, every level change silently dropped whatever the player was
+	// holding (including, until Equipment/QuickSlots were added here,
+	// anything actually equipped rather than just sitting in the grid).
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	void CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType, const TArray<FProtoInventoryItemEntry>& InventoryItems);
+	void CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType,
+		const TArray<FProtoInventoryItemEntry>& InventoryItems, const TArray<FProtoEquipmentEntry>& Equipment,
+		const TArray<FProtoQuickSlotEntry>& QuickSlots);
 
 	/*-------------------
 	 싱글/멀티 모드
@@ -349,6 +396,14 @@ public:
 	// something other players see, so it works the same in Single and Multi.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendSaveInventory(const TArray<FProtoInventoryItemEntry>& Items);
+
+	// Same contract/reasoning as SendSaveInventory, for
+	// UEquipmentComponent's/UQuickSlotComponent's own separate storage.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendSaveEquipment(const TArray<FProtoEquipmentEntry>& Items);
+
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendSaveQuickSlots(const TArray<FProtoQuickSlotEntry>& Items);
 
 	// See C2S_SetVisible's schema comment -- called by
 	// SetMultiplayerVisualsEnabled(false) so other clients despawn this
@@ -608,6 +663,10 @@ private:
 
 	bool bHasPendingInventoryRestore = false;
 	TArray<FProtoInventoryItemEntry> PendingRestoreInventory;
+	// Only ever non-empty via CacheStateForLevelTransition -- see
+	// ConsumePendingInventoryRestore's comment.
+	TArray<FProtoEquipmentEntry> PendingRestoreEquipment;
+	TArray<FProtoQuickSlotEntry> PendingRestoreQuickSlots;
 
 	// See TryGetCachedDoorState above. Every door toggle this client has
 	// ever seen (C2S_Login replay or a live broadcast), never cleared on

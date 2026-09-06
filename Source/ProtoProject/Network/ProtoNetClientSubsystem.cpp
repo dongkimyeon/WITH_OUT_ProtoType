@@ -133,6 +133,8 @@ void UProtoNetClientSubsystem::Disconnect()
 	bHasPendingProgressRestore = false;
 	bHasPendingInventoryRestore = false;
 	PendingRestoreInventory.Empty();
+	PendingRestoreEquipment.Empty();
+	PendingRestoreQuickSlots.Empty();
 }
 
 bool UProtoNetClientSubsystem::IsConnected() const
@@ -152,14 +154,19 @@ bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPositio
 	return true;
 }
 
-bool UProtoNetClientSubsystem::ConsumePendingInventoryRestore(TArray<FProtoInventoryItemEntry>& OutItems)
+bool UProtoNetClientSubsystem::ConsumePendingInventoryRestore(TArray<FProtoInventoryItemEntry>& OutItems,
+	TArray<FProtoEquipmentEntry>& OutEquipment, TArray<FProtoQuickSlotEntry>& OutQuickSlots)
 {
 	if (!bHasPendingInventoryRestore)
 		return false;
 
 	OutItems = PendingRestoreInventory;
+	OutEquipment = PendingRestoreEquipment;
+	OutQuickSlots = PendingRestoreQuickSlots;
 	bHasPendingInventoryRestore = false;
 	PendingRestoreInventory.Empty();
+	PendingRestoreEquipment.Empty();
+	PendingRestoreQuickSlots.Empty();
 	return true;
 }
 
@@ -456,6 +463,51 @@ bool UProtoNetClientSubsystem::SendSaveInventory(const TArray<FProtoInventoryIte
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendSaveEquipment(const TArray<FProtoEquipmentEntry>& Items)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+
+	TArray<flatbuffers::Offset<ProtoType::Net::EquipmentItemEntry>> ItemOffsets;
+	ItemOffsets.Reserve(Items.Num());
+	for (const FProtoEquipmentEntry& Item : Items)
+	{
+		auto ItemIdOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Item.ItemId.ToString()));
+		ItemOffsets.Add(ProtoType::Net::CreateEquipmentItemEntry(Fbb, static_cast<uint8_t>(Item.Slot), ItemIdOffset));
+	}
+	auto ItemsVector = Fbb.CreateVector(ItemOffsets.GetData(), ItemOffsets.Num());
+
+	auto Req = ProtoType::Net::CreateC2S_SaveEquipment(Fbb, ItemsVector);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_SaveEquipment, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::SendSaveQuickSlots(const TArray<FProtoQuickSlotEntry>& Items)
+{
+	flatbuffers::FlatBufferBuilder Fbb;
+
+	TArray<flatbuffers::Offset<ProtoType::Net::QuickSlotItemEntry>> ItemOffsets;
+	ItemOffsets.Reserve(Items.Num());
+	for (const FProtoQuickSlotEntry& Item : Items)
+	{
+		auto ItemIdOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Item.ItemId.ToString()));
+		ItemOffsets.Add(ProtoType::Net::CreateQuickSlotItemEntry(
+			Fbb, static_cast<uint8_t>(Item.SlotIndex), ItemIdOffset, static_cast<int16_t>(Item.StackCount)));
+	}
+	auto ItemsVector = Fbb.CreateVector(ItemOffsets.GetData(), ItemOffsets.Num());
+
+	auto Req = ProtoType::Net::CreateC2S_SaveQuickSlots(Fbb, ItemsVector);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_SaveQuickSlots, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
 {
 	// Not gated by bMultiplayerVisualsEnabled -- this call is what changes
@@ -625,7 +677,9 @@ bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position
 	return SendPacketBytes(Bytes);
 }
 
-void UProtoNetClientSubsystem::CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType, const TArray<FProtoInventoryItemEntry>& InventoryItems)
+void UProtoNetClientSubsystem::CacheStateForLevelTransition(FVector Position, FRotator Look, uint8 WeaponType,
+	const TArray<FProtoInventoryItemEntry>& InventoryItems, const TArray<FProtoEquipmentEntry>& Equipment,
+	const TArray<FProtoQuickSlotEntry>& QuickSlots)
 {
 	bHasPendingProgressRestore = true;
 	PendingRestorePosition = Position;
@@ -634,6 +688,8 @@ void UProtoNetClientSubsystem::CacheStateForLevelTransition(FVector Position, FR
 
 	bHasPendingInventoryRestore = true;
 	PendingRestoreInventory = InventoryItems;
+	PendingRestoreEquipment = Equipment;
+	PendingRestoreQuickSlots = QuickSlots;
 }
 
 /*-------------------
@@ -724,10 +780,46 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 							InventoryItems.Add(ItemEntry);
 						}
 					}
+					TArray<FProtoEquipmentEntry> EquipmentItems;
+					if (const auto* Equipment = Success->equipment())
+					{
+						EquipmentItems.Reserve(Equipment->size());
+						for (const auto* Entry : *Equipment)
+						{
+							if (!Entry || !Entry->item_id())
+								continue;
+							FProtoEquipmentEntry ItemEntry;
+							ItemEntry.ItemId = FName(UTF8_TO_TCHAR(Entry->item_id()->c_str()));
+							ItemEntry.Slot = Entry->slot();
+							EquipmentItems.Add(ItemEntry);
+						}
+					}
+
+					TArray<FProtoQuickSlotEntry> QuickSlotItems;
+					if (const auto* QuickSlots = Success->quick_slots())
+					{
+						QuickSlotItems.Reserve(QuickSlots->size());
+						for (const auto* Entry : *QuickSlots)
+						{
+							if (!Entry || !Entry->item_id())
+								continue;
+							FProtoQuickSlotEntry ItemEntry;
+							ItemEntry.ItemId = FName(UTF8_TO_TCHAR(Entry->item_id()->c_str()));
+							ItemEntry.SlotIndex = Entry->slot_index();
+							ItemEntry.StackCount = Entry->stack_count();
+							QuickSlotItems.Add(ItemEntry);
+						}
+					}
+
 					// Cached in addition to broadcasting -- same reason as
-					// PendingRestorePosition/Look/WeaponType above.
+					// PendingRestorePosition/Look/WeaponType above. Any stale
+					// level-transition cache from before this login is
+					// overwritten here (not merely left alone) either way, so
+					// it can't leak onto whichever account just logged in.
 					bHasPendingInventoryRestore = true;
 					PendingRestoreInventory = InventoryItems;
+					PendingRestoreEquipment = EquipmentItems;
+					PendingRestoreQuickSlots = QuickSlotItems;
 
 					OnInventoryRestored.Broadcast(InventoryItems);
 				}

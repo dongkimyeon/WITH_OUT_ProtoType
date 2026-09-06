@@ -292,9 +292,12 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
             }
 
             TArray<FProtoInventoryItemEntry> PendingInventory;
-            if (NetClient->ConsumePendingInventoryRestore(PendingInventory))
+            TArray<FProtoEquipmentEntry> PendingEquipment;
+            TArray<FProtoQuickSlotEntry> PendingQuickSlots;
+            if (NetClient->ConsumePendingInventoryRestore(PendingInventory, PendingEquipment, PendingQuickSlots))
             {
                 HandleInventoryRestored(PendingInventory);
+                RestoreEquipmentAndQuickSlots(PendingEquipment, PendingQuickSlots);
             }
         }
     }
@@ -302,6 +305,16 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
     if (InventoryComponent)
     {
         InventoryComponent->OnInventoryChanged.AddDynamic(this, &AProtoCharacter::HandleInventoryChanged);
+    }
+
+    if (EquipmentComponent)
+    {
+        EquipmentComponent->OnEquipmentChanged.AddDynamic(this, &AProtoCharacter::HandleEquipmentChangedForSave);
+    }
+
+    if (QuickSlotComponent)
+    {
+        QuickSlotComponent->OnQuickSlotChanged.AddDynamic(this, &AProtoCharacter::HandleQuickSlotChangedForSave);
     }
 
     if (StatusComponent)
@@ -1800,8 +1813,10 @@ void AProtoCharacter::HandleInventoryRestored(const TArray<FProtoInventoryItemEn
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
         {
-            TArray<FProtoInventoryItemEntry> Unused;
-            NetClient->ConsumePendingInventoryRestore(Unused);
+            TArray<FProtoInventoryItemEntry> UnusedItems;
+            TArray<FProtoEquipmentEntry> UnusedEquipment;
+            TArray<FProtoQuickSlotEntry> UnusedQuickSlots;
+            NetClient->ConsumePendingInventoryRestore(UnusedItems, UnusedEquipment, UnusedQuickSlots);
         }
     }
 
@@ -1839,7 +1854,12 @@ void AProtoCharacter::HandleInventoryRestored(const TArray<FProtoInventoryItemEn
 
 void AProtoCharacter::HandleInventoryChanged()
 {
-    if (bIsRestoringInventory || !InventoryComponent)
+    // bIsRestoringEquipment too: RestoreEquipmentAndQuickSlots's temporary
+    // grid-then-equip/register dance (see its own comment) fires this via
+    // AddItemAt/RemoveInstanceById several times for state that's about to
+    // move again anyway -- HandleInventoryChanged will get a real, settled
+    // trigger once actual gameplay changes the grid.
+    if (bIsRestoringInventory || bIsRestoringEquipment || !InventoryComponent)
     {
         return;
     }
@@ -1852,6 +1872,40 @@ void AProtoCharacter::HandleInventoryChanged()
     }
 
     NetClient->SendSaveInventory(BuildInventorySnapshot());
+}
+
+void AProtoCharacter::HandleEquipmentChangedForSave(EEquipmentSlot ChangedSlot)
+{
+    if (bIsRestoringEquipment || !EquipmentComponent)
+    {
+        return;
+    }
+
+    UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+    if (!NetClient)
+    {
+        return;
+    }
+
+    NetClient->SendSaveEquipment(BuildEquipmentSnapshot());
+}
+
+void AProtoCharacter::HandleQuickSlotChangedForSave(int32 SlotIndex)
+{
+    if (bIsRestoringEquipment || !QuickSlotComponent)
+    {
+        return;
+    }
+
+    UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    UProtoNetClientSubsystem* NetClient = GameInstance ? GameInstance->GetSubsystem<UProtoNetClientSubsystem>() : nullptr;
+    if (!NetClient)
+    {
+        return;
+    }
+
+    NetClient->SendSaveQuickSlots(BuildQuickSlotSnapshot());
 }
 
 void AProtoCharacter::HandleEnemyAttackPlayer(int32 EnemyId, float Damage)
@@ -1999,6 +2053,137 @@ TArray<FProtoInventoryItemEntry> AProtoCharacter::BuildInventorySnapshot() const
     return Snapshot;
 }
 
+TArray<FProtoEquipmentEntry> AProtoCharacter::BuildEquipmentSnapshot() const
+{
+    TArray<FProtoEquipmentEntry> Snapshot;
+    if (!EquipmentComponent)
+    {
+        return Snapshot;
+    }
+
+    static const EEquipmentSlot AllSlots[] = { EEquipmentSlot::Helmet, EEquipmentSlot::Vest, EEquipmentSlot::Weapon1, EEquipmentSlot::Weapon2 };
+    for (EEquipmentSlot Slot : AllSlots)
+    {
+        const FEquippedItem& Equipped = EquipmentComponent->GetEquippedItem(Slot);
+        if (!Equipped.ItemData)
+        {
+            continue;
+        }
+
+        FProtoEquipmentEntry Entry;
+        Entry.ItemId = FName(*Equipped.ItemData->GetName());
+        Entry.Slot = static_cast<int32>(Slot);
+        Snapshot.Add(Entry);
+    }
+    return Snapshot;
+}
+
+TArray<FProtoQuickSlotEntry> AProtoCharacter::BuildQuickSlotSnapshot() const
+{
+    TArray<FProtoQuickSlotEntry> Snapshot;
+    if (!QuickSlotComponent)
+    {
+        return Snapshot;
+    }
+
+    for (int32 SlotIndex = 0; SlotIndex < QuickSlotComponent->NumSlots; ++SlotIndex)
+    {
+        const FQuickSlotEntry& Slot = QuickSlotComponent->GetQuickSlotEntry(SlotIndex);
+        if (!Slot.ItemData)
+        {
+            continue;
+        }
+
+        FProtoQuickSlotEntry Entry;
+        Entry.ItemId = FName(*Slot.ItemData->GetName());
+        Entry.SlotIndex = SlotIndex;
+        Entry.StackCount = Slot.StackCount;
+        Snapshot.Add(Entry);
+    }
+    return Snapshot;
+}
+
+void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipmentEntry>& Equipment, const TArray<FProtoQuickSlotEntry>& QuickSlots)
+{
+    if (!InventoryComponent)
+    {
+        return;
+    }
+
+    // Suppresses HandleInventoryChanged/HandleEquipmentChangedForSave/
+    // HandleQuickSlotChangedForSave for every intermediate step below (each
+    // temporary grid insertion, each equip/register move) -- none of that
+    // is a real, settled state worth a network round trip on its own. One
+    // explicit save of each at the end (once this flag is back off)
+    // persists the actual final result instead.
+    bIsRestoringEquipment = true;
+
+    for (const FProtoEquipmentEntry& Entry : Equipment)
+    {
+        if (!EquipmentComponent)
+        {
+            break;
+        }
+
+        UItemDataBase* ItemData = ResolveItemDataByName(Entry.ItemId.ToString());
+        if (!ItemData)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("RestoreEquipmentAndQuickSlots: couldn't resolve equipped item asset '%s', skipping"), *Entry.ItemId.ToString());
+            continue;
+        }
+
+        FIntPoint TempPosition;
+        if (!InventoryComponent->FindEmptySpace(FIntPoint(ItemData->GridWidth, ItemData->GridHeight), TempPosition)
+            || !InventoryComponent->AddItemAt(ItemData, TempPosition, false, 1))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("RestoreEquipmentAndQuickSlots: no room to restore equipped item '%s', dropping it"), *Entry.ItemId.ToString());
+            continue;
+        }
+
+        EquipmentComponent->EquipFromInventory(InventoryComponent, InventoryComponent->Items.Last().InstanceId, static_cast<EEquipmentSlot>(Entry.Slot));
+    }
+
+    for (const FProtoQuickSlotEntry& Entry : QuickSlots)
+    {
+        if (!QuickSlotComponent)
+        {
+            break;
+        }
+
+        UItemDataBase* ItemData = ResolveItemDataByName(Entry.ItemId.ToString());
+        if (!ItemData)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("RestoreEquipmentAndQuickSlots: couldn't resolve quick-slot item asset '%s', skipping"), *Entry.ItemId.ToString());
+            continue;
+        }
+
+        FIntPoint TempPosition;
+        if (!InventoryComponent->FindEmptySpace(FIntPoint(ItemData->GridWidth, ItemData->GridHeight), TempPosition)
+            || !InventoryComponent->AddItemAt(ItemData, TempPosition, false, Entry.StackCount))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("RestoreEquipmentAndQuickSlots: no room to restore quick-slot item '%s', dropping it"), *Entry.ItemId.ToString());
+            continue;
+        }
+
+        QuickSlotComponent->RegisterFromInventory(Entry.SlotIndex, InventoryComponent, InventoryComponent->Items.Last().InstanceId);
+    }
+
+    bIsRestoringEquipment = false;
+
+    // Persist the actual settled result once, now that the suppressed
+    // shuffling above is done -- without this, the server's stored grid
+    // would still list whatever just got equipped/registered out of it
+    // (its own restore save was, correctly, also suppressed -- see
+    // HandleInventoryRestored) until some unrelated later change happened
+    // to trigger a save.
+    // Both handlers ignore their parameter and always send the FULL current
+    // contents (same "always full, never a diff" contract SendSaveInventory
+    // uses) -- the values passed here are irrelevant.
+    HandleInventoryChanged();
+    HandleEquipmentChangedForSave(EEquipmentSlot::Helmet);
+    HandleQuickSlotChangedForSave(0);
+}
+
 void AProtoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     // 사망으로 인한 레벨 이동이면 위치/시선/무기/인벤토리를 다음 레벨로 이월하지 않는다.
@@ -2019,7 +2204,8 @@ void AProtoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
             {
                 const FRotator CurrentLook = Controller ? Controller->GetControlRotation() : GetActorRotation();
                 NetClient->CacheStateForLevelTransition(
-                    GetActorLocation(), CurrentLook, static_cast<uint8>(CurrentWeaponType), BuildInventorySnapshot());
+                    GetActorLocation(), CurrentLook, static_cast<uint8>(CurrentWeaponType), BuildInventorySnapshot(),
+                    BuildEquipmentSnapshot(), BuildQuickSlotSnapshot());
             }
         }
     }
