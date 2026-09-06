@@ -285,22 +285,41 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
             // already fired to nobody. Pull whatever was cached instead
             // of only relying on the (still correct for the old in-game
             // Slate popup flow) broadcast.
-            FVector PendingRestorePosition;
-            FRotator PendingRestoreLook;
-            uint8 PendingRestoreWeaponType = 0;
-            bool bPendingApplyTransform = false;
-            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType, bPendingApplyTransform))
-            {
-                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType, bPendingApplyTransform);
-            }
+            // Equipment/quick slots MUST restore before progress: HandleProgressRestored's
+            // job is to re-show whichever weapon was actively held (GetWeaponByType, falling
+            // back to SpawnFallbackRemoteWeapon only if that lookup misses) -- GetWeaponByType
+            // reads EquippedWeaponActors, which is empty until RestoreEquipmentAndQuickSlots's
+            // EquipFromInventory calls populate it (via HandleEquipmentChanged, bound back in
+            // BeginPlay). Restoring progress first meant GetWeaponByType ALWAYS missed (nothing
+            // equipped yet) and ALWAYS took the SpawnFallbackRemoteWeapon path -- the one
+            // documented for puppeting OTHER clients' remote characters, not the local player --
+            // spawning a second, equipment-system-unaware weapon actor moments before the real
+            // one from RestoreEquipmentAndQuickSlots landed. Confirmed as a real bug by reading
+            // (not by a live repro -- this needs a PIE playtest to confirm it's fixed).
 
             TArray<FProtoInventoryItemEntry> PendingInventory;
             TArray<FProtoEquipmentEntry> PendingEquipment;
             TArray<FProtoQuickSlotEntry> PendingQuickSlots;
             if (NetClient->ConsumePendingInventoryRestore(PendingInventory, PendingEquipment, PendingQuickSlots))
             {
+                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingInventoryRestore: %d item(s), %d equipment, %d quick slot(s)"),
+                    PendingInventory.Num(), PendingEquipment.Num(), PendingQuickSlots.Num());
                 HandleInventoryRestored(PendingInventory);
                 RestoreEquipmentAndQuickSlots(PendingEquipment, PendingQuickSlots);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingInventoryRestore: nothing pending"));
+            }
+
+            FVector PendingRestorePosition;
+            FRotator PendingRestoreLook;
+            uint8 PendingRestoreWeaponType = 0;
+            if (NetClient->ConsumePendingProgressRestore(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType))
+            {
+                UE_LOG(LogTemp, Log, TEXT("[InvSync] ConsumePendingProgressRestore: pos=%s weaponType=%d"),
+                    *PendingRestorePosition.ToString(), PendingRestoreWeaponType);
+                HandleProgressRestored(PendingRestorePosition, PendingRestoreLook, PendingRestoreWeaponType);
             }
         }
     }
@@ -1856,6 +1875,7 @@ void AProtoCharacter::HandleInventoryRestored(const TArray<FProtoInventoryItemEn
     // restore only ever added, never replaced.
     InventoryComponent->Items.Empty();
 
+    int32 PlacedCount = 0;
     for (const FProtoInventoryItemEntry& Entry : Items)
     {
         UItemDataBase* ItemData = ResolveItemDataByName(Entry.ItemId.ToString());
@@ -1865,8 +1885,18 @@ void AProtoCharacter::HandleInventoryRestored(const TArray<FProtoInventoryItemEn
             continue;
         }
 
-        InventoryComponent->AddItemAt(ItemData, FIntPoint(Entry.GridX, Entry.GridY), Entry.bRotated, Entry.StackCount);
+        if (InventoryComponent->AddItemAt(ItemData, FIntPoint(Entry.GridX, Entry.GridY), Entry.bRotated, Entry.StackCount))
+        {
+            ++PlacedCount;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("HandleInventoryRestored: AddItemAt failed for '%s' at (%d,%d), dropping it"),
+                *Entry.ItemId.ToString(), Entry.GridX, Entry.GridY);
+        }
     }
+
+    UE_LOG(LogTemp, Log, TEXT("[InvSync] HandleInventoryRestored: placed %d/%d item(s)"), PlacedCount, Items.Num());
 
     bIsRestoringInventory = false;
 }
@@ -1907,7 +1937,10 @@ void AProtoCharacter::HandleEquipmentChangedForSave(EEquipmentSlot ChangedSlot)
         return;
     }
 
-    NetClient->SendSaveEquipment(BuildEquipmentSnapshot());
+    const TArray<FProtoEquipmentEntry> Snapshot = BuildEquipmentSnapshot();
+    UE_LOG(LogTemp, Log, TEXT("[InvSync] HandleEquipmentChangedForSave(slot=%d): saving %d equipped item(s) immediately"),
+        static_cast<int32>(ChangedSlot), Snapshot.Num());
+    NetClient->SendSaveEquipment(Snapshot);
 }
 
 void AProtoCharacter::HandleQuickSlotChangedForSave(int32 SlotIndex)
@@ -2029,6 +2062,8 @@ void AProtoCharacter::ApplyRagdollVisual()
 
 void AProtoCharacter::WipeCarriedInventoryOnDeath()
 {
+    UE_LOG(LogTemp, Log, TEXT("[InvSync] WipeCarriedInventoryOnDeath: clearing equipment/quick slots/inventory and saving empty state"));
+
     if (EquipmentComponent)
     {
         EquipmentComponent->ClearAll();
@@ -2148,6 +2183,7 @@ void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipment
     // persists the actual final result instead.
     bIsRestoringEquipment = true;
 
+    int32 EquipPlacedCount = 0;
     for (const FProtoEquipmentEntry& Entry : Equipment)
     {
         if (!EquipmentComponent)
@@ -2171,8 +2207,10 @@ void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipment
         }
 
         EquipmentComponent->EquipFromInventory(InventoryComponent, InventoryComponent->Items.Last().InstanceId, static_cast<EEquipmentSlot>(Entry.Slot));
+        ++EquipPlacedCount;
     }
 
+    int32 QuickSlotPlacedCount = 0;
     for (const FProtoQuickSlotEntry& Entry : QuickSlots)
     {
         if (!QuickSlotComponent)
@@ -2196,7 +2234,11 @@ void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipment
         }
 
         QuickSlotComponent->RegisterFromInventory(Entry.SlotIndex, InventoryComponent, InventoryComponent->Items.Last().InstanceId);
+        ++QuickSlotPlacedCount;
     }
+
+    UE_LOG(LogTemp, Log, TEXT("[InvSync] RestoreEquipmentAndQuickSlots: equipped %d/%d, quick-slotted %d/%d"),
+        EquipPlacedCount, Equipment.Num(), QuickSlotPlacedCount, QuickSlots.Num());
 
     bIsRestoringEquipment = false;
 
@@ -2286,9 +2328,31 @@ void AProtoCharacter::GrantStartingRifleIfMissing()
         {
             if (IsStartingRifle(EquipmentComponent->GetEquippedItem(Slot).ItemData))
             {
+                const FRotator CurrentLook = Controller ? Controller->GetControlRotation() : GetActorRotation();
+                const TArray<FProtoInventoryItemEntry> InventorySnapshot = BuildInventorySnapshot();
+                const TArray<FProtoEquipmentEntry> EquipmentSnapshot = BuildEquipmentSnapshot();
+                const TArray<FProtoQuickSlotEntry> QuickSlotSnapshot = BuildQuickSlotSnapshot();
+                UE_LOG(LogTemp, Log, TEXT("[InvSync] EndPlay(LevelTransition): caching %d item(s), %d equipment, %d quick slot(s)"),
+                    InventorySnapshot.Num(), EquipmentSnapshot.Num(), QuickSlotSnapshot.Num());
+                NetClient->CacheStateForLevelTransition(
+                    GetActorLocation(), CurrentLook, static_cast<uint8>(CurrentWeaponType), InventorySnapshot,
+                    EquipmentSnapshot, QuickSlotSnapshot);
                 return;
+
             }
         }
+    }
+    else if (EndPlayReason == EEndPlayReason::LevelTransition)
+    {
+        // Landing here (LevelTransition but the cache above was skipped) is
+        // exactly the "인벤토리가 동기화되지 않음" symptom, from one of two
+        // causes: bIsDead (correct -- WipeCarriedInventoryOnDeath already
+        // emptied it, nothing SHOULD carry over) or !bLocalPlayerSetupDone
+        // (a bug -- TrySetupLocalPlayerOnce never completed for this
+        // character, e.g. IsLocallyControlled() never went true before the
+        // level unloaded).
+        UE_LOG(LogTemp, Log, TEXT("[InvSync] EndPlay(LevelTransition): NOT caching (bLocalPlayerSetupDone=%d bIsDead=%d)"),
+            bLocalPlayerSetupDone, bIsDead);
     }
 
     if (QuickSlotComponent)
