@@ -18,10 +18,7 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Config/DefaultGame.ini" beforeDir="false" afterPath="$PROJECT_DIR$/Config/DefaultGame.ini" afterDir="false" />
-    </list>
+    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -31,7 +28,7 @@
     <option name="firstShow" value="false" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="12450" />
+    <option name="cachedIndexableFilesCount" value="14931" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -356,6 +353,7 @@
       <workItem from="1788512660231" duration="36000" />
       <workItem from="1788512744695" duration="2772000" />
       <workItem from="1788683770240" duration="1329000" />
+      <workItem from="1788695576162" duration="655000" />
     </task>
     <servers />
   </component>
