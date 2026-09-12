@@ -116,12 +116,15 @@ void ADropItem::RequestPickup(UInventoryGridComponent* TargetInventory, AProtoCh
 	// id shared by every such untagged drop in the level would permanently
 	// lock out every OTHER untagged drop the instant the first one is ever
 	// claimed -- treat it the same as "no one else to desync with" instead.
-	if (!NetClient || !NetClient->IsConnected() || NetSlotId == 0)
+	if (!NetClient || !NetClient->IsConnected() || !NetClient->IsMultiplayerVisualsEnabled() || NetSlotId == 0)
 	{
 		// Pick it up immediately, same as before this feature existed. A
-		// server round trip that will never arrive (not connected) or that
-		// would collide with every other untagged drop (NetSlotId == 0)
-		// would otherwise mean the item can never be picked up correctly.
+		// server round trip that will never arrive (not connected, or a Solo
+		// map where SendInteractLoot no-ops on the bMultiplayerVisualsEnabled
+		// gate) or that would collide with every other untagged drop
+		// (NetSlotId == 0) would otherwise mean the item can never be picked
+		// up correctly -- in the Solo case bPickupRequested would latch true
+		// forever with no reply coming, permanently locking out that item.
 		ResolvePickup(TargetInventory, PickupAnimPlayer, /*bGrantedToMe=*/true);
 		return;
 	}

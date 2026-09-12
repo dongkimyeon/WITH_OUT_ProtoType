@@ -20,6 +20,7 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/Item/DropItem.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,6 +29,9 @@
   </component>
   <component name="DpaMonitoringSettings">
     <option name="firstShow" value="false" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="14948" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -371,6 +375,13 @@
       <workItem from="1788700932469" duration="644000" />
       <workItem from="1788704466912" duration="73000" />
       <workItem from="1788704575605" duration="4666000" />
+      <workItem from="1788714703734" duration="3461000" />
+      <workItem from="1788718792521" duration="22000" />
+      <workItem from="1788723319831" duration="684000" />
+      <workItem from="1788724198920" duration="604000" />
+      <workItem from="1788724828453" duration="19000" />
+      <workItem from="1788724934421" duration="298000" />
+      <workItem from="1788753422544" duration="548000" />
     </task>
     <servers />
   </component>
