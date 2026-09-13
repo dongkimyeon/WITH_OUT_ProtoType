@@ -154,6 +154,25 @@ void ULevelChangeSelectWidget::HandleMatchTimeout()
 		return;
 
 	UE_LOG(LogTemp, Warning, TEXT("매칭 응답 타임아웃 -- 로그인 연결로 계속 진행"));
+
+	// A ticket may have arrived and ConnectToGameServerAndJoin may have
+	// already opened GameSocket (connected at the TCP level) with
+	// C2S_JoinMatch still in flight -- the Game server just never answered
+	// within MatchmakingTimeoutSeconds. SendGameplayPacketBytes only checks
+	// for a non-null GameSocket, not whether the join actually completed,
+	// so leaving it up here would silently blackhole every gameplay packet
+	// from now on instead of falling back to the Login connection (same
+	// failure mode HandleJoinMatchFailed's S2C_JoinMatchFail guards against
+	// -- see UProtoNetClientSubsystem::HandleIncomingPacket's comment).
+	// No-op if the ticket never arrived at all (GameSocket was never opened).
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->DisconnectFromGameServer();
+		}
+	}
+
 	FinishMatchmaking();
 }
 

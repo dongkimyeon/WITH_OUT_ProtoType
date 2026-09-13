@@ -1161,6 +1161,20 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			{
 				UE_LOG(LogProtoNet, Warning, TEXT("C2S_JoinMatch failed (reason %d)"), static_cast<int32>(JoinFail->reason()));
 				OnJoinMatchFailed.Broadcast(static_cast<EProtoJoinMatchFailReason>(JoinFail->reason()));
+
+				// The server replies with this WITHOUT closing the socket
+				// (see its C2S_JoinMatch case's comment -- it leaves room
+				// for a retry on the same connection), so GameSocket is
+				// still non-null and "connected" at the TCP level here.
+				// SendGameplayPacketBytes only checks for a non-null
+				// GameSocket, not whether the join actually succeeded --
+				// without tearing it down, every gameplay packet from now
+				// on would keep silently going to this dead-end session
+				// (never authenticated, no Room -- every C2S_* case's own
+				// "if (!room) break;" just drops it) instead of falling
+				// back to the Login connection, breaking the graceful-
+				// degradation this whole ticket flow was designed around.
+				DisconnectFromGameServer();
 			}
 			break;
 
