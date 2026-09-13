@@ -52,10 +52,42 @@ enum class EProtoLoginFailReason : uint8
 };
 
 // Fired on S2C_LoginSuccess, regardless of whether the login came from the
-// Slate connect prompt or a TitleLevel UMG widget (ConnectAndLogin/ConnectAndRegister).
+// Slate connect prompt or a TitleLevel UMG widget (ConnectAndLogin/ConnectAndRegister)
+// OR a successful ConnectToGameServerAndJoin (see that function's comment --
+// C2S_JoinMatch's reply is the SAME S2C_LoginSuccess message, restoring the
+// SAME account's saved progress, just arriving over the Game connection
+// instead of the Login one).
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnLoginSucceeded, int32, PlayerId, bool, bHasSavedProgress);
 // Fired on S2C_LoginFail, same as above.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnLoginFailed, EProtoLoginFailReason, Reason, const FString&, Message);
+
+// Mirrors ProtoType::Net::JoinMatchFailReason 1:1, same reasoning as
+// EProtoLoginFailReason above.
+UENUM(BlueprintType)
+enum class EProtoJoinMatchFailReason : uint8
+{
+	InvalidOrExpiredTicket,
+};
+
+// Login/Game server split (매칭 서버 설계, step 5): fired on S2C_MatchTicket,
+// the reply to RequestMatch(). GameServerHost/GameServerPort say where to
+// open the second connection (GameServerHost empty means "same host you're
+// already talking to" -- see that field's schema comment); Ticket is what
+// ConnectToGameServerAndJoin needs. ExpiresAtUnixMs is informational only
+// (the server is the one that actually enforces it).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FProtoOnMatchTicketReceived, const FString&, GameServerHost, int32, GameServerPort, const FString&, Ticket, int64, ExpiresAtUnixMs);
+
+// Fired on S2C_JoinMatchFail -- ConnectToGameServerAndJoin's ticket was
+// invalid, already used, or expired. Request a fresh one via RequestMatch().
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnJoinMatchFailed, EProtoJoinMatchFailReason, Reason);
+
+// Fired when the GAME connection specifically drops (see
+// DisconnectFromGameServer/ConnectToGameServerAndJoin) -- distinct from
+// OnDisconnected, which is about the Login connection and generally means
+// "go back to the title screen". Losing the Game connection mid-raid is
+// recoverable: the Login connection (and therefore the account session)
+// stays up, so the client can request a fresh ticket and rejoin.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnDisconnectedFromGameServer, const FString&, Reason);
 
 // One placed item in the grid inventory, as sent to/from the server. ItemId
 // is the item Data Asset's own object name (e.g. "DA_Item_AK47") -- see
@@ -281,6 +313,49 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool IsConnected() const;
+
+	/*-------------------
+	 로그인/게임 서버 이중 접속 (매칭 서버 설계, step 5)
+	-------------------*/
+	// Sends C2S_RequestMatch over the LOGIN connection (see Connect/
+	// ConnectAndLogin above) -- requires already being logged into a real
+	// account (a guest/token-only login has no account to tie a ticket to,
+	// see that message's server-side comment, and this returns false
+	// without sending anything). Reply arrives via OnMatchTicketReceived or
+	// -- if the server has no account for this session -- never arrives at
+	// all (there's no explicit failure message for that case).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool RequestMatch();
+
+	// Opens a SEPARATE connection (does not touch the Login connection at
+	// all) to the Game server and redeems Ticket in place of a username/
+	// password login -- see C2S_JoinMatch's schema comment. HostOverride/
+	// PortOverride default to empty/0, meaning "use whatever
+	// OnMatchTicketReceived reported" (the normal case); pass explicit
+	// values to bypass that (e.g. a hardcoded test server). Success/failure
+	// arrive via the SAME OnLoginSucceeded/OnLoginFailed delegates a normal
+	// login uses for the S2C_LoginSuccess case (this account's saved
+	// progress/inventory restored exactly the same way), plus a dedicated
+	// OnJoinMatchFailed for S2C_JoinMatchFail (a failure mode with no
+	// equivalent in a plain C2S_Login). From here on, every gameplay Send*
+	// helper below (movement, attack, interact, companion, enemy, ...)
+	// automatically prefers this Game connection over the Login one -- see
+	// SendGameplayPacketBytes.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool ConnectToGameServerAndJoin(const FString& Ticket, const FString& HostOverride = TEXT(""), int32 PortOverride = 0);
+
+	// Tears down ONLY the Game connection -- the Login connection (and
+	// therefore the account session: persistence saves, a future
+	// RequestMatch) is untouched. Call this on returning to the hub/
+	// SafePlace after a raid (extraction, death, or a manual leave) --
+	// mirrors how SetMultiplayerVisualsEnabled(false) already signals
+	// "left the shared world" today, just for a connection that can now
+	// actually not exist anymore instead of merely going quiet.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	void DisconnectFromGameServer();
+
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool IsConnectedToGameServer() const;
 
 	/*-------------------
 	 복원 데이터 (늦게 구독하는 리스너용)
@@ -677,6 +752,15 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnLoginFailed OnLoginFailed;
 
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnMatchTicketReceived OnMatchTicketReceived;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnJoinMatchFailed OnJoinMatchFailed;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnDisconnectedFromGameServer OnDisconnectedFromGameServer;
+
 	//~ FTickableGameObject
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override;
@@ -747,6 +831,25 @@ private:
 	// can't outlive them.
 	void RemoveRemoteCompanion(uint32 OwnerId);
 
+	/*-------------------
+	 패킷 송신 (로그인/게임 연결 중 실제로 나갈 곳 결정)
+	-------------------*/
+	// Shared low-level framer/sender both connections' public Send*()
+	// helpers eventually funnel through -- see SendPacketBytes (Login) and
+	// SendGameplayPacketBytes (Game-preferring) below.
+	bool SendPacketBytesOnSocket(FSocket* TargetSocket, FCriticalSection& Lock, const TArray<uint8>& PacketBytes);
+
+	// Every gameplay Send*() helper (movement, attack, item use, interact,
+	// companion, enemy, ...) calls this instead of SendPacketBytes directly:
+	// prefers the Game connection if ConnectToGameServerAndJoin has one up,
+	// falling back to the Login connection otherwise -- which reproduces
+	// today's single-connection behavior exactly for as long as no one ever
+	// calls ConnectToGameServerAndJoin (see this project's Login/Game
+	// server split design doc, step 5, for why that fallback matters: the
+	// ticket flow is additive, not a replacement for the direct-login path
+	// every existing test and, for now, the actual client still uses).
+	bool SendGameplayPacketBytes(const TArray<uint8>& PacketBytes);
+
 	// See SetMultiplayerVisualsEnabled(). Gates both the Send*() helpers
 	// below and the remote-player-affecting cases in HandleIncomingPacket();
 	// login/connection packets are unaffected.
@@ -775,6 +878,20 @@ private:
 	FCriticalSection SendLock;
 	uint32 NextSeq = 1;
 	uint32 LocalPlayerId = 0;
+
+	// Login/Game server split (매칭 서버 설계, step 5) -- the SECOND
+	// connection, opened by ConnectToGameServerAndJoin and torn down by
+	// DisconnectFromGameServer, entirely independent of Socket/Worker/
+	// WorkerThread/SendLock/ReceivedPackets/DisconnectReasons above (which
+	// keep meaning "the Login connection", unchanged). Null/unconnected
+	// whenever the ticket flow hasn't been used -- see
+	// SendGameplayPacketBytes's fallback.
+	FSocket* GameSocket = nullptr;
+	TUniquePtr<FProtoNetReceiveWorker> GameWorker;
+	FRunnableThread* GameWorkerThread = nullptr;
+	FCriticalSection GameSendLock;
+	TQueue<TArray<uint8>, EQueueMode::Mpsc> GameReceivedPackets;
+	TQueue<FString, EQueueMode::Mpsc> GameDisconnectReasons;
 
 	// Set on a successful Connect()/account login.
 	FString LastServerIp;

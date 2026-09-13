@@ -1,13 +1,15 @@
 #include "ProtoNetReceiveWorker.h"
-#include "ProtoNetClientSubsystem.h"
 
 #include "Sockets.h"
 
 #include "packet.h"
 
-FProtoNetReceiveWorker::FProtoNetReceiveWorker(FSocket* InSocket, UProtoNetClientSubsystem* InOwner)
+FProtoNetReceiveWorker::FProtoNetReceiveWorker(FSocket* InSocket,
+	TQueue<TArray<uint8>, EQueueMode::Mpsc>* InReceivedPackets,
+	TQueue<FString, EQueueMode::Mpsc>* InDisconnectReasons)
 	: Socket(InSocket)
-	, Owner(InOwner)
+	, ReceivedPackets(InReceivedPackets)
+	, DisconnectReasons(InDisconnectReasons)
 {
 	Buffer.SetNumUninitialized(BufferCapacity);
 }
@@ -31,7 +33,7 @@ uint32 FProtoNetReceiveWorker::Run()
 	{
 		if (WritePos >= BufferCapacity)
 		{
-			Owner->DisconnectReasons.Enqueue(TEXT("receive buffer overflow"));
+			DisconnectReasons->Enqueue(TEXT("receive buffer overflow"));
 			return 0;
 		}
 
@@ -43,7 +45,7 @@ uint32 FProtoNetReceiveWorker::Run()
 
 		if (!bOk || BytesRead <= 0)
 		{
-			Owner->DisconnectReasons.Enqueue(TEXT("connection closed"));
+			DisconnectReasons->Enqueue(TEXT("connection closed"));
 			return 0;
 		}
 
@@ -51,7 +53,7 @@ uint32 FProtoNetReceiveWorker::Run()
 
 		if (!ProcessBuffer())
 		{
-			Owner->DisconnectReasons.Enqueue(TEXT("invalid packet framing"));
+			DisconnectReasons->Enqueue(TEXT("invalid packet framing"));
 			return 0;
 		}
 	}
@@ -87,7 +89,7 @@ bool FProtoNetReceiveWorker::ProcessBuffer()
 
 		TArray<uint8> PacketCopy;
 		PacketCopy.Append(Buffer.GetData() + ReadPos, static_cast<int32>(Total));
-		Owner->ReceivedPackets.Enqueue(MoveTemp(PacketCopy));
+		ReceivedPackets->Enqueue(MoveTemp(PacketCopy));
 
 		ReadPos += static_cast<int32>(Total);
 	}

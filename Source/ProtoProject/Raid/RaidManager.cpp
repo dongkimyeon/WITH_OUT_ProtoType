@@ -163,6 +163,11 @@ void ARaidManager::ReturnToHub()
 		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
 		{
 			NetClient->SetMultiplayerVisualsEnabled(false);
+
+			// 매칭 서버 설계 (step 5) -- see AExitPoint::Tick's matching call
+			// for why this Game connection needs to actually close here, not
+			// just go quiet.
+			NetClient->DisconnectFromGameServer();
 		}
 	}
 

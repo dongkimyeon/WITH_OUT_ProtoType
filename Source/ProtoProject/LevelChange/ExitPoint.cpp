@@ -122,6 +122,12 @@ void AExitPoint::Tick(float DeltaTime)
 			if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
 			{
 				NetClient->SetMultiplayerVisualsEnabled(false);
+
+				// 매칭 서버 설계 (step 5): 이 레이드용 Game 연결을 실제로 끊는다 --
+				// 안 끊으면 다음에 또 Multi에 들어갈 때 ConnectToGameServerAndJoin이
+				// "이미 연결됨"으로 거부하면서 새 티켓으로 다시 합류를 못 하게 된다.
+				// 티켓 플로우를 아예 안 쓴 상태(GameSocket == nullptr)라면 그냥 no-op.
+				NetClient->DisconnectFromGameServer();
 			}
 		}
 

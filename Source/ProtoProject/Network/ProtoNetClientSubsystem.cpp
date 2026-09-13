@@ -91,7 +91,7 @@ bool UProtoNetClientSubsystem::Connect(const FString& ServerIp, int32 ServerPort
 	}
 
 	Socket = NewSocket;
-	Worker = MakeUnique<FProtoNetReceiveWorker>(Socket, this);
+	Worker = MakeUnique<FProtoNetReceiveWorker>(Socket, &ReceivedPackets, &DisconnectReasons);
 	WorkerThread = FRunnableThread::Create(Worker.Get(), TEXT("ProtoNetReceiveWorker"));
 
 	UE_LOG(LogProtoNet, Log, TEXT("Connect: connected to %s:%d"), *ServerIp, ServerPort);
@@ -123,6 +123,12 @@ void UProtoNetClientSubsystem::Disconnect()
 		Socket = nullptr;
 	}
 
+	// A full Disconnect() means leaving the whole session, not just the
+	// Login connection -- take the Game connection (if the ticket flow was
+	// ever used) down with it. DisconnectFromGameServer() already handles
+	// "was never connected" as a no-op.
+	DisconnectFromGameServer();
+
 	// Nothing will tell us about these players again until we reconnect and
 	// get a fresh roster -- despawn them now instead of leaving frozen ghosts.
 	RemoveAllRemotePlayers();
@@ -141,6 +147,124 @@ void UProtoNetClientSubsystem::Disconnect()
 bool UProtoNetClientSubsystem::IsConnected() const
 {
 	return Socket != nullptr && Socket->GetConnectionState() == SCS_Connected;
+}
+
+bool UProtoNetClientSubsystem::RequestMatch()
+{
+	if (!IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto Req = ProtoType::Net::CreateC2S_RequestMatch(Fbb);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_RequestMatch, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	// Always the Login connection, deliberately not SendGameplayPacketBytes:
+	// this is a request about the account (which is authenticated on
+	// Login), not something a Game connection has any part in yet.
+	return SendPacketBytes(Bytes);
+}
+
+bool UProtoNetClientSubsystem::ConnectToGameServerAndJoin(const FString& Ticket, const FString& HostOverride, int32 PortOverride)
+{
+	if (GameSocket != nullptr)
+	{
+		UE_LOG(LogProtoNet, Warning, TEXT("ConnectToGameServerAndJoin: already connected to a Game server"));
+		return false;
+	}
+
+	// Empty HostOverride means "same host the Login connection is already
+	// on" -- see S2C_MatchTicket's schema comment (today's server always
+	// reports an empty game_server_host for the same reason: Login and
+	// Game are still the same process/machine). 0 means "the Game server's
+	// documented default port" (see WOP_GameServer's main_game.cpp).
+	const FString Host = HostOverride.IsEmpty() ? LastServerIp : HostOverride;
+	const int32 Port = PortOverride != 0 ? PortOverride : 7778;
+
+	ISocketSubsystem* SocketSubsystem = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
+	if (!SocketSubsystem)
+	{
+		UE_LOG(LogProtoNet, Error, TEXT("ConnectToGameServerAndJoin: no socket subsystem"));
+		return false;
+	}
+
+	bool bIsValidIp = false;
+	TSharedRef<FInternetAddr> Addr = SocketSubsystem->CreateInternetAddr();
+	Addr->SetIp(*Host, bIsValidIp);
+	Addr->SetPort(Port);
+	if (!bIsValidIp)
+	{
+		UE_LOG(LogProtoNet, Error, TEXT("ConnectToGameServerAndJoin: invalid game server ip '%s'"), *Host);
+		return false;
+	}
+
+	FSocket* NewSocket = SocketSubsystem->CreateSocket(NAME_Stream, TEXT("ProtoNetGameSocket"), false);
+	if (!NewSocket)
+	{
+		UE_LOG(LogProtoNet, Error, TEXT("ConnectToGameServerAndJoin: failed to create socket"));
+		return false;
+	}
+
+	NewSocket->SetNoDelay(true);
+
+	if (!NewSocket->Connect(*Addr))
+	{
+		UE_LOG(LogProtoNet, Error, TEXT("ConnectToGameServerAndJoin: failed to connect to %s:%d"), *Host, Port);
+		SocketSubsystem->DestroySocket(NewSocket);
+		return false;
+	}
+
+	GameSocket = NewSocket;
+	GameWorker = MakeUnique<FProtoNetReceiveWorker>(GameSocket, &GameReceivedPackets, &GameDisconnectReasons);
+	GameWorkerThread = FRunnableThread::Create(GameWorker.Get(), TEXT("ProtoNetGameReceiveWorker"));
+
+	UE_LOG(LogProtoNet, Log, TEXT("ConnectToGameServerAndJoin: connected to %s:%d, redeeming ticket"), *Host, Port);
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto TicketOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Ticket));
+	auto Req = ProtoType::Net::CreateC2S_JoinMatch(Fbb, TicketOffset);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_JoinMatch, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytesOnSocket(GameSocket, GameSendLock, Bytes);
+}
+
+void UProtoNetClientSubsystem::DisconnectFromGameServer()
+{
+	if (GameSocket)
+	{
+		// Unblocks GameWorker's pending Recv() call.
+		GameSocket->Close();
+	}
+
+	if (GameWorkerThread)
+	{
+		GameWorker->Stop();
+		GameWorkerThread->WaitForCompletion();
+		delete GameWorkerThread;
+		GameWorkerThread = nullptr;
+		GameWorker.Reset();
+	}
+
+	if (GameSocket)
+	{
+		ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(GameSocket);
+		GameSocket = nullptr;
+	}
+
+	// Leaving the Game connection means leaving whatever shared raid world
+	// it was showing -- same cleanup SetMultiplayerVisualsEnabled(false)
+	// already does for the single-connection case.
+	RemoveAllRemotePlayers();
+}
+
+bool UProtoNetClientSubsystem::IsConnectedToGameServer() const
+{
+	return GameSocket != nullptr && GameSocket->GetConnectionState() == SCS_Connected;
 }
 
 bool UProtoNetClientSubsystem::ConsumePendingProgressRestore(FVector& OutPosition, FRotator& OutLook, uint8& OutWeaponType, bool& bOutApplyTransform)
@@ -215,12 +339,12 @@ void UProtoNetClientSubsystem::RemoveAllRemotePlayers()
 /*-------------------
  패킷 송신 헬퍼
 -------------------*/
-bool UProtoNetClientSubsystem::SendPacketBytes(const TArray<uint8>& PacketBytes)
+bool UProtoNetClientSubsystem::SendPacketBytesOnSocket(FSocket* TargetSocket, FCriticalSection& Lock, const TArray<uint8>& PacketBytes)
 {
-	if (!Socket || PacketBytes.Num() == 0)
+	if (!TargetSocket || PacketBytes.Num() == 0)
 		return false;
 
-	FScopeLock Lock(&SendLock);
+	FScopeLock ScopeLock(&Lock);
 
 	const uint8* Data = PacketBytes.GetData();
 	const int32 Len = PacketBytes.Num();
@@ -229,15 +353,36 @@ bool UProtoNetClientSubsystem::SendPacketBytes(const TArray<uint8>& PacketBytes)
 	while (TotalSent < Len)
 	{
 		int32 BytesSent = 0;
-		if (!Socket->Send(Data + TotalSent, Len - TotalSent, BytesSent) || BytesSent <= 0)
+		if (!TargetSocket->Send(Data + TotalSent, Len - TotalSent, BytesSent) || BytesSent <= 0)
 		{
-			UE_LOG(LogProtoNet, Warning, TEXT("SendPacketBytes: send failed"));
+			UE_LOG(LogProtoNet, Warning, TEXT("SendPacketBytesOnSocket: send failed"));
 			return false;
 		}
 		TotalSent += BytesSent;
 	}
 
 	return true;
+}
+
+bool UProtoNetClientSubsystem::SendPacketBytes(const TArray<uint8>& PacketBytes)
+{
+	// Always the Login connection -- see this function's header comment
+	// and SendGameplayPacketBytes below for the Game-preferring one every
+	// gameplay Send*() helper actually uses.
+	return SendPacketBytesOnSocket(Socket, SendLock, PacketBytes);
+}
+
+bool UProtoNetClientSubsystem::SendGameplayPacketBytes(const TArray<uint8>& PacketBytes)
+{
+	if (GameSocket)
+		return SendPacketBytesOnSocket(GameSocket, GameSendLock, PacketBytes);
+
+	// No Game connection ever established (ConnectToGameServerAndJoin was
+	// never called, or it was and then DisconnectFromGameServer tore it
+	// back down) -- fall back to the Login connection, reproducing
+	// today's single-connection behavior exactly. See this function's
+	// header comment.
+	return SendPacketBytesOnSocket(Socket, SendLock, PacketBytes);
 }
 
 bool UProtoNetClientSubsystem::SendLoginTest(const FString& AuthToken, const FString& ClientVersion)
@@ -316,7 +461,7 @@ bool UProtoNetClientSubsystem::SendAttackFire(FVector Origin, FVector Direction,
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendInteractLoot(int32 TargetId)
@@ -337,7 +482,7 @@ bool UProtoNetClientSubsystem::SendInteractLoot(int32 TargetId)
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendDoorInteract(int32 DoorId, bool bOpen)
@@ -358,7 +503,7 @@ bool UProtoNetClientSubsystem::SendDoorInteract(int32 DoorId, bool bOpen)
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::TryGetCachedDoorState(int32 DoorId, bool& OutIsOpen) const
@@ -393,7 +538,7 @@ bool UProtoNetClientSubsystem::SendMoveInput(FVector Position, FRotator Look, in
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendWeaponReload(uint8 WeaponType)
@@ -414,7 +559,7 @@ bool UProtoNetClientSubsystem::SendWeaponReload(uint8 WeaponType)
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendWeaponEquip(uint8 WeaponType)
@@ -435,7 +580,7 @@ bool UProtoNetClientSubsystem::SendWeaponEquip(uint8 WeaponType)
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendSaveInventory(const TArray<FProtoInventoryItemEntry>& Items)
@@ -567,7 +712,7 @@ bool UProtoNetClientSubsystem::SendDropItem(FName ItemId, FVector Position, int3
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
@@ -584,7 +729,7 @@ bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendPlayerDied(const TArray<FProtoWorldItemEntry>& Items)
@@ -611,7 +756,7 @@ bool UProtoNetClientSubsystem::SendPlayerDied(const TArray<FProtoWorldItemEntry>
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendContainerLootRoll(int32 ContainerId, const TArray<FProtoInventoryItemEntry>& Items)
@@ -645,7 +790,7 @@ bool UProtoNetClientSubsystem::SendContainerLootRoll(int32 ContainerId, const TA
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendItemSpawnRoll(int32 SpawnPointId, const TArray<FProtoWorldItemEntry>& Items)
@@ -674,7 +819,7 @@ bool UProtoNetClientSubsystem::SendItemSpawnRoll(int32 SpawnPointId, const TArra
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator Look, float Health, bool bIsDead,
@@ -711,7 +856,7 @@ bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendEnemyClaimRequest(int32 EnemyId)
@@ -736,7 +881,7 @@ bool UProtoNetClientSubsystem::SendEnemyClaimRequest(int32 EnemyId)
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendEnemyState(int32 EnemyId, FVector Position, FRotator Look, float Health, bool bIsDead)
@@ -758,7 +903,7 @@ bool UProtoNetClientSubsystem::SendEnemyState(int32 EnemyId, FVector Position, F
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendEnemyDamage(int32 EnemyId, float Damage)
@@ -776,7 +921,7 @@ bool UProtoNetClientSubsystem::SendEnemyDamage(int32 EnemyId, float Damage)
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position, float Health, float MaxHealth, float MoveSpeed, float AttackRange, float AttackDamage, float AttackCooldown, bool bIsCaller, float CallRadius, float CallCooldown)
@@ -792,7 +937,7 @@ bool UProtoNetClientSubsystem::SendEnemyRegister(int32 EnemyId, FVector Position
 
 	TArray<uint8> Bytes;
 	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
-	return SendPacketBytes(Bytes);
+	return SendGameplayPacketBytes(Bytes);
 }
 
 void UProtoNetClientSubsystem::CacheStateForLevelTransition(uint8 WeaponType,
@@ -996,6 +1141,26 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 				UE_LOG(LogProtoNet, Warning, TEXT("Login failed: %s"), *Message);
 
 				OnLoginFailed.Broadcast(static_cast<EProtoLoginFailReason>(Fail->reason()), Message);
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_MatchTicket:
+			if (const auto* TicketMsg = Packet->payload_as_S2C_MatchTicket())
+			{
+				const FString Host = TicketMsg->game_server_host() ? UTF8_TO_TCHAR(TicketMsg->game_server_host()->c_str()) : FString();
+				const FString Ticket = TicketMsg->ticket() ? UTF8_TO_TCHAR(TicketMsg->ticket()->c_str()) : FString();
+				UE_LOG(LogProtoNet, Log, TEXT("Received match ticket (game server port %d)"), TicketMsg->game_server_port());
+
+				OnMatchTicketReceived.Broadcast(Host, static_cast<int32>(TicketMsg->game_server_port()), Ticket,
+					static_cast<int64>(TicketMsg->expires_at_unix_ms()));
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_JoinMatchFail:
+			if (const auto* JoinFail = Packet->payload_as_S2C_JoinMatchFail())
+			{
+				UE_LOG(LogProtoNet, Warning, TEXT("C2S_JoinMatch failed (reason %d)"), static_cast<int32>(JoinFail->reason()));
+				OnJoinMatchFailed.Broadcast(static_cast<EProtoJoinMatchFailReason>(JoinFail->reason()));
 			}
 			break;
 
@@ -1690,12 +1855,32 @@ void UProtoNetClientSubsystem::Tick(float DeltaTime)
 		OnPacketReceived.Broadcast(Packet);
 	}
 
+	// Same framed Packet bytes, same HandleIncomingPacket -- payload_type()
+	// alone decides behavior, so nothing here needs to know these arrived
+	// on the Game connection specifically (see 매칭 서버 설계, step 5).
+	while (GameReceivedPackets.Dequeue(Packet))
+	{
+		HandleIncomingPacket(Packet);
+		OnPacketReceived.Broadcast(Packet);
+	}
+
 	FString Reason;
 	if (DisconnectReasons.Dequeue(Reason))
 	{
 		UE_LOG(LogProtoNet, Warning, TEXT("Disconnected: %s"), *Reason);
 		Disconnect();
 		OnDisconnected.Broadcast(Reason);
+	}
+
+	FString GameReason;
+	if (GameDisconnectReasons.Dequeue(GameReason))
+	{
+		// The Login connection (and therefore the account session) is
+		// unaffected -- only the raid/gameplay connection dropped. See
+		// OnDisconnectedFromGameServer's comment.
+		UE_LOG(LogProtoNet, Warning, TEXT("Disconnected from Game server: %s"), *GameReason);
+		DisconnectFromGameServer();
+		OnDisconnectedFromGameServer.Broadcast(GameReason);
 	}
 
 	TickRemotePlayers(DeltaTime);
