@@ -240,6 +240,12 @@ void AProtoCharacter::BeginPlay()
                 Subsystem->AddMappingContext(CompanionMappingContext, 0);
             }
         }
+
+        // DefaultInput.ini의 DefaultViewportMouseLockMode=LockOnCapture 때문에 클릭으로
+        // 캡처하기 전에는 커서가 뷰포트 밖으로 나갈 수 있었다. FInputModeGameOnly는
+        // MouseLockMode를 LockAlways로 강제해 시작부터 커서를 뷰포트에 가둔다.
+        PlayerController->SetShowMouseCursor(false);
+        PlayerController->SetInputMode(FInputModeGameOnly());
     }
 
     if (USkeletalMeshComponent* CharacterMesh = GetMesh())
