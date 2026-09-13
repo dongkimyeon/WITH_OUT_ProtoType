@@ -680,7 +680,25 @@ bool UProtoNetClientSubsystem::SendItemSpawnRoll(int32 SpawnPointId, const TArra
 bool UProtoNetClientSubsystem::SendCompanionMoveInput(FVector Position, FRotator Look, float Health, bool bIsDead,
 	uint8 WeaponType, bool bIsAiming, float AimPitch)
 {
-	if (!IsConnected())
+	// Gated by bMultiplayerVisualsEnabled after all -- see this function's
+	// header comment for why this used to be the one exception, and
+	// UProtoNetClientSubsystem::SetMultiplayerVisualsEnabled for why that was
+	// wrong: leaving Multi (SafePlace/ExitPoint/RaidManager) properly tells
+	// the server this session is invisible and everyone else despawns our
+	// remote player + companion via S2C_PlayerLeft, but this companion actor
+	// itself keeps existing and ticking regardless (it isn't destroyed on
+	// leaving). Without this gate it kept broadcasting C2S_CompanionMoveInput
+	// from wherever it physically is now (SafePlace, a different Single map,
+	// etc.), and the server's relay (server_.Broadcast, no visibility filter
+	// -- see EchoServer::SnapshotOtherSessions) happily forwarded that to
+	// every still-visible Multi-map client, which promptly re-spawned the
+	// companion puppet S2C_PlayerLeft had just despawned -- a companion
+	// "ghost" that kept reappearing at the wrong location every
+	// NetSyncInterval, and (since AEnemyBase::UpdateTarget() scans for every
+	// ACompanionNPC in the world) could pull a zombie's attention toward that
+	// stale, nobody's-really-there position too. Same gate as every other
+	// Send*() helper now.
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;
@@ -837,6 +855,23 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 				// C2S_SetVisible(false) is still in flight would otherwise
 				// land HandleEnemyAttackPlayer damage on a player who isn't
 				// even in a zombie-having level anymore.
+			case ProtoType::Net::Payload::S2C_ItemDropped:
+				// Another player's manual world-drop (see SendDropItem/
+				// HandleItemDropped) -- was missing from this list entirely
+				// when C2S_DropItem/S2C_ItemDropped was added, so a player who
+				// left to a Solo map/SafePlace while still connected would
+				// spawn a teammate's just-dropped item into the WRONG level,
+				// at that other map's coordinates, exactly the same "leftover
+				// state leaks across the visibility boundary" bug as
+				// SendCompanionMoveInput's (see that function's comment).
+			case ProtoType::Net::Payload::S2C_EnemyState:
+			case ProtoType::Net::Payload::S2C_EnemyAttackBroadcast:
+				// Same defense-in-depth reasoning as S2C_EnemyAttackResult
+				// above -- these only ever affect an AEnemyBase this client
+				// has loaded (matched by GetEnemyId()), so this is currently
+				// a no-op in practice, but cheap insurance against ever
+				// mirroring/animating a zombie belonging to a level this
+				// client isn't in anymore.
 				return;
 			default:
 				break;

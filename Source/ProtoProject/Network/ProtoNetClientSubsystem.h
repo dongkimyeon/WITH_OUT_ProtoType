@@ -533,10 +533,17 @@ public:
 
 	// Reports the local AI companion's position/facing, throttled (same
 	// idea as SendMoveInput), so other clients can mirror it via a
-	// placeholder actor (see UpdateRemoteCompanion). Not gated by
-	// bMultiplayerVisualsEnabled for the SEND direction -- same reasoning
-	// as SendSaveInventory, this is "what my companion is doing" regardless
-	// of whether this client currently wants to see other players.
+	// placeholder actor (see UpdateRemoteCompanion). Gated by
+	// bMultiplayerVisualsEnabled same as every other Send*() helper here --
+	// this USED to be a deliberate exception ("what my companion is doing
+	// regardless of whether this client wants to see other players"), but
+	// that let a companion whose owner left the Multi map keep broadcasting
+	// its position from wherever it physically is now, which the server's
+	// visibility-blind relay (see EchoServer::SnapshotOtherSessions) forwarded
+	// to every still-visible client -- re-spawning the companion puppet
+	// S2C_PlayerLeft had just despawned, as a "ghost" that kept reappearing
+	// at the wrong spot (and could pull a zombie's UpdateTarget() toward that
+	// stale position too). See this function's .cpp comment.
 	// Health/bIsDead/WeaponType/bIsAiming/AimPitch all ride along on the
 	// same periodic update rather than a separate message -- see
 	// C2S_CompanionMoveInput's schema comment. WeaponType is EWeaponType
