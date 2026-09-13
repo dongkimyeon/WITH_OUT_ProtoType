@@ -256,6 +256,22 @@ void UProtoNetClientSubsystem::DisconnectFromGameServer()
 		GameSocket = nullptr;
 	}
 
+	// GameSocket->Close() above unblocks GameWorker's pending Recv() with a
+	// failure, so by the time WaitForCompletion() returned, Run() almost
+	// certainly already pushed its own "connection closed" into
+	// GameDisconnectReasons on its way out -- an artifact of THIS
+	// intentional teardown, not a genuine surprise drop. Left alone, Tick()
+	// would consume it next frame, call DisconnectFromGameServer() a second
+	// time (harmless no-op by then) and broadcast OnDisconnectedFromGameServer
+	// with a misleading reason on top of whatever this call's actual caller
+	// already reported (S2C_JoinMatchFail/HandleMatchTimeout's own
+	// OnJoinMatchFailed, or simply "left the raid on purpose" for
+	// ExitPoint/RaidManager/Disconnect()) -- drain it here instead.
+	FString DiscardedReason;
+	while (GameDisconnectReasons.Dequeue(DiscardedReason))
+	{
+	}
+
 	// Leaving the Game connection means leaving whatever shared raid world
 	// it was showing -- same cleanup SetMultiplayerVisualsEnabled(false)
 	// already does for the single-connection case.
