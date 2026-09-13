@@ -1369,10 +1369,29 @@ void UProtoNetClientSubsystem::UpdateRemoteCompanion(uint32 OwnerId, const FVect
 				ExistingCompanion->MirroredWeaponType = static_cast<EWeaponType>(WeaponType);
 				ExistingCompanion->bMirroredIsAiming = bIsAiming;
 				ExistingCompanion->MirroredAimPitch = AimPitch;
+				return;
 			}
-			return;
+
+			// Existing entry is the AProtoRemotePlayer fallback placeholder
+			// (spawned below when RemoteCompanionClass was still null the
+			// first time this owner's companion was ever seen -- e.g. this
+			// client hadn't finished its own SpawnCompanion()/
+			// SetRemoteCompanionClass() yet when the very first
+			// C2S_CompanionMoveInput from a companion that joined later
+			// arrived). Previously this just returned here forever, leaving
+			// this owner's companion permanently stuck as an invisible/
+			// unrecognizable placeholder even once RemoteCompanionClass
+			// became valid moments later -- this was the "먼저 들어온
+			// 플레이어가 나중에 들어온 플레이어의 컴패니언이 안 보임" bug.
+			// Destroy the placeholder and fall through to spawn a real one
+			// instead, same as if this were the first update ever.
+			(*Existing)->Destroy();
+			RemotePlayers.Remove(Key);
 		}
-		RemotePlayers.Remove(Key);
+		else
+		{
+			RemotePlayers.Remove(Key);
+		}
 	}
 
 	UWorld* World = GetWorld();

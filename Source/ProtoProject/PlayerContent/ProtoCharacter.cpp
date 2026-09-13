@@ -119,7 +119,7 @@ void AProtoCharacter::Tick(float DeltaTime)
     if (Controller)
     {
         const float NormalizedPitch = FRotator::NormalizeAxis(Controller->GetControlRotation().Pitch);
-        AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
+        AimPitch = FMath::Clamp(NormalizedPitch, -MaxAimPitchDegrees, MaxAimPitchDegrees);
     }
     if (Swapping > 0.0f)
     {
@@ -1776,8 +1776,9 @@ void AProtoCharacter::SetRemoteAiming(bool bAiming, float Pitch)
 {
     bIsAiming = bAiming;
     // Same clamp Tick() uses for the locally-controlled player's own
-    // AimPitch (see the Controller-gated block near the top of Tick()).
-    AimPitch = FMath::Clamp(FRotator::NormalizeAxis(Pitch), -30.0f, 30.0f);
+    // AimPitch (see the Controller-gated block near the top of Tick(), and
+    // MaxAimPitchDegrees's own comment for why +-80 instead of the old +-30).
+    AimPitch = FMath::Clamp(FRotator::NormalizeAxis(Pitch), -MaxAimPitchDegrees, MaxAimPitchDegrees);
 }
 
 void AProtoCharacter::HandleProgressRestoredFromServer(FVector Position, FRotator Look, uint8 WeaponType)
