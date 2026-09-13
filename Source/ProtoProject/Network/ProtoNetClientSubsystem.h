@@ -89,6 +89,19 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnJoinMatchFailed, EProtoJoinM
 // stays up, so the client can request a fresh ticket and rejoin.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnDisconnectedFromGameServer, const FString&, Reason);
 
+// 매칭 대기열 재설계: S2C_MatchmakingStatus 수신 시 발동 -- 이 세션이 매칭 대기열에
+// 있는 동안(방에 배정되기 전) 몇 명이 모였는지(Current) / 정원(Max)이 몇인지 알려준다.
+// 대기열에 누가 들어오거나 빠질 때마다 여러 번 올 수 있다 -- OnMatchmakingComplete
+// (아래)와 달리 "끝났다"는 뜻이 아니라 "아직 기다리는 중, 지금 이 상태"라는 뜻.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnMatchmakingStatus, int32, Current, int32, Max);
+
+// S2C_MatchmakingComplete 수신 시 딱 한 번 발동 -- 이 세션이 실제로 Room에 배정되어
+// 더 이상 기다릴 필요가 없어졌다는 뜻. 대기열이 꽉 차서 즉시 형성됐든, 최대 대기
+// 시간이 지나 그때까지 모인 인원(1명이어도)으로 형성됐든, 이미 자리가 있던 기존
+// Room에 곧장 합류했든 셋 다 이 신호 하나로 귀결된다 -- 어느 경로였는지 구분할
+// 필요 없이 이것만 기다리면 된다.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnMatchmakingComplete, int32, MemberCount);
+
 // One placed item in the grid inventory, as sent to/from the server. ItemId
 // is the item Data Asset's own object name (e.g. "DA_Item_AK47") -- see
 // AProtoCharacter::ResolveItemDataByName for how it's turned back into a
@@ -767,6 +780,12 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnDisconnectedFromGameServer OnDisconnectedFromGameServer;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnMatchmakingStatus OnMatchmakingStatus;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnMatchmakingComplete OnMatchmakingComplete;
 
 	//~ FTickableGameObject
 	virtual void Tick(float DeltaTime) override;

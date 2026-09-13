@@ -1194,6 +1194,20 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 			}
 			break;
 
+		case ProtoType::Net::Payload::S2C_MatchmakingStatus:
+			if (const auto* Status = Packet->payload_as_S2C_MatchmakingStatus())
+			{
+				OnMatchmakingStatus.Broadcast(static_cast<int32>(Status->current()), static_cast<int32>(Status->max()));
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_MatchmakingComplete:
+			if (const auto* Complete = Packet->payload_as_S2C_MatchmakingComplete())
+			{
+				OnMatchmakingComplete.Broadcast(static_cast<int32>(Complete->member_count()));
+			}
+			break;
+
 		case ProtoType::Net::Payload::S2C_SendPlayerInfo:
 			if (const auto* Info = Packet->payload_as_S2C_SendPlayerInfo())
 			{

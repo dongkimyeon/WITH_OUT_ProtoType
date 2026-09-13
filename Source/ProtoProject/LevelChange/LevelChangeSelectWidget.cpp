@@ -1,14 +1,19 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "LevelChangeSelectWidget.h"
 #include "Components/Button.h"
 #include  "Kismet/GameplayStatics.h"
 #include "Engine/GameInstance.h"
+#include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "../Network/ProtoNetClientSubsystem.h"
 #include "../PlayerContent/ProtoCharacter.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Styling/CoreStyle.h"
 
 void ULevelChangeSelectWidget::NativeConstruct()
 {
@@ -84,21 +89,25 @@ void ULevelChangeSelectWidget::RequestLevelChange(ELevelChangeMode Mode, const T
 		NetClient->SetMultiplayerVisualsEnabled(Mode == ELevelChangeMode::Multi);
 	}
 
-	// 매칭 서버 설계 (step 5): Multi를 고르면 실제 Game 서버에 티켓으로 합류를
-	// 시도한다 -- 성공하면 이후 모든 게임플레이 패킷이 그 Game 연결로 나간다
-	// (SendGameplayPacketBytes). 실패하거나 MatchmakingTimeoutSeconds 안에
-	// 응답이 없어도(아직 Game 서버가 안 떠 있거나, Login/Game이 분리 안 된
-	// 예전 서버에 붙어있는 경우 포함) 레벨은 그냥 연다 -- 그 폴백 경로가
-	// Login 연결로 게임플레이를 계속 정상 동작시키므로, 매칭은 "되면 더
-	// 좋은" 개선이지 필수 관문이 아니다.
+	// 매칭 서버 설계 (재설계): Multi를 고르면 실제 Game 서버에 티켓으로 합류를
+	// 시도하고, 최대 10초(EchoServer::kMatchWindow) 동안 다른 플레이어가 모이는
+	// 걸 기다린다 -- 그동안 "플레이어를 기다리는 중.. (N/4)" 오버레이를 보여준다
+	// (ShowMatchmakingOverlay/HandleMatchmakingStatus). 실패하거나
+	// MatchmakingTimeoutSeconds 안에 응답이 없어도(아직 Game 서버가 안 떠 있거나,
+	// Login/Game이 분리 안 된 예전 서버에 붙어있는 경우 포함) 레벨은 그냥 연다 --
+	// 그 폴백 경로가 Login 연결로 게임플레이를 계속 정상 동작시키므로, 매칭은
+	// "되면 더 좋은" 개선이지 필수 관문이 아니다.
 	if (Mode == ELevelChangeMode::Multi && NetClient && NetClient->IsConnected())
 	{
 		bWaitingForMatch = true;
 		PendingMultiLevel = Level;
 
 		NetClient->OnMatchTicketReceived.AddUniqueDynamic(this, &ULevelChangeSelectWidget::HandleMatchTicketReceived);
-		NetClient->OnLoginSucceeded.AddUniqueDynamic(this, &ULevelChangeSelectWidget::HandleJoinMatchLoginSucceeded);
 		NetClient->OnJoinMatchFailed.AddUniqueDynamic(this, &ULevelChangeSelectWidget::HandleJoinMatchFailed);
+		NetClient->OnMatchmakingStatus.AddUniqueDynamic(this, &ULevelChangeSelectWidget::HandleMatchmakingStatus);
+		NetClient->OnMatchmakingComplete.AddUniqueDynamic(this, &ULevelChangeSelectWidget::HandleMatchmakingComplete);
+
+		ShowMatchmakingOverlay();
 
 		NetClient->RequestMatch();
 
@@ -125,17 +134,26 @@ void ULevelChangeSelectWidget::HandleMatchTicketReceived(const FString& GameServ
 			NetClient->ConnectToGameServerAndJoin(Ticket, GameServerHost, GameServerPort);
 		}
 	}
-	// Continues via HandleJoinMatchLoginSucceeded (join succeeded) or
+	// Continues via HandleMatchmakingStatus (still waiting, headcount
+	// update) / HandleMatchmakingComplete (done, join a Room) /
 	// HandleJoinMatchFailed (bad/expired ticket) -- or HandleMatchTimeout,
 	// if the Game server never replies at all (e.g. down, unreachable).
 }
 
-void ULevelChangeSelectWidget::HandleJoinMatchLoginSucceeded(int32 PlayerId, bool bHasSavedProgress)
+void ULevelChangeSelectWidget::HandleMatchmakingStatus(int32 Current, int32 Max)
 {
 	if (!bWaitingForMatch)
-		return; // An unrelated login succeeding (see this function's header comment) -- not ours.
+		return; // Stale/unrelated status -- not ours anymore.
 
-	UE_LOG(LogTemp, Log, TEXT("매칭 합류 성공 (player_id=%d)"), PlayerId);
+	UpdateMatchmakingOverlay(Current, Max);
+}
+
+void ULevelChangeSelectWidget::HandleMatchmakingComplete(int32 MemberCount)
+{
+	if (!bWaitingForMatch)
+		return;
+
+	UE_LOG(LogTemp, Log, TEXT("매칭 완료 (%d명) -- 레벨 진입"), MemberCount);
 	FinishMatchmaking();
 }
 
@@ -190,10 +208,13 @@ void ULevelChangeSelectWidget::FinishMatchmaking()
 		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
 		{
 			NetClient->OnMatchTicketReceived.RemoveDynamic(this, &ULevelChangeSelectWidget::HandleMatchTicketReceived);
-			NetClient->OnLoginSucceeded.RemoveDynamic(this, &ULevelChangeSelectWidget::HandleJoinMatchLoginSucceeded);
 			NetClient->OnJoinMatchFailed.RemoveDynamic(this, &ULevelChangeSelectWidget::HandleJoinMatchFailed);
+			NetClient->OnMatchmakingStatus.RemoveDynamic(this, &ULevelChangeSelectWidget::HandleMatchmakingStatus);
+			NetClient->OnMatchmakingComplete.RemoveDynamic(this, &ULevelChangeSelectWidget::HandleMatchmakingComplete);
 		}
 	}
+
+	HideMatchmakingOverlay();
 
 	const TSoftObjectPtr<UWorld> Level = PendingMultiLevel;
 	PendingMultiLevel.Reset();
@@ -210,4 +231,61 @@ void ULevelChangeSelectWidget::FinishLevelChange(const TSoftObjectPtr<UWorld>& L
 	}
 
 	UGameplayStatics::OpenLevelBySoftObjectPtr(GetWorld(), Level);
+}
+
+/*-------------------
+ 매칭 대기 오버레이 (순수 Slate, UMG 없음)
+-------------------*/
+void ULevelChangeSelectWidget::ShowMatchmakingOverlay()
+{
+	if (MatchmakingStatusText.IsValid())
+		return; // Already showing (e.g. a double-click) -- nothing to do.
+
+	SAssignNew(MatchmakingStatusText, STextBlock)
+		.Font(FCoreStyle::GetDefaultFontStyle("Bold", 28))
+		.ColorAndOpacity(FLinearColor::White)
+		.ShadowOffset(FVector2D(1.0f, 1.0f))
+		.ShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.8f))
+		// 첫 S2C_MatchmakingStatus가 도착하기 전까지의 짧은 공백(티켓 발급 +
+		// Game 서버 재접속 왕복) 동안만 보이는 자리표시자 -- max(정원)를
+		// 클라이언트에 하드코딩하지 않기 위해 실제 숫자는 서버가 알려줄 때까지
+		// 기다린다.
+		.Text(FText::FromString(TEXT("매칭 준비 중..")));
+
+	MatchmakingOverlayWidget = SNew(SBox)
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SBorder)
+			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.6f))
+			.Padding(FMargin(28.f, 18.f))
+			[
+				MatchmakingStatusText.ToSharedRef()
+			]
+		];
+
+	if (GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->AddViewportWidgetContent(MatchmakingOverlayWidget.ToSharedRef(), /*ZOrder=*/ 100);
+	}
+}
+
+void ULevelChangeSelectWidget::UpdateMatchmakingOverlay(int32 Current, int32 Max)
+{
+	if (!MatchmakingStatusText.IsValid())
+		return; // Overlay was never shown (or already torn down) -- nothing to update.
+
+	MatchmakingStatusText->SetText(FText::FromString(
+		FString::Printf(TEXT("플레이어를 기다리는 중.. (%d/%d)"), Current, Max)));
+}
+
+void ULevelChangeSelectWidget::HideMatchmakingOverlay()
+{
+	if (MatchmakingOverlayWidget.IsValid() && GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->RemoveViewportWidgetContent(MatchmakingOverlayWidget.ToSharedRef());
+	}
+	MatchmakingOverlayWidget.Reset();
+	MatchmakingStatusText.Reset();
 }
