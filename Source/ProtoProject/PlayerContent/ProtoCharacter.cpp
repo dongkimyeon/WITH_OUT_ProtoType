@@ -17,6 +17,7 @@
 #include "Item/ItemDataBase.h"
 #include "Item/WeaponItemData.h"
 #include "Item/ItemContainerBase.h"
+#include "Item/DropItem.h"
 #include "PlayerDefalutUI.h"
 #include "PlayerStatusComponent.h"
 #include "InputCoreTypes.h"
@@ -2062,21 +2063,34 @@ void AProtoCharacter::HandleDeath()
 
     ApplyRagdollVisual();
 
-    // 지니고 있던 것 전부 소실(스태시는 별개).
+    // 지니고 있던 것 전부를 사망 위치에 흩뿌리고(문제점09-12.txt #6) 나서 소실
+    // (스태시는 별개) -- 스냅샷은 반드시 WipeCarriedInventoryOnDeath보다 먼저.
+    const TArray<FProtoWorldItemEntry> DeathDrop = BuildDeathDropSnapshot();
+
     WipeCarriedInventoryOnDeath();
 
-    // Other clients' mirror of this player should ragdoll too instead of
-    // standing there frozen -- see S2C_PlayerDied's schema comment.
     if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
     {
         if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
         {
-            NetClient->SendPlayerDied();
+            // 이 클라이언트 자신의 화면에도 즉시 스폰 -- 서버 응답을 기다릴 필요 없음
+            // (자기가 방금 내린 결정이므로). NetSlotId는 아래에서 player_id 기반으로
+            // 계산되므로, 다른 클라이언트가 S2C_PlayerDied로 받아 스폰한 사본과 동일한
+            // id를 갖는다.
+            if (DeathDrop.Num() > 0)
+            {
+                SpawnDeathDropItems(NetClient->GetLocalPlayerId(), DeathDrop);
+            }
+
+            // Other clients' mirror of this player should ragdoll too instead of
+            // standing there frozen, and see the same drop pile -- see
+            // S2C_PlayerDied's schema comment.
+            NetClient->SendPlayerDied(DeathDrop);
         }
     }
 }
 
-void AProtoCharacter::HandleRemotePlayerDied()
+void AProtoCharacter::HandleRemotePlayerDied(int32 PlayerId, const TArray<FProtoWorldItemEntry>& DeathDropItems)
 {
     // Deliberately does NOT reuse HandleDeath(): that function also stops
     // this client's own auto-fire timer, disables ITS OWN player's input,
@@ -2086,11 +2100,21 @@ void AProtoCharacter::HandleRemotePlayerDied()
     // inventory wipe triggers OnInventoryChanged -> HandleInventoryChanged
     // -> SendSaveInventory) it could push this remote instance's empty
     // inventory to the server under THIS client's own logged-in account,
-    // silently corrupting their real saved inventory. Ragdoll only.
+    // silently corrupting their real saved inventory. Ragdoll + drop spawn
+    // only.
     if (bIsDead) return;
     bIsDead = true;
 
     ApplyRagdollVisual();
+
+    // PlayerId is the player who just died (this remote mirror), passed
+    // straight from S2C_PlayerDied by UProtoNetClientSubsystem's handler --
+    // must match what the dying client itself used in HandleDeath()
+    // (GetLocalPlayerId() there) so both sides compute identical NetSlotIds.
+    if (DeathDropItems.Num() > 0)
+    {
+        SpawnDeathDropItems(static_cast<uint32>(PlayerId), DeathDropItems);
+    }
 }
 
 void AProtoCharacter::ApplyRagdollVisual()
@@ -2241,6 +2265,101 @@ TArray<FProtoQuickSlotEntry> AProtoCharacter::BuildQuickSlotSnapshot() const
         Snapshot.Add(Entry);
     }
     return Snapshot;
+}
+
+TArray<FProtoWorldItemEntry> AProtoCharacter::BuildDeathDropSnapshot() const
+{
+    TArray<FProtoWorldItemEntry> Snapshot;
+    const FVector BaseLocation = GetActorLocation();
+
+    // Small random scatter around the death spot so multiple dropped items
+    // don't perfectly overlap into one unreadable stack -- position is
+    // computed once, here, by the dying client, and sent as-is to everyone
+    // else (see C2S_PlayerDied's schema comment), so there's no need for
+    // this to be deterministic/reproducible on the receiving end.
+    auto AddEntry = [&Snapshot, &BaseLocation](UItemDataBase* ItemData, int32 StackCount)
+    {
+        if (!ItemData)
+        {
+            return;
+        }
+
+        FProtoWorldItemEntry Entry;
+        Entry.ItemId = FName(*ItemData->GetName());
+        Entry.Position = BaseLocation + FVector(FMath::FRandRange(-60.0f, 60.0f), FMath::FRandRange(-60.0f, 60.0f), 30.0f);
+        Entry.StackCount = FMath::Max(1, StackCount);
+        Snapshot.Add(Entry);
+    };
+
+    if (InventoryComponent)
+    {
+        for (const FInventoryItemInstance& Item : InventoryComponent->Items)
+        {
+            AddEntry(Item.ItemData, Item.StackCount);
+        }
+    }
+
+    if (EquipmentComponent)
+    {
+        static const EEquipmentSlot AllSlots[] = { EEquipmentSlot::Helmet, EEquipmentSlot::Vest, EEquipmentSlot::Weapon1, EEquipmentSlot::Weapon2 };
+        for (EEquipmentSlot Slot : AllSlots)
+        {
+            AddEntry(EquipmentComponent->GetEquippedItem(Slot).ItemData, 1);
+        }
+    }
+
+    if (QuickSlotComponent)
+    {
+        for (int32 SlotIndex = 0; SlotIndex < QuickSlotComponent->NumSlots; ++SlotIndex)
+        {
+            const FQuickSlotEntry& Slot = QuickSlotComponent->GetQuickSlotEntry(SlotIndex);
+            AddEntry(Slot.ItemData, Slot.StackCount);
+        }
+    }
+
+    return Snapshot;
+}
+
+void AProtoCharacter::SpawnDeathDropItems(uint32 OwningPlayerId, const TArray<FProtoWorldItemEntry>& Items)
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    for (int32 Index = 0; Index < Items.Num(); ++Index)
+    {
+        const FProtoWorldItemEntry& Entry = Items[Index];
+        UItemDataBase* ItemData = ResolveItemDataByName(Entry.ItemId.ToString());
+        if (!ItemData)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("SpawnDeathDropItems: couldn't resolve item asset '%s', skipping"), *Entry.ItemId.ToString());
+            continue;
+        }
+
+        const FTransform SpawnTransform(FRotator::ZeroRotator, Entry.Position);
+        // Deferred so ItemData is set before OnConstruction (which attaches
+        // the mesh) runs -- same idiom AEnemyBase::SpawnLoot uses.
+        ADropItem* Drop = World->SpawnActorDeferred<ADropItem>(ADropItem::StaticClass(), SpawnTransform, nullptr, nullptr,
+            ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+        if (!Drop)
+        {
+            continue;
+        }
+
+        Drop->ItemData = ItemData;
+        Drop->StackCount = FMath::Max(1, Entry.StackCount);
+        // OwningPlayerId + Index: every client computes this independently
+        // and identically (the dying client when it first spawns its own
+        // copy, every other client from S2C_PlayerDied's own player_id +
+        // items order) -- same "container/spawn-point id + index" formula
+        // ALootContainer::HandleContainerLootState uses, so first-claim-wins
+        // pickup arbitration (see DropItem.h's NetSlotId comment) works
+        // correctly when a teammate loots this drop.
+        Drop->NetSlotId = GetTypeHash(FString::Printf(TEXT("PlayerDeathDrop_%u_%d"), OwningPlayerId, Index));
+        Drop->FinishSpawning(SpawnTransform);
+    }
 }
 
 void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipmentEntry>& Equipment, const TArray<FProtoQuickSlotEntry>& QuickSlots)

@@ -455,16 +455,31 @@ public:
 
     // Bound (called directly, not through a delegate) from
     // UProtoNetClientSubsystem's S2C_PlayerDied handler on this player's
-    // REMOTE mirror instance on every OTHER client. Purely visual (just
-    // the ragdoll -- see ApplyRagdollVisual): unlike HandleDeath(), this
+    // REMOTE mirror instance on every OTHER client. Ragdolls (see
+    // ApplyRagdollVisual) AND spawns the same death-drop pile DeathDropItems
+    // describes (see SpawnDeathDropItems) so this client's player can loot
+    // what the dying player was carrying too. Unlike HandleDeath(), this
     // must NOT touch input/inventory/save-to-server side effects, since a
     // remote mirror has no real controller or populated inventory of its
     // own to safely act on (see this function's .cpp comment for why that
     // was a real risk, not just unnecessary).
     UFUNCTION(BlueprintCallable, Category = "Death")
-    void HandleRemotePlayerDied();
+    void HandleRemotePlayerDied(int32 PlayerId, const TArray<FProtoWorldItemEntry>& DeathDropItems);
 
     bool IsDead() const { return bIsDead; }
+
+    // 인벤토리/장비/퀵슬롯에 있는 것 전부를 사망 위치 주변에 흩뿌릴 월드 드롭 목록으로
+    // 스냅샷한다(WipeCarriedInventoryOnDeath로 비우기 직전에 호출) -- 문제점09-12.txt #6
+    // "유저한테서 나오는 아이템". 위치는 여기서 미리 계산해 전송하므로, 받는 쪽(다른
+    // 클라이언트)은 별도 계산 없이 그대로 스폰만 하면 된다.
+    TArray<FProtoWorldItemEntry> BuildDeathDropSnapshot() const;
+
+    // BuildDeathDropSnapshot이 만든 목록(또는 S2C_PlayerDied로 받은, 다른 플레이어의
+    // 목록)으로 실제 ADropItem 액터들을 스폰한다. OwningPlayerId + 목록 내 인덱스로
+    // NetSlotId를 계산해서(모든 클라이언트가 독립적으로 같은 값을 얻음) 파티원끼리
+    // 집을 때 first-claim-wins 조정이 정상 동작한다 -- ALootContainer가 컨테이너 id +
+    // 인덱스로 하는 것과 동일한 방식.
+    void SpawnDeathDropItems(uint32 OwningPlayerId, const TArray<FProtoWorldItemEntry>& Items);
 
     // Finds a UItemDataBase asset by its own object name (e.g.
     // "DA_Item_AK47") via the Asset Registry -- not by ItemId, which isn't

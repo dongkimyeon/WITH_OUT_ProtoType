@@ -146,11 +146,15 @@ struct FProtoWorldItemEntry
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnInventoryRestored, const TArray<FProtoInventoryItemEntry>&, Items);
 
 // Fired on S2C_StashState -- the reply to SendRequestStash, this account's
-// full saved SafePlace stash (empty array if nothing's saved). Unlike
-// OnContainerLootState, this is unicast to the requester only (see
-// C2S_RequestStash's schema comment), so there's no container-id filter
-// needed -- receiving this at all means it's this account's own stash.
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProtoOnStashState, const TArray<FProtoInventoryItemEntry>&, Items);
+// full saved contents for StashIndex (empty array if nothing's saved for
+// that stash). Unlike OnContainerLootState, this is unicast to the
+// requester's account only (see C2S_RequestStash's schema comment), not
+// broadcast to other players -- but every AStorageContainer this client has
+// placed (e.g. two boxes, StashIndex 0 and 1 -- 문제점09-12.txt #7 "창고
+// 두개 1 2") shares this one delegate, so each still needs to filter by
+// StashIndex to find its own reply, same "filter by id" reasoning as
+// OnContainerLootState's ContainerId.
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnStashState, int32, StashIndex, const TArray<FProtoInventoryItemEntry>&, Items);
 
 // Fired whenever the server answers a container loot roll (see
 // SendContainerLootRoll) with the authoritative contents for ContainerId --
@@ -450,13 +454,14 @@ public:
 	// SafePlace 개인 창고(dbo.PlayerStash) 요청/저장 -- SendSaveInventory와 동일한 이유로
 	// SetMultiplayerVisualsEnabled에 게이팅하지 않는다(계정 영속 데이터, 다른 플레이어가 보는
 	// 게 아님). 서버는 OnStashState로 답한다(계정당 유니캐스트, 다른 클라이언트에 브로드캐스트
-	// 되지 않음 -- 루팅 컨테이너와 달리 개인 데이터라서).
+	// 되지 않음 -- 루팅 컨테이너와 달리 개인 데이터라서). StashIndex는 이 계정의 여러 창고
+	// 중 어느 것인지 구분한다(문제점09-12.txt #7 "창고 두개 1 2").
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool SendRequestStash();
+	bool SendRequestStash(int32 StashIndex);
 
 	// Same "always full contents, not a diff" contract as SendSaveInventory.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool SendSaveStash(const TArray<FProtoInventoryItemEntry>& Items);
+	bool SendSaveStash(int32 StashIndex, const TArray<FProtoInventoryItemEntry>& Items);
 
 	// See C2S_SetVisible's schema comment -- called by
 	// SetMultiplayerVisualsEnabled(false) so other clients despawn this
@@ -467,9 +472,11 @@ public:
 
 	// Called once by AProtoCharacter::HandleDeath() (local player only) so
 	// every other client ragdolls their mirror of this player too instead
-	// of leaving it standing frozen -- see S2C_PlayerDied's schema comment.
+	// of leaving it standing frozen, AND spawns the same death-drop pile
+	// Items describes -- see S2C_PlayerDied's schema comment and
+	// AProtoCharacter::BuildDeathDropSnapshot/SpawnDeathDropItems.
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
-	bool SendPlayerDied();
+	bool SendPlayerDied(const TArray<FProtoWorldItemEntry>& Items);
 
 	// Reports the local roll an AItemContainerBase-derived actor generated
 	// for itself on BeginPlay (see ALootContainer::SeedContents). The

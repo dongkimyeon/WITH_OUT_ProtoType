@@ -72,16 +72,23 @@ void AStorageContainer::BeginPlay()
 	}
 
 	NetClient->OnStashState.AddDynamic(this, &AStorageContainer::HandleStashState);
-	NetClient->SendRequestStash();
+	NetClient->SendRequestStash(StashIndex);
 
 	// 위 SendRequestStash 응답(HandleStashState)이 오기 전까지, 그리고 그 이후로도
 	// 계속 -- 넣기/빼기/이동이 생길 때마다 즉시 저장한다.
 	ContainerInventory->OnInventoryChanged.AddDynamic(this, &AStorageContainer::HandleStashChanged);
 }
 
-void AStorageContainer::HandleStashState(const TArray<FProtoInventoryItemEntry>& Items)
+void AStorageContainer::HandleStashState(int32 ReceivedStashIndex, const TArray<FProtoInventoryItemEntry>& Items)
 {
-	// 계정당 유니캐스트라 우리 응답이 맞다 -- 한 번만 받으면 되니 더 들을 필요 없음.
+	if (ReceivedStashIndex != StashIndex)
+	{
+		// 이 계정이 배치한 다른 창고(StashIndex)의 응답 -- 모든 AStorageContainer가
+		// 이 델리게이트를 공유하므로 내 것이 아니면 무시.
+		return;
+	}
+
+	// 이제 우리 응답을 받았으니 더 들을 필요 없음.
 	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
 	{
 		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
@@ -143,5 +150,5 @@ void AStorageContainer::HandleStashChanged()
 		Snapshot.Add(Entry);
 	}
 
-	NetClient->SendSaveStash(Snapshot);
+	NetClient->SendSaveStash(StashIndex, Snapshot);
 }

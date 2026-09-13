@@ -511,10 +511,10 @@ bool UProtoNetClientSubsystem::SendSaveQuickSlots(const TArray<FProtoQuickSlotEn
 	return SendPacketBytes(Bytes);
 }
 
-bool UProtoNetClientSubsystem::SendRequestStash()
+bool UProtoNetClientSubsystem::SendRequestStash(int32 StashIndex)
 {
 	flatbuffers::FlatBufferBuilder Fbb;
-	auto Req = ProtoType::Net::CreateC2S_RequestStash(Fbb);
+	auto Req = ProtoType::Net::CreateC2S_RequestStash(Fbb, static_cast<uint8_t>(StashIndex));
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_RequestStash, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
@@ -523,7 +523,7 @@ bool UProtoNetClientSubsystem::SendRequestStash()
 	return SendPacketBytes(Bytes);
 }
 
-bool UProtoNetClientSubsystem::SendSaveStash(const TArray<FProtoInventoryItemEntry>& Items)
+bool UProtoNetClientSubsystem::SendSaveStash(int32 StashIndex, const TArray<FProtoInventoryItemEntry>& Items)
 {
 	flatbuffers::FlatBufferBuilder Fbb;
 
@@ -539,7 +539,7 @@ bool UProtoNetClientSubsystem::SendSaveStash(const TArray<FProtoInventoryItemEnt
 	}
 	auto ItemsVector = Fbb.CreateVector(ItemOffsets.GetData(), ItemOffsets.Num());
 
-	auto Req = ProtoType::Net::CreateC2S_SaveStash(Fbb, ItemsVector);
+	auto Req = ProtoType::Net::CreateC2S_SaveStash(Fbb, static_cast<uint8_t>(StashIndex), ItemsVector);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_SaveStash, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
@@ -565,13 +565,25 @@ bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
 	return SendPacketBytes(Bytes);
 }
 
-bool UProtoNetClientSubsystem::SendPlayerDied()
+bool UProtoNetClientSubsystem::SendPlayerDied(const TArray<FProtoWorldItemEntry>& Items)
 {
 	if (!bMultiplayerVisualsEnabled || !IsConnected())
 		return false;
 
 	flatbuffers::FlatBufferBuilder Fbb;
-	auto Req = ProtoType::Net::CreateC2S_PlayerDied(Fbb);
+
+	TArray<flatbuffers::Offset<ProtoType::Net::WorldSpawnedItemEntry>> ItemOffsets;
+	ItemOffsets.Reserve(Items.Num());
+	for (const FProtoWorldItemEntry& Item : Items)
+	{
+		auto ItemIdOffset = Fbb.CreateString(TCHAR_TO_UTF8(*Item.ItemId.ToString()));
+		const ProtoType::Net::Vec3 PositionVec(Item.Position.X, Item.Position.Y, Item.Position.Z);
+		ItemOffsets.Add(ProtoType::Net::CreateWorldSpawnedItemEntry(
+			Fbb, ItemIdOffset, &PositionVec, static_cast<int16_t>(Item.StackCount)));
+	}
+	auto ItemsVector = Fbb.CreateVector(ItemOffsets.GetData(), ItemOffsets.Num());
+
+	auto Req = ProtoType::Net::CreateC2S_PlayerDied(Fbb, ItemsVector);
 	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_PlayerDied, Req.Union());
 	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
 
@@ -1028,7 +1040,25 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 				{
 					if (AProtoCharacter* RemoteCharacter = Cast<AProtoCharacter>(*Existing))
 					{
-						RemoteCharacter->HandleRemotePlayerDied();
+						TArray<FProtoWorldItemEntry> Items;
+						if (const auto* Entries = Died->items())
+						{
+							Items.Reserve(Entries->size());
+							for (const auto* Entry : *Entries)
+							{
+								if (!Entry || !Entry->item_id())
+									continue;
+								FProtoWorldItemEntry ItemEntry;
+								ItemEntry.ItemId = FName(UTF8_TO_TCHAR(Entry->item_id()->c_str()));
+								if (const auto* Pos = Entry->position())
+								{
+									ItemEntry.Position = FVector(Pos->x(), Pos->y(), Pos->z());
+								}
+								ItemEntry.StackCount = Entry->stack_count();
+								Items.Add(ItemEntry);
+							}
+						}
+						RemoteCharacter->HandleRemotePlayerDied(static_cast<int32>(Died->player_id()), Items);
 					}
 				}
 			}
@@ -1053,9 +1083,10 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 		case ProtoType::Net::Payload::S2C_StashState:
 			if (const auto* State = Packet->payload_as_S2C_StashState())
 			{
-				// Unicast to the requester only -- no container-id filter
-				// needed, unlike OnContainerLootState (see this delegate's
-				// comment).
+				// Unicast to this account only -- but every AStorageContainer
+				// this client placed shares this one delegate, so StashIndex
+				// still needs to be broadcast for each to filter on (see
+				// this delegate's comment).
 				TArray<FProtoInventoryItemEntry> Items;
 				if (const auto* Entries = State->items())
 				{
@@ -1073,7 +1104,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 						Items.Add(ItemEntry);
 					}
 				}
-				OnStashState.Broadcast(Items);
+				OnStashState.Broadcast(static_cast<int32>(State->stash_index()), Items);
 			}
 			break;
 
