@@ -188,13 +188,29 @@ void AEnemyBase::Tick(float DeltaTime)
                 GetActorRotation(), MirroredTargetRotation, DeltaTime, MirroredRotationInterpSpeed);
             SetActorRotation(NewRotation);
 
-            FVector ToTarget = MirroredTargetLocation - GetActorLocation();
-            ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
-
-            constexpr float ArrivalToleranceCm = 5.0f;
-            if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
+            // Same gate MoveToTarget() already applies for the locally-
+            // driven (bIsNetworkOwner) path -- without it, this mirror kept
+            // sliding toward MirroredTargetLocation (still catching up from
+            // the chase phase, or just re-affirmed every ~150ms by the
+            // server's own unchanged-position broadcast while it holds
+            // still to swing) at the same time HandleEnemyAttackBroadcast's
+            // AttackMontage was playing, i.e. "공격하면서 움직인다": visibly
+            // walking/sliding during its own melee swing. The server itself
+            // never moves a registered enemy while it's within attackRange
+            // (see EnemyAI::Tick's else-branch) -- this mirrors that same
+            // "holding position to attack" rule client-side, using the
+            // exact bIsAttacking flag HandleEnemyAttackBroadcast already
+            // maintains for the animation.
+            if (!bIsAttacking && !bMovementPausedForMontage)
             {
-                AddMovementInput(ToTarget.GetSafeNormal(), 1.0f, /*bForce=*/true);
+                FVector ToTarget = MirroredTargetLocation - GetActorLocation();
+                ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
+
+                constexpr float ArrivalToleranceCm = 5.0f;
+                if (ToTarget.SizeSquared() > FMath::Square(ArrivalToleranceCm))
+                {
+                    AddMovementInput(ToTarget.GetSafeNormal(), 1.0f, /*bForce=*/true);
+                }
             }
         }
         return;
