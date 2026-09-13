@@ -127,8 +127,12 @@ void ACompanionNPC::Tick(float DeltaSeconds)
 
 	if (Controller)
 	{
+		// +-80, not the old +-30 -- same "way narrower than the actual look
+		// range" reasoning as AProtoCharacter::MaxAimPitchDegrees's comment
+		// (this companion can end up aiming sharply up/down at a target on
+		// different ground height, same as a player's own camera pitch can).
 		const float NormalizedPitch = FRotator::NormalizeAxis(Controller->GetControlRotation().Pitch);
-		AimPitch = FMath::Clamp(NormalizedPitch, -30.0f, 30.0f);
+		AimPitch = FMath::Clamp(NormalizedPitch, -80.0f, 80.0f);
 	}
 	else
 	{

@@ -96,22 +96,32 @@ void AExitPoint::Tick(float DeltaTime)
 			ExitPointWidgetInstance = nullptr;
 		}
 
-		// Tell the rest of the party we're leaving via extraction -- same
-		// mechanism a Single-map level travel already uses (see
-		// UProtoNetClientSubsystem::SendSetVisible's schema comment), which
-		// makes the server broadcast S2C_PlayerLeft so everyone else
-		// despawns our (and our companion's) mirror instead of it just
-		// standing there frozen once we've loaded into SafePlaceLevel. Not
-		// SetMultiplayerVisualsEnabled(false): that also stops THIS
-		// client's own future send/receive, which isn't ours to decide here
-		// -- SafePlaceLevel's own BeginPlay logic (same as any other level
-		// travel) is what re-establishes visibility correctly for wherever
-		// we're actually headed.
+		// Leaving via extraction -- SetMultiplayerVisualsEnabled(false)
+		// (not a bare SendSetVisible(false)) so this client's own rendering/
+		// processing of every OTHER Multi-map player's updates actually
+		// stops too, and every locally-spawned remote player/companion
+		// actor gets cleaned up immediately (RemoveAllRemotePlayers).
+		// SetMultiplayerVisualsEnabled already sends the same
+		// C2S_SetVisible(false) SendSetVisible would have (see its own
+		// body), which makes the server broadcast S2C_PlayerLeft so
+		// everyone else despawns our (and our companion's) mirror instead
+		// of it just standing there frozen.
+		//
+		// This function used to call only SendSetVisible(false) here,
+		// reasoning that "SafePlaceLevel's own BeginPlay logic (same as any
+		// other level travel) is what re-establishes visibility correctly
+		// for wherever we're actually headed" -- but nothing anywhere
+		// actually does that; bMultiplayerVisualsEnabled just stayed
+		// whatever it was in the Multi map we're leaving. That was the
+		// "세이프 플레이스에서 다른 사람이 보임" bug: SendSetVisible(false)
+		// alone only tells the SERVER we left (for the zombie-targeting/
+		// world-reset uses Session::IsVisible serves) -- it doesn't touch
+		// this client's own local rendering gate at all.
 		if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
 		{
 			if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
 			{
-				NetClient->SendSetVisible(false);
+				NetClient->SetMultiplayerVisualsEnabled(false);
 			}
 		}
 

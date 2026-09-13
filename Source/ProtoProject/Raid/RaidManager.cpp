@@ -153,12 +153,16 @@ void ARaidManager::ReturnToHub()
 	// this, the rest of the party's mirror of this (already ragdolled via
 	// S2C_PlayerDied) player just stands frozen forever once we've loaded
 	// away into ExtractionFailLevel, instead of despawning like a real
-	// disconnect would.
+	// disconnect would. SetMultiplayerVisualsEnabled(false), not a bare
+	// SendSetVisible(false) -- see AExitPoint::Tick's comment for why the
+	// bare call alone was the "세이프 플레이스에서 다른 사람이 보임" bug
+	// (only tells the server we left; never stops this client's own
+	// rendering/processing of every other Multi-map player's updates).
 	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
 	{
 		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
 		{
-			NetClient->SendSetVisible(false);
+			NetClient->SetMultiplayerVisualsEnabled(false);
 		}
 	}
 

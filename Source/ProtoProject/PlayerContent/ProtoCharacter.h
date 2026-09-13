@@ -521,6 +521,18 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Aim")
     float AimPitch = 0.0f;
 
+    // Both Tick()'s own-player AimPitch and SetRemoteAiming's mirrored copy
+    // clamp to this -- was +-30 (very narrow next to a camera's actual
+    // vertical look range, commonly +-80/89), making a remote player's gun
+    // barely tilt even when clearly aiming sharply up/down on their own
+    // screen (the "총 각도 동기화" complaint). Widened to +-80 to track the
+    // camera more faithfully; ABP_Unarmed_Test's aim-offset blend space
+    // clamps/saturates to its own configured axis range regardless, so this
+    // is safe even if that range turns out to be narrower than 80 -- worst
+    // case is no visible change beyond whatever the blend space already
+    // supports, not a bad extrapolation.
+    static constexpr float MaxAimPitchDegrees = 80.0f;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon|IK")
     FTransform LeftHandTransform = FTransform::Identity;
 
