@@ -170,6 +170,15 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnContainerLootState, int32, 
 // filters by its own spawn point id.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FProtoOnItemSpawnState, int32, SpawnPointId, const TArray<FProtoWorldItemEntry>&, Items);
 
+// Fired on S2C_ItemDropped -- another player manually threw ItemId out of
+// their inventory onto the ground at Position (see C2S_DropItem's schema
+// comment). Never fires for this client's own drop (the server excludes
+// the sender -- see that message's comment); NetSlotId is already the
+// receiver's independently-computed match for whatever id the dropper's
+// own optimistic local spawn used (see
+// UProtoNetClientSubsystem::ComputeItemDropNetSlotId).
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FProtoOnItemDropped, int32, NetSlotId, FName, ItemId, FVector, Position, int32, StackCount);
+
 // Fired on S2C_InteractResult for a DoorOpen/DoorClose interact_type only
 // (see SendDoorInteract's schema comment) -- every OTHER client's copy of
 // DoorId should match bOpen. Never fires for this client's own toggle (the
@@ -463,6 +472,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendSaveStash(int32 StashIndex, const TArray<FProtoInventoryItemEntry>& Items);
 
+	// Same formula the dropper uses for its own optimistic local spawn and
+	// every other client uses on receiving S2C_ItemDropped -- kept in one
+	// place so both sides can never drift apart (see that message's schema
+	// comment).
+	static int32 ComputeItemDropNetSlotId(uint32 PlayerId, uint32 DropSequence)
+	{
+		return GetTypeHash(FString::Printf(TEXT("ItemDrop_%u_%u"), PlayerId, DropSequence));
+	}
+
+	// Called by UInventoryScreenWidget when a player manually throws an item
+	// out of their inventory (drag-out-of-grid / partial-stack drop) -- see
+	// C2S_DropItem's schema comment. Gated by bMultiplayerVisualsEnabled: a
+	// Single map has no one else to tell, so the caller should fall back to
+	// its old plain-local spawn (no NetSlotId) when this returns false,
+	// exactly as if this feature didn't exist. On success, OutNetSlotId is
+	// the id the caller must assign to the ADropItem it's about to spawn
+	// locally -- every other client will independently compute the exact
+	// same id from S2C_ItemDropped (see ComputeItemDropNetSlotId), so pickup
+	// arbitration (DropItem.h's NetSlotId comment) works correctly if a
+	// teammate grabs it first.
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendDropItem(FName ItemId, FVector Position, int32 StackCount, int32& OutNetSlotId);
+
 	// See C2S_SetVisible's schema comment -- called by
 	// SetMultiplayerVisualsEnabled(false) so other clients despawn this
 	// player instead of freezing it in place as a "ghost" (this session
@@ -600,6 +632,9 @@ public:
 	FProtoOnStashState OnStashState;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
+	FProtoOnItemDropped OnItemDropped;
+
+	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
 	FProtoOnContainerLootState OnContainerLootState;
 
 	UPROPERTY(BlueprintAssignable, Category = "ProtoNet")
@@ -709,6 +744,12 @@ private:
 	// below and the remote-player-affecting cases in HandleIncomingPacket();
 	// login/connection packets are unaffected.
 	bool bMultiplayerVisualsEnabled = true;
+
+	// This client's own locally-incrementing counter for SendDropItem -- see
+	// C2S_DropItem's schema comment for why it's part of the NetSlotId
+	// formula (there's no stable placed-actor name to hash for an ad hoc
+	// manual drop, unlike a container/spawn point/enemy).
+	uint32 NextDropSequence = 0;
 
 	// Same Blueprint the local player uses, so remote players look real.
 	// Falls back to the AProtoRemotePlayer placeholder if it fails to load.

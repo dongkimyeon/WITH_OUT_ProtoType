@@ -350,11 +350,27 @@ void UInventoryScreenWidget::SpawnDropItemActor(UItemDataBase* ItemData, int32 S
 	}
 	const FTransform SpawnTransform(OwningCharacter->GetActorRotation(), SpawnLocation, DefaultScale);
 
+	// 다른 클라이언트에게도 이 드롭을 알린다 -- 이전엔 순수 로컬 스폰이라 다른
+	// 플레이어는 이 아이템의 존재 자체를 전혀 몰랐다(멀티에서 안 보이고, 당연히
+	// 주울 수도 없었음). 싱글맵/미접속이면 SendDropItem이 false를 반환하고
+	// NetSlotId를 건드리지 않으므로, 그때는 예전처럼 NetSlotId=0(로컬 전용)으로
+	// 동작한다 -- ADropItem::RequestPickup이 NetSlotId==0을 "동기화할 다른 사람
+	// 없음"으로 취급해 즉시 로컬 처리하는 기존 경로 그대로.
+	int32 NetSlotId = 0;
+	if (UGameInstance* GameInstance = World->GetGameInstance())
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->SendDropItem(FName(*ItemData->GetName()), SpawnLocation, StackCount, NetSlotId);
+		}
+	}
+
 	// 지연 스폰 (메시 세팅 전 데이터 반영)
 	if (ADropItem* Spawned = World->SpawnActorDeferred<ADropItem>(DropItemActorClass, SpawnTransform))
 	{
 		Spawned->ItemData = ItemData;
 		Spawned->StackCount = FMath::Max(1, StackCount);
+		Spawned->NetSlotId = NetSlotId;
 		Spawned->FinishSpawning(SpawnTransform);
 	}
 }

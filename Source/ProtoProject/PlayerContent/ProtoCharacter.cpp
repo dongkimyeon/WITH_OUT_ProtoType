@@ -283,6 +283,7 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
             NetClient->OnProgressRestored.AddDynamic(this, &AProtoCharacter::HandleProgressRestoredFromServer);
             NetClient->OnInventoryRestored.AddDynamic(this, &AProtoCharacter::HandleInventoryRestored);
             NetClient->OnEnemyAttackPlayer.AddDynamic(this, &AProtoCharacter::HandleEnemyAttackPlayer);
+            NetClient->OnItemDropped.AddDynamic(this, &AProtoCharacter::HandleItemDropped);
 
             // Login via TitleLevel completes (S2C_LoginSuccess arrives,
             // OnProgressRestored/OnInventoryRestored fire) before this
@@ -2366,6 +2367,35 @@ void AProtoCharacter::SpawnDeathDropItems(uint32 OwningPlayerId, const TArray<FP
         Drop->NetSlotId = GetTypeHash(FString::Printf(TEXT("PlayerDeathDrop_%u_%d"), OwningPlayerId, Index));
         Drop->FinishSpawning(SpawnTransform);
     }
+}
+
+void AProtoCharacter::HandleItemDropped(int32 NetSlotId, FName ItemId, FVector Position, int32 StackCount)
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    UItemDataBase* ItemData = ResolveItemDataByName(ItemId.ToString());
+    if (!ItemData)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("HandleItemDropped: couldn't resolve item asset '%s', skipping"), *ItemId.ToString());
+        return;
+    }
+
+    const FTransform SpawnTransform(FRotator::ZeroRotator, Position);
+    ADropItem* Drop = World->SpawnActorDeferred<ADropItem>(ADropItem::StaticClass(), SpawnTransform, nullptr, nullptr,
+        ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (!Drop)
+    {
+        return;
+    }
+
+    Drop->ItemData = ItemData;
+    Drop->StackCount = FMath::Max(1, StackCount);
+    Drop->NetSlotId = NetSlotId;
+    Drop->FinishSpawning(SpawnTransform);
 }
 
 void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipmentEntry>& Equipment, const TArray<FProtoQuickSlotEntry>& QuickSlots)

@@ -548,6 +548,28 @@ bool UProtoNetClientSubsystem::SendSaveStash(int32 StashIndex, const TArray<FPro
 	return SendPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendDropItem(FName ItemId, FVector Position, int32 StackCount, int32& OutNetSlotId)
+{
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
+		return false;
+
+	const uint32 Sequence = NextDropSequence++;
+	OutNetSlotId = ComputeItemDropNetSlotId(LocalPlayerId, Sequence);
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto ItemIdOffset = Fbb.CreateString(TCHAR_TO_UTF8(*ItemId.ToString()));
+	const ProtoType::Net::Vec3 PositionVec(Position.X, Position.Y, Position.Z);
+	auto ItemEntry = ProtoType::Net::CreateWorldSpawnedItemEntry(Fbb, ItemIdOffset, &PositionVec, static_cast<int16_t>(StackCount));
+
+	auto Req = ProtoType::Net::CreateC2S_DropItem(Fbb, Sequence, ItemEntry);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_DropItem, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendPacketBytes(Bytes);
+}
+
 bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
 {
 	// Not gated by bMultiplayerVisualsEnabled -- this call is what changes
@@ -1105,6 +1127,25 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					}
 				}
 				OnStashState.Broadcast(static_cast<int32>(State->stash_index()), Items);
+			}
+			break;
+
+		case ProtoType::Net::Payload::S2C_ItemDropped:
+			if (const auto* Dropped = Packet->payload_as_S2C_ItemDropped())
+			{
+				// Server already excludes the dropper from this broadcast
+				// (see this message's schema comment) -- the player_id
+				// check is defense in depth, same as other broadcasts'.
+				if (Dropped->player_id() != LocalPlayerId && Dropped->item() && Dropped->item()->item_id())
+				{
+					const auto* Item = Dropped->item();
+					const int32 NetSlotId = ComputeItemDropNetSlotId(Dropped->player_id(), Dropped->drop_sequence());
+					const FName ItemId(UTF8_TO_TCHAR(Item->item_id()->c_str()));
+					const FVector Position = Item->position()
+						? FVector(Item->position()->x(), Item->position()->y(), Item->position()->z())
+						: FVector::ZeroVector;
+					OnItemDropped.Broadcast(NetSlotId, ItemId, Position, Item->stack_count());
+				}
 			}
 			break;
 

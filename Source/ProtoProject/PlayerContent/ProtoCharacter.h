@@ -481,6 +481,17 @@ public:
     // 인덱스로 하는 것과 동일한 방식.
     void SpawnDeathDropItems(uint32 OwningPlayerId, const TArray<FProtoWorldItemEntry>& Items);
 
+    // Bound (locally-controlled instance only, in BeginPlay) to
+    // UProtoNetClientSubsystem::OnItemDropped -- another player manually
+    // threw ItemId out of their inventory (UInventoryScreenWidget::
+    // DropItemToWorld/PerformPartialDrop). Spawns the matching ADropItem on
+    // this client too, at the same position and with the same NetSlotId
+    // (already computed by the caller -- see OnItemDropped's comment), so
+    // this player can see and pick it up. Never fires for this client's own
+    // drop (the widget spawns that optimistically and locally already).
+    UFUNCTION()
+    void HandleItemDropped(int32 NetSlotId, FName ItemId, FVector Position, int32 StackCount);
+
     // Finds a UItemDataBase asset by its own object name (e.g.
     // "DA_Item_AK47") via the Asset Registry -- not by ItemId, which isn't
     // guaranteed to be filled in (see inventory.fbs's item_id comment).
