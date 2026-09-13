@@ -750,6 +750,44 @@ void AProtoCharacter::Sprint(const FInputActionValue& Value)
     }
 }
 
+void AProtoCharacter::Jump()
+{
+    // CanJump() BEFORE Super::Jump(): ACharacter::Jump() only ever sets
+    // bPressedJump=true here -- the actual velocity impulse (and whether
+    // one happens at all -- e.g. already airborne past JumpMaxCount, or
+    // crouched) is decided later by CharacterMovementComponent during its
+    // own tick. Broadcasting unconditionally on every JumpAction press
+    // (including ones that won't actually do anything) would make every
+    // other client's mirror attempt a jump too whenever this player mashes
+    // the key mid-air -- CanJump() is the same gate the engine itself is
+    // about to apply, so checking it first keeps this broadcast limited to
+    // presses that actually start a real jump.
+    const bool bWillJump = CanJump();
+
+    Super::Jump();
+
+    if (!bWillJump || !IsLocallyControlled())
+    {
+        return;
+    }
+
+    // Out-of-band, not folded into the periodic NetSyncInterval position
+    // broadcast in Tick() (see kMoveFlagSprint/kMoveFlagADS there): a jump
+    // is a one-frame edge, not a held state like sprint/aim, and the next
+    // periodic tick could be up to NetSyncInterval late -- by then the
+    // remote mirror would never get an unambiguous "this is the moment to
+    // play a jump" signal (see UProtoNetClientSubsystem::UpdateRemotePlayer,
+    // which calls the remote character's own Jump() on this flag rather
+    // than trying to force-match the exact mid-air Z of the real player).
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendMoveInput(GetActorLocation(), GetControlRotation(), UProtoNetClientSubsystem::kMoveFlagJump);
+        }
+    }
+}
+
 void AProtoCharacter::StartSprint()
 {
     if (bIsDead) return;

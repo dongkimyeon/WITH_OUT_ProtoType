@@ -510,6 +510,13 @@ public:
 
 	static constexpr int32 kMoveFlagSprint = 1;
 	static constexpr int32 kMoveFlagADS = 16;
+	// Matches ProtoType::Net::MoveFlags::Jump (already in the schema, just
+	// never used until now -- see AProtoCharacter::Jump()). One-shot: only
+	// ever set on the single out-of-band SendMoveInput a real jump press
+	// fires, never on the periodic NetSyncInterval sync, so a remote mirror
+	// only ever sees it once per actual jump instead of for the whole time
+	// the jumper is airborne.
+	static constexpr int32 kMoveFlagJump = 8;
 
 	// Lets other clients mirror the reload motion. WeaponType (EWeaponType)
 	// is reused as the "slot" field so the receiver knows which section to play.
@@ -786,7 +793,7 @@ private:
 	// Rotation.Pitch also doubles as the aim-offset pitch when bAiming is
 	// true (see AProtoCharacter::SetRemoteAiming) -- it's the same Look the
 	// sender's own camera used, no separate field needed.
-	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting = false, bool bAiming = false);
+	void UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting = false, bool bAiming = false, bool bJumped = false);
 	void TickRemotePlayers(float DeltaTime);
 
 	// Despawns a remote player's actor and clears its tracking entries, on

@@ -54,6 +54,14 @@ public:
 
     virtual void Tick(float DeltaTime) override;
 
+    // Overrides ACharacter::Jump() (the JumpAction input binding calls this
+    // through a base-class member pointer, so overriding is enough --
+    // SetupPlayerInputComponent doesn't need to change) purely to broadcast
+    // the moment a real jump starts, in addition to the engine's own jump
+    // physics -- see the .cpp for why this needs its own out-of-band
+    // C2S_MoveInput instead of waiting for the next periodic sync.
+    virtual void Jump() override;
+
 protected:
     virtual void BeginPlay() override;
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;

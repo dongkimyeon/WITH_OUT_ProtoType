@@ -1240,12 +1240,18 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 					const auto* Look = State->look();
 					const bool bSprinting = (static_cast<uint16>(State->flags()) & static_cast<uint16>(ProtoType::Net::MoveFlags::Sprint)) != 0;
 					const bool bAiming = (static_cast<uint16>(State->flags()) & static_cast<uint16>(ProtoType::Net::MoveFlags::ADS)) != 0;
+					// One-shot edge, not a held state -- see AProtoCharacter::Jump()
+					// and kMoveFlagJump's comment: only ever true on the single
+					// out-of-band packet a real jump press fired, so it's safe to
+					// act on unconditionally here without debouncing.
+					const bool bJumped = (static_cast<uint16>(State->flags()) & static_cast<uint16>(ProtoType::Net::MoveFlags::Jump)) != 0;
 					UpdateRemotePlayer(
 						State->player_id(),
 						Pos ? FVector(Pos->x(), Pos->y(), Pos->z()) : FVector::ZeroVector,
 						Look ? FRotator(Look->pitch(), Look->yaw(), Look->roll()) : FRotator::ZeroRotator,
 						bSprinting,
-						bAiming);
+						bAiming,
+						bJumped);
 				}
 			}
 			break;
@@ -1539,7 +1545,7 @@ void UProtoNetClientSubsystem::HandleIncomingPacket(const TArray<uint8>& PacketB
 /*-------------------
  원격 플레이어 관리
 -------------------*/
-void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting, bool bAiming)
+void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector& Location, const FRotator& Rotation, bool bSprinting, bool bAiming, bool bJumped)
 {
 	const int32 Key = static_cast<int32>(PlayerId);
 
@@ -1556,7 +1562,29 @@ void UProtoNetClientSubsystem::UpdateRemotePlayer(uint32 PlayerId, const FVector
 			{
 				RemoteCharacter->GetCharacterMovement()->MaxWalkSpeed =
 					bSprinting ? RemoteCharacter->SprintWalkSpeed : RemoteCharacter->BaseWalkSpeed;
+				// MaxWalkSpeed alone only affects actual movement speed --
+				// bIsSprint is a separate BlueprintReadWrite the Animation
+				// Blueprint can read directly (same "Movement" category as
+				// MaxWalkSpeed/BaseWalkSpeed), same as bIsAiming below is
+				// mirrored via SetRemoteAiming rather than left for the AnimBP
+				// to infer from speed alone. Without this, any sprint-specific
+				// pose/lean the AnimBP drives off this bool (as opposed to raw
+				// speed) never showed up on a remote mirror.
+				RemoteCharacter->bIsSprint = bSprinting;
 				RemoteCharacter->SetRemoteAiming(bAiming, Rotation.Pitch);
+
+				// One-shot edge (see kMoveFlagJump's comment) -- let this
+				// mirror run its own local jump physics/animation rather than
+				// trying to force its Z to exactly match the real player's
+				// mid-air position (TickRemotePlayers() deliberately ignores
+				// Z on remote characters -- see its own comment -- so without
+				// this a jumping player's mirror never left the ground at
+				// all). CanJump() inside RemoteCharacter->Jump() itself still
+				// applies, so a stray/duplicate flag can't double-jump it.
+				if (bJumped)
+				{
+					RemoteCharacter->Jump();
+				}
 			}
 			return;
 		}
