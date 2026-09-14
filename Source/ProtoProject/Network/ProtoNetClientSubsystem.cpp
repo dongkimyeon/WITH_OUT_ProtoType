@@ -1895,6 +1895,41 @@ void UProtoNetClientSubsystem::TickRemotePlayers(float DeltaTime)
 			}
 
 			FVector ToTarget = *TargetLocation - RemoteCharacter->GetActorLocation();
+
+			// 문제 확정 (오늘 실제 리허설 로그로 확인 -- [MoveDiag] id=2 라인들):
+			// 리모트 캐릭터가 스폰될 때 서버가 알려준 첫 위치가 실제 멀티맵
+			// 좌표와 크게 어긋나 있으면(예: 상대가 아직 멀티맵에 진입하기 전,
+			// 이전 레벨에 있던 위치가 첫 announce로 새어나간 경우), 아래
+			// "수평 이동입력으로 target까지 걸어가기" 방식은 그 격차를 절대
+			// 못 좁힌다 -- 그 스폰 지점엔 바닥이 없을 수 있고, 그러면 중력이
+			// 캐릭터를 맵 밖으로 낙하시켜버려서 MovementMode가 결국
+			// Falling -> None으로 굳어버리고, 그 뒤로는 서버가 target을
+			// 계속 정확히 보내줘도 다시는 그쪽으로 움직이지 못한다(실측:
+			// 55000유닛 넘게 떨어진 채 스폰 -> 28000유닛 넘게 추락 -> 영구
+			// 정지, MaybeResyncAllMembers의 재통지로도 복구 안 됨 -- 정보는
+			// 계속 왔지만 이미 멈춘 캐릭터를 되살릴 방법이 없었음).
+			// 정상적인 네트워크 지연 오차는 NetSyncInterval(~50ms) x 도보
+			// 속도 기준 최대 수십 cm 수준이라, 이 정도로 큰 격차는 "따라
+			// 걷기"가 아니라 "즉시 순간이동으로 강제 복구"해야 하는 이상
+			// 상태로 간주한다.
+			constexpr float TeleportRecoverThresholdCm = 2000.0f;
+			if (ToTarget.Size() > TeleportRecoverThresholdCm)
+			{
+				RemoteCharacter->SetActorLocation(*TargetLocation, false, nullptr, ETeleportType::TeleportPhysics);
+				if (UCharacterMovementComponent* MoveComp = RemoteCharacter->GetCharacterMovement())
+				{
+					// 추락/고착(Falling 또는 None) 상태에서 강제로 복구 --
+					// 순간이동 직후 다시 정상적으로 서 있어야 다음 프레임부터
+					// AddMovementInput이 다시 먹는다(그 전까지 남아있던
+					// 낙하 속도도 같이 지워야 착지 즉시 다시 추락하지 않음).
+					MoveComp->StopMovementImmediately();
+					MoveComp->SetMovementMode(MOVE_Walking);
+				}
+				UE_LOG(LogProtoNet, Warning, TEXT("[MoveDiag] id=%d snapped back to target (was %.1f cm away -- likely spawned off the real map or fell through it)"),
+					Pair.Key, ToTarget.Size());
+				continue;
+			}
+
 			ToTarget.Z = 0.0f; // horizontal input only; let gravity/step-up handle height
 
 			if (bMoveDiagShouldLog)
