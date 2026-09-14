@@ -275,8 +275,16 @@ private:
     FTimerHandle AutoFireTimerHandle;
 
     // Throttles how often this client reports its position to the server
-    // (SendMoveInput), so other connected players can see it move.
-    float NetSyncInterval = 0.1f;
+    // (SendMoveInput), so other connected players can see it move. 0.1 ->
+    // 0.05: the server's zombie AI attack range check only ever sees a
+    // player's position this stale (plus its own ~100ms tick cadence, see
+    // EchoServer::BackgroundTickLoop's kTickInterval) -- at the old 100ms
+    // this could add up to ~250ms of drift, comparable to a zombie's own
+    // melee range, letting a fast-moving player already be gone by the time
+    // an attack the server "saw" land actually fires (문제: "좀비가 허공에
+    // 대고 공격"). Halving it doesn't remove the staleness window entirely
+    // (no client-side prediction/reconciliation here), just shrinks it.
+    float NetSyncInterval = 0.05f;
     float NetSyncTimer = 0.0f;
 
 public:
