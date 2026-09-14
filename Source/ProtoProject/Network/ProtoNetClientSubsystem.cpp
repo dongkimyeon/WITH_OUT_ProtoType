@@ -748,6 +748,24 @@ bool UProtoNetClientSubsystem::SendSetVisible(bool bVisible)
 	return SendGameplayPacketBytes(Bytes);
 }
 
+bool UProtoNetClientSubsystem::SendMultiMapReady()
+{
+	// SendEnemyClaimRequest 등과 같은 이유로 게이팅 -- 멀티가 아니면 서버
+	// 쪽에서도 재통지를 들을 상대가 없다(Room 자체가 없거나, 있어도 이
+	// 세션 혼자뿐).
+	if (!bMultiplayerVisualsEnabled || !IsConnected())
+		return false;
+
+	flatbuffers::FlatBufferBuilder Fbb;
+	auto Req = ProtoType::Net::CreateC2S_MultiMapReady(Fbb);
+	auto Packet = ProtoType::Net::CreatePacket(Fbb, ProtoType::Net::Payload::C2S_MultiMapReady, Req.Union());
+	ProtoType::Net::FinishSizePrefixedPacketBuffer(Fbb, Packet);
+
+	TArray<uint8> Bytes;
+	Bytes.Append(Fbb.GetBufferPointer(), static_cast<int32>(Fbb.GetSize()));
+	return SendGameplayPacketBytes(Bytes);
+}
+
 bool UProtoNetClientSubsystem::SendPlayerDied(const TArray<FProtoWorldItemEntry>& Items)
 {
 	if (!bMultiplayerVisualsEnabled || !IsConnected())

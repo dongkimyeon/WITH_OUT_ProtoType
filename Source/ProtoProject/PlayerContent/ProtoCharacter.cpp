@@ -381,6 +381,21 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
         }
     }
 
+    // 문제: "먼저 들어온 사람 화면에서 늦게 들어온 유저가 안 보임" -- 이 함수가
+    // 여기까지 도달했다는 건 로컬 플레이어가 이 레벨(멀티맵 포함)에 실제로
+    // 스폰되어 인벤토리/장비/HUD까지 전부 준비됐다는 뜻이다. 서버 쪽 Room
+    // 멤버십/로스터 알림(Room::AnnounceNewMember)은 이보다 훨씬 이전 -- 레벨이
+    // 아직 로딩 중이었을 수도 있는 시점 -- 에 딱 한 번만 나가므로, 그 타이밍에
+    // 놓친 게 있어도 여기서 "나 진짜 준비됐다"고 다시 알려서 서버가
+    // Room::ReannounceMember로 자체 복구하게 한다.
+    if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+    {
+        if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+        {
+            NetClient->SendMultiMapReady();
+        }
+    }
+
     bLocalPlayerSetupDone = true;
     return true;
 }

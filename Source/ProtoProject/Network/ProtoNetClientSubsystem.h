@@ -597,6 +597,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
 	bool SendSetVisible(bool bVisible);
 
+	// 문제: "먼저 들어온 사람 화면에서 늦게 들어온 유저가 안 보임" -- Room::
+	// AnnounceNewMember의 원래 로스터 알림은 이 세션이 서버 쪽 Room에 추가되는
+	// 순간(클라이언트는 아직 레벨 로딩 중일 수도 있음) 딱 한 번만 나가는데,
+	// 그 타이밍에 놓치면 다시 알려줄 방법이 없었다. 이건 로컬 플레이어의
+	// AProtoCharacter가 실제로 멀티맵에 스폰 완료된 직후(BeginPlay) 호출해서
+	// "나 이제 진짜 준비됐다"고 서버에 알리는 것 -- 서버는 이 세션과 Room의
+	// 다른 멤버 전원에게 서로의 로스터 정보를 다시 브로드캐스트해서, 원래
+	// 알림을 놓쳤어도 여기서 자체 복구된다. SetMultiplayerVisualsEnabled와
+	// 동일한 게이트(멀티 아니면 서버가 들을 대상 자체가 없음).
+	UFUNCTION(BlueprintCallable, Category = "ProtoNet")
+	bool SendMultiMapReady();
+
 	// Called once by AProtoCharacter::HandleDeath() (local player only) so
 	// every other client ragdolls their mirror of this player too instead
 	// of leaving it standing frozen, AND spawns the same death-drop pile
