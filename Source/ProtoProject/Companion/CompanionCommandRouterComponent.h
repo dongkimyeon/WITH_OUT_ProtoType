@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -105,6 +105,11 @@ public:
 	UFUNCTION()
 	void HandleMoveCommandBlocked();
 
+	// 키워드 매칭 뒤의 실행 경로. 원래 private이었는데, 마이크 없이 명령을 테스트할 수 있게
+	// 0번 디버그 패널(AProtoCharacter::ToggleDebugPanel)이 같은 경로로 들어오도록 열어뒀다
+	// - 확인 대사와 MoveHere의 시선 레이캐스트까지 음성 명령과 완전히 동일하게 동작한다.
+	void ExecuteCommand(ECompanionCommandType Command);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -124,7 +129,6 @@ private:
 
 	ECompanionCommandType MatchKeywordCommand(const FString& Text) const;
 	bool MatchesVisionQuery(const FString& Text) const;
-	void ExecuteCommand(ECompanionCommandType Command);
 	// Brain의 give_item(item_name) 요청을 처리한다: 이름이 일치하는 아이템을 인벤토리에서 찾아
 	// 땅에 드롭(ADropItem 스폰)하고 인벤토리에서 제거한다. 못 찾으면 GiveItemNotFoundLine으로 답한다.
 	void TryGiveItem(const FString& ItemNameQuery);

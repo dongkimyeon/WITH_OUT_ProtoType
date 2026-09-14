@@ -1,4 +1,4 @@
-#include "ProtoCharacter.h"
+﻿#include "ProtoCharacter.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -44,6 +44,7 @@
 #include "../Companion/CompanionAIComponent.h"
 #include "../Companion/CompanionCombatComponent.h"
 #include "../Companion/CompanionListenComponent.h"
+#include "../Companion/CompanionCommandRouterComponent.h"
 #include "ProtoDebugPanel.h"
 #include "HAL/IConsoleManager.h"
 #include "Engine/GameViewportClient.h"
@@ -440,10 +441,13 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Released, this, &AProtoCharacter::StopAim);
 
-#if !UE_BUILD_SHIPPING
+#if !UE_BUILD_SHIPPING || PROTO_DEBUG_PANEL
     // 이전엔 5/6/7/8/9/0/-/[ 숫자키에 흩어져 있던 디버그 명령들 - 전부 0번 키로 여는 디버그
     // 패널(ProtoDebugPanel) 버튼으로 옮겼다. 진입점을 하나로 모아 뭘 눌러야 할지 안 외워도 되게.
     PlayerInputComponent->BindKey(EKeys::Zero, IE_Pressed, this, &AProtoCharacter::ToggleDebugPanel);
+#endif
+
+#if !UE_BUILD_SHIPPING
     PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &AProtoCharacter::ToggleEnemySoundsDebug);
 #endif
 }
@@ -459,6 +463,46 @@ void AProtoCharacter::ToggleEnemySoundsDebug()
             bEnabled ? TEXT("Zombie Sounds: ON") : TEXT("Zombie Sounds: OFF"));
     }
 }
+// 아래 세 명령은 AIComponent를 직접 부르지 않고 CommandRouter를 거친다 - 마이크가 없는
+// 테스트 환경에서 음성 명령과 "똑같은" 경로를 타야 의미가 있어서다(확인 대사 재생,
+// "저기로 가"의 카메라 시선 레이캐스트 + Waypoint/Interactable 태그 처리까지 그대로).
+static void RouteCompanionDebugCommand(ACompanionNPC* Companion, ECompanionCommandType Command, int32 MessageKey, const TCHAR* Label)
+{
+    UCompanionCommandRouterComponent* Router = Companion ? Companion->CommandRouterComponent : nullptr;
+    if (!Router)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(MessageKey, 2.0f, FColor::Red,
+                FString::Printf(TEXT("Companion %s failed: no companion or command router"), Label));
+        }
+        return;
+    }
+
+    Router->ExecuteCommand(Command);
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(MessageKey, 2.0f, FColor::Green,
+            FString::Printf(TEXT("Companion command: %s"), Label));
+    }
+}
+
+void AProtoCharacter::DebugCommandCompanionFollow()
+{
+    RouteCompanionDebugCommand(GetCompanionNPC(), ECompanionCommandType::Follow, 93011, TEXT("Follow"));
+}
+
+void AProtoCharacter::DebugCommandCompanionStop()
+{
+    RouteCompanionDebugCommand(GetCompanionNPC(), ECompanionCommandType::Stop, 93012, TEXT("Stop"));
+}
+
+void AProtoCharacter::DebugCommandCompanionMoveHere()
+{
+    RouteCompanionDebugCommand(GetCompanionNPC(), ECompanionCommandType::MoveHere, 93013, TEXT("MoveHere"));
+}
+
 void AProtoCharacter::DebugCommandCompanionEngage()
 {
     ACompanionNPC* Companion = GetCompanionNPC();
@@ -602,7 +646,7 @@ void AProtoCharacter::DebugDecreaseStamina()
 
 void AProtoCharacter::ToggleDebugPanel()
 {
-#if !UE_BUILD_SHIPPING
+#if !UE_BUILD_SHIPPING || PROTO_DEBUG_PANEL
     APlayerController* PC = Cast<APlayerController>(Controller);
     if (!PC)
     {
@@ -639,6 +683,9 @@ void AProtoCharacter::ToggleDebugPanel()
     CompanionSection.Title = FText::FromString(TEXT("동료 명령"));
     CompanionSection.Actions.Add({ FText::FromString(TEXT("교전")), [this]() { DebugCommandCompanionEngage(); } });
     CompanionSection.Actions.Add({ FText::FromString(TEXT("탐색")), [this]() { DebugCommandCompanionExplore(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("나 따라와")), [this]() { DebugCommandCompanionFollow(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("멈춰")), [this]() { DebugCommandCompanionStop(); } });
+    CompanionSection.Actions.Add({ FText::FromString(TEXT("저기로 가 (화면 중앙 기준)")), [this]() { DebugCommandCompanionMoveHere(); } });
     CompanionSection.Actions.Add({ FText::FromString(TEXT("무기1 장착")), [this]() { DebugCommandCompanionEquipWeapon1(); } });
     CompanionSection.Actions.Add({ FText::FromString(TEXT("무기2 장착")), [this]() { DebugCommandCompanionEquipWeapon2(); } });
     CompanionSection.Actions.Add({ FText::FromString(TEXT("무기 해제")), [this]() { DebugCommandCompanionHolsterWeapon(); } });
@@ -672,6 +719,9 @@ void AProtoCharacter::ToggleDebugPanel()
     AddCVarSlider(TEXT("companion.SightRadius"), FText::FromString(TEXT("SightRadius")), 0.0f, 6000.0f);
     AddCVarSlider(TEXT("companion.AttackRange"), FText::FromString(TEXT("AttackRange")), 0.0f, 4000.0f);
 
+    // DebugDraw 토글만은 Shipping 패널에서 뺀다 - DrawDebugSphere류가 Shipping에선 빈 인라인
+    // 함수로 스트립돼서, 켜도 화면엔 아무것도 안 그려지는 죽은 스위치가 되기 때문.
+#if !UE_BUILD_SHIPPING
     if (IConsoleVariable* DebugDrawCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("companion.DebugDraw")))
     {
         FProtoDebugToggle Toggle;
@@ -680,6 +730,7 @@ void AProtoCharacter::ToggleDebugPanel()
         Toggle.SetValue = [DebugDrawCVar](bool bNewValue) { DebugDrawCVar->Set(bNewValue ? 1 : 0); };
         TuningSection.Toggles.Add(Toggle);
     }
+#endif
 
     Sections.Add(TuningSection);
 

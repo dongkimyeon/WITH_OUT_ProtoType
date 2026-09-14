@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -226,6 +226,10 @@ private:
 
     void DebugCommandCompanionEngage();
     void DebugCommandCompanionExplore();
+    // 음성 명령("나 따라와"/"멈춰"/"저기로 가")을 마이크 없이 쏘기 위한 것들.
+    void DebugCommandCompanionFollow();
+    void DebugCommandCompanionStop();
+    void DebugCommandCompanionMoveHere();
     void DebugCommandCompanionEquipWeapon1();
     void DebugCommandCompanionEquipWeapon2();
     void DebugCommandCompanionHolsterWeapon();
@@ -243,7 +247,7 @@ private:
     // 액션 목록(무엇을 누르면 무슨 함수가 불리는지)은 여기 ProtoCharacter.cpp가 구성해 넘겨준다.
     void ToggleDebugPanel();
 
-#if !UE_BUILD_SHIPPING
+#if !UE_BUILD_SHIPPING || PROTO_DEBUG_PANEL
     TSharedPtr<SProtoDebugPanel> DebugPanelWidget;
 #endif
 

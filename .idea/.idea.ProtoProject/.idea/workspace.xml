@@ -20,7 +20,6 @@
   <component name="ChangeListManager">
     <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.ProtoProject/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/ProtoProject/PlayerContent/ProtoCharacter.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -383,6 +382,12 @@
       <workItem from="1788724934421" duration="298000" />
       <workItem from="1788753422544" duration="548000" />
       <workItem from="1789215369633" duration="849000" />
+      <workItem from="1789298817554" duration="327000" />
+      <workItem from="1789300863291" duration="232000" />
+      <workItem from="1789301151874" duration="1508000" />
+      <workItem from="1789349024616" duration="2510000" />
+      <workItem from="1789366470150" duration="1248000" />
+      <workItem from="1789368480598" duration="1410000" />
     </task>
     <servers />
   </component>
