@@ -54,8 +54,25 @@ protected:
 	// 최후의 안전장치일 뿐이다(HandleMatchTimeout -- 티켓 발급 실패, GameServer
 	// 다운 등 아무 응답도 없는 경우에만 실제로 발동해야 정상). 서버의
 	// kMatchWindow를 바꾸면 이 값도 같이 늘려야 한다.
+	//
+	// 점검 중 발견: 서버의 10초 창은 이 클라이언트가 RequestMatch()를 보낸
+	// 순간이 아니라, 티켓 발급 + Game 서버 재접속(완전히 새로운 TCP 연결 +
+	// C2S_JoinMatch) 왕복이 다 끝나고 이 세션이 실제로 matchmaker_ 대기열에
+	// 들어간 "이후"부터 카운트된다 -- 즉 이 타임아웃의 실질 여유분은 13초 전체가
+	// 아니라 "13초 - 그 왕복 시간"뿐이다. 같은 컴퓨터/LAN에서는 그 왕복이
+	// 사실상 0이라 문제가 안 드러나지만, 오늘 저녁처럼 친구 컴퓨터가 인터넷
+	// 건너 붙는 경우(이미 방화벽/NAT 문제로 왕복이 눈에 띄게 걸렸던 바로 그
+	// 경로) 왕복이 몇 초만 걸려도 이 타임아웃이 서버의 매칭 형성보다 먼저
+	// 발동해버린다 -- 그러면 이 세션만 GameSocket을 끊고(DisconnectFromGameServer)
+	// 로그인 연결로 폴백하는데, 서버 쪽에서는 그 연결 끊김이 곧 matchmaker_
+	// 대기열에서 이 세션을 Cancel시키는 신호라(EchoServer::UnregisterSession
+	// 참고) -- 같이 매칭 중이던 상대방은 이 세션 없이 혼자(or 다른 조합으로)
+	// 방이 형성되어 버린다. "매칭은 완료됐는데 한 명만 들어가진다"는 증상과
+	// 정확히 들어맞는 원인이라 여유분을 훨씬 넉넉하게 늘렸다 -- 진짜로 아무
+	// 응답이 없는(서버 다운 등) 경우에만 발동해야 정상이므로, 정상 매칭 상황에서
+	// 조금 더 오래 기다리는 건 손해가 아니다.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "LevelChange")
-	float MatchmakingTimeoutSeconds = 13.0f;
+	float MatchmakingTimeoutSeconds = 25.0f;
 
 	UFUNCTION()
 	void OnClickSingleMap1();
