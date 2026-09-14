@@ -76,6 +76,25 @@ void ADropItem::BeginPlay()
 
 	InteractBox->OnComponentBeginOverlap.AddDynamic(this, &ADropItem::OnInteractBeginOverlap);
 	InteractBox->OnComponentEndOverlap.AddDynamic(this, &ADropItem::OnInteractEndOverlap);
+
+	// 문제: "다른 플레이어가 먹은 아이템이 유령 상태로 존재하다가 상호작용하면
+	// 그제서야 없어짐" -- 예전엔 이 델리게이트를 RequestPickup() 안에서만
+	// 바인딩해서, 이 클라이언트가 직접 주우려고 시도하기 전까진 이 아이템의
+	// OnItemPickupResult를 아예 안 듣고 있었다. 그래서 다른 플레이어가 먼저
+	// 주워서 서버가 S2C_InteractResult{Ok}를 브로드캐스트해도 이 클라이언트는
+	// 그걸 놓치고, 로컬 플레이어가 나중에 이 아이템을 직접 상호작용해야만(그때야
+	// 비로소 바인딩되고, 이미 클레임됐으니 Denied를 받아) 사라졌다. 이제
+	// BeginPlay에서 항상 바인딩해서, 내가 직접 주우려 하지 않아도 다른 사람이
+	// 먼저 가져가는 순간 HandlePickupResult(bGranted=true, 남의 PickerPlayerId)가
+	// 와서 즉시 파괴되게 한다 -- RequestPickup()은 더 이상 따로 바인딩할 필요
+	// 없음(중복 바인딩 방지를 위해 그쪽 호출은 제거).
+	if (UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr)
+	{
+		if (UProtoNetClientSubsystem* NetClient = GameInstance->GetSubsystem<UProtoNetClientSubsystem>())
+		{
+			NetClient->OnItemPickupResult.AddUniqueDynamic(this, &ADropItem::HandlePickupResult);
+		}
+	}
 }
 
 void ADropItem::OnInteractBeginOverlap(UPrimitiveComponent*, AActor* OtherActor,
@@ -137,7 +156,9 @@ void ADropItem::RequestPickup(UInventoryGridComponent* TargetInventory, AProtoCh
 	bPickupRequested = true;
 	PendingTargetInventory = TargetInventory;
 	PendingPickupAnimPlayer = PickupAnimPlayer;
-	NetClient->OnItemPickupResult.AddDynamic(this, &ADropItem::HandlePickupResult);
+	// BeginPlay()가 이미 OnItemPickupResult를 바인딩해뒀다(위 주석 참고) --
+	// 여기서 또 바인딩하면 AddDynamic(중복 허용)이라 두 번 불려서
+	// HandlePickupResult가 같은 결과에 두 번 반응하게 된다.
 	NetClient->SendInteractLoot(NetSlotId);
 }
 
