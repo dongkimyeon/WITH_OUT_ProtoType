@@ -26,9 +26,19 @@ public class ProtoProject : ModuleRules
 		});
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
+
+		// UnrealEd는 에디터 전용 모듈이라 Shipping/Game 타겟(패키징 빌드)엔
+		// 절대 링크하면 안 된다 -- bBuildEditor로 ProtoProjectEditor 타겟일
+		// 때만 추가한다. ExportLevelObstaclesCommandlet이 맵을 "File > Open
+		// Level"과 똑같은 방식(UEditorLoadingAndSavingUtils::LoadMap)으로
+		// 로드해서 액터 트랜스폼을 제대로 계산시키기 위해 필요.
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("UnrealEd");
+		}
 
 		// To include OnlineSubsystemSteam, add it to the plugins section in your uproject file with the Enabled attribute set to true
 	}
