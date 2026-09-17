@@ -235,6 +235,8 @@ private:
     void DebugCommandCompanionHolsterWeapon();
     void DebugCommandCompanionJump();
     void DebugCommandCompanionReload();
+    // 키워드에 안 걸리는 일상 대화를 마이크 없이 쏴서 Brain 폴백 경로를 테스트한다.
+    void DebugSmallTalkWhatToDoTomorrow();
     void ToggleEnemySoundsDebug();
     void DebugDecreaseHealth();
     void DebugDecreaseHunger();

@@ -619,6 +619,31 @@ void AProtoCharacter::DebugCommandCompanionReload()
         GEngine->AddOnScreenDebugMessage(93007, 2.0f, FColor::Green, TEXT("Companion reload"));
     }
 }
+// 명령이 아닌 일상 대화는 ExecuteCommand가 아니라 HandleTranscribed로 넣는다 - 키워드 미매치 ->
+// Brain 텍스트 폴백까지, 마이크로 말했을 때와 완전히 같은 경로를 타야 응답 테스트가 의미 있어서다.
+void AProtoCharacter::DebugSmallTalkWhatToDoTomorrow()
+{
+    ACompanionNPC* Companion = GetCompanionNPC();
+    UCompanionCommandRouterComponent* Router = Companion ? Companion->CommandRouterComponent : nullptr;
+    if (!Router)
+    {
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(93014, 2.0f, FColor::Red, TEXT("Companion small talk failed: no companion or command router"));
+        }
+        return;
+    }
+
+    const FString Line = TEXT("우리 내일 뭐할까?");
+    Router->HandleTranscribed(Line);
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(93014, 2.0f, FColor::Green,
+            FString::Printf(TEXT("Companion small talk: %s"), *Line));
+    }
+}
+
 void AProtoCharacter::DebugDecreaseHealth()
 {
     if (StatusComponent) StatusComponent->SetHealth(StatusComponent->GetHealth() - 5.0f);
@@ -692,6 +717,11 @@ void AProtoCharacter::ToggleDebugPanel()
     CompanionSection.Actions.Add({ FText::FromString(TEXT("재장전")), [this]() { DebugCommandCompanionReload(); } });
     CompanionSection.Actions.Add({ FText::FromString(TEXT("점프")), [this]() { DebugCommandCompanionJump(); } });
     Sections.Add(CompanionSection);
+
+    FProtoDebugSection SmallTalkSection;
+    SmallTalkSection.Title = FText::FromString(TEXT("일상 대화 (키워드 미매치 -> Brain 폴백)"));
+    SmallTalkSection.Actions.Add({ FText::FromString(TEXT("우리 내일 뭐할까?")), [this]() { DebugSmallTalkWhatToDoTomorrow(); } });
+    Sections.Add(SmallTalkSection);
 
     FProtoDebugSection TuningSection;
     TuningSection.Title = FText::FromString(TEXT("동료 튜닝 (companion.* CVar, PIE 실시간 반영)"));
