@@ -18,7 +18,9 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="" />
+    <list default="true" id="fc7645ec-19e1-4810-a114-02c0724f571e" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/4/8L/RJ4FBL87MCMTAI4VD673D3.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/__ExternalActors__/Maps/TestMap/4/8L/RJ4FBL87MCMTAI4VD673D3.uasset" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -390,7 +392,7 @@
       <workItem from="1789374488019" duration="3000" />
       <workItem from="1789374638995" duration="284000" />
       <workItem from="1789650494824" duration="857000" />
-      <workItem from="1789652836624" duration="631000" />
+      <workItem from="1789652836624" duration="1235000" />
     </task>
     <servers />
   </component>
