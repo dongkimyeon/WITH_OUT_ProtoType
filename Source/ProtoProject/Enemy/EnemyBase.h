@@ -23,6 +23,7 @@ public:
 
     virtual void Tick(float DeltaTime) override;
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
     static void ToggleEnemySoundsEnabled();
     static bool AreEnemySoundsEnabled();
@@ -143,6 +144,55 @@ protected:
     // 걷는 좀비는 낮게, 뛰는 좀비는 높게 잡아 타입별 이동속도를 구분한다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|AI")
     float MoveSpeed = 300.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot")
+    bool bUseCombatSlots = true;
+
+    // Target distance where the enemy stops chasing the actor directly and reserves a surrounding combat slot.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0"))
+    float SlotClaimDistance = 650.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "1"))
+    int32 SlotFootprint = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0"))
+    float SlotFirstRingRadius = 170.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0"))
+    float SlotRingSpacing = 120.0f;
+
+    // Keeps the first combat ring inside melee reach even when AttackRange is tuned shorter than the visual slot radius.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0"))
+    float SlotAttackRangePadding = 30.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0"))
+    float SlotMoveAcceptanceRadius = 65.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0"))
+    float SlotNavigationProjectionExtent = 120.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Stuck", meta = (ClampMin = "0.0"))
+    float SlotStuckTimeout = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Stuck", meta = (ClampMin = "0.0"))
+    float SlotStuckVelocityThreshold = 25.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Stuck", meta = (ClampMin = "0.0"))
+    float SlotStuckProgressTolerance = 8.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Stuck", meta = (ClampMin = "0.0"))
+    float SlotReclaimDelay = 0.35f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "1"))
+    int32 MaxSlotRings = 6;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Debug")
+    bool bDrawCombatSlots = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Debug", meta = (ClampMin = "0.0"))
+    float CombatSlotDebugSphereRadius = 18.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Debug", meta = (ClampMin = "0.0"))
+    float CombatSlotDebugZOffset = 12.0f;
 
     // 처치 시 이 중 하나를 랜덤으로 드랍한다(비어있으면 드랍 없음).
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Loot")
@@ -197,7 +247,17 @@ protected:
     void PlayIdleSoundIfReady();
     void PauseMovementForMontage(UAnimMontage* Montage);
     void RestoreMovementAfterMontage(UAnimMontage* Montage = nullptr);
-
+    void UpdateCombatSlotClaim();
+    void ReleaseCombatSlot();
+    bool HasCombatSlot() const;
+    FVector GetCombatSlotLocation() const;
+    float GetCombatSlotRingRadius(int32 Ring) const;
+    bool ProjectCombatSlotLocation(const FVector& RawLocation, FVector& OutLocation) const;
+    bool TryClaimCombatSlot();
+    bool CanUseCombatSlotsForCurrentTarget() const;
+    void UpdateCombatSlotStuck(float DeltaTime);
+    void ResetCombatSlotStuckTracking();
+    void DrawCombatSlotsDebug() const;
     // 거리(SightRange)는 이미 통과했다고 가정하고, 시야각 + 장애물 차단(라인오브사이트)만 검사한다.
     bool CanSeeCandidate(const AActor* Candidate) const;
 
@@ -251,7 +311,11 @@ private:
     float SavedMontageMaxWalkSpeed = 0.0f;
     float SavedMontageMaxAcceleration = 0.0f;
     bool bMovementPausedForMontage = false;
-
+    TWeakObjectPtr<AActor> CombatSlotTarget;
+    int32 CombatSlotIndex = INDEX_NONE;
+    float CombatSlotStuckTimer = 0.0f;
+    float CombatSlotLastDistance = -1.0f;
+    float CombatSlotReclaimBlockTimer = 0.0f;
     // Whether THIS client's copy is the one actually running the behavior
     // tree/pathing for this enemy (see HandleEnemyClaimResult). Defaults to
     // true so offline/not-yet-connected play behaves exactly as before this

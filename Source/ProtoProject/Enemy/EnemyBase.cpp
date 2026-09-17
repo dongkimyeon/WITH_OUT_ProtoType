@@ -5,10 +5,12 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "NavigationSystem.h"
 #include "Perception/AIPerceptionStimuliSourceComponent.h"
 #include "Perception/AISense_Sight.h"
 #include "Sound/SoundBase.h"
@@ -29,7 +31,42 @@ using FEnemyActionNode = TBTActionNode<AEnemyBase>;
 using EEnemyBTResult = EBTNodeResult;
 
 static bool bEnemySoundsEnabled = true;
+namespace
+{
+    constexpr int32 CombatSlotsPerRing = 8;
 
+    struct FEnemyCombatSlotGroup
+    {
+        TWeakObjectPtr<AActor> Target;
+        TMap<int32, TWeakObjectPtr<AEnemyBase>> Claims;
+    };
+
+    TMap<TObjectKey<AActor>, FEnemyCombatSlotGroup> GEnemyCombatSlots;
+
+    FVector GetCombatSlotDirection(int32 SlotInRing)
+    {
+        static const FVector Directions[CombatSlotsPerRing] =
+        {
+            FVector(1.0f, 0.0f, 0.0f),
+            FVector(1.0f, 1.0f, 0.0f).GetSafeNormal(),
+            FVector(0.0f, 1.0f, 0.0f),
+            FVector(-1.0f, 1.0f, 0.0f).GetSafeNormal(),
+            FVector(-1.0f, 0.0f, 0.0f),
+            FVector(-1.0f, -1.0f, 0.0f).GetSafeNormal(),
+            FVector(0.0f, -1.0f, 0.0f),
+            FVector(1.0f, -1.0f, 0.0f).GetSafeNormal()
+        };
+
+        const int32 ClampedSlot = FMath::Clamp(SlotInRing, 0, CombatSlotsPerRing - 1);
+        return Directions[ClampedSlot];
+    }
+
+    bool IsCombatSlotHeldByAnother(const TWeakObjectPtr<AEnemyBase>& Claim, const AEnemyBase* Requester)
+    {
+        AEnemyBase* ClaimOwner = Claim.Get();
+        return IsValid(ClaimOwner) && ClaimOwner != Requester && !ClaimOwner->IsDead();
+    }
+}
 AEnemyBase::AEnemyBase()
 {
     PrimaryActorTick.bCanEverTick = true;
@@ -167,6 +204,12 @@ void AEnemyBase::BeginPlay()
     }
 }
 
+
+void AEnemyBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    ReleaseCombatSlot();
+    Super::EndPlay(EndPlayReason);
+}
 void AEnemyBase::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
@@ -218,7 +261,10 @@ void AEnemyBase::Tick(float DeltaTime)
 
     DebugPrintTimer -= DeltaTime;
     MoveRequestTimer -= DeltaTime;
+    CombatSlotReclaimBlockTimer -= DeltaTime;
     UpdateTarget();
+    DrawCombatSlotsDebug();
+    UpdateCombatSlotStuck(DeltaTime);
 
     if (BehaviorTreeRoot.IsValid())
     {
@@ -459,6 +505,298 @@ void AEnemyBase::OnAttackBoxBeginOverlap(UPrimitiveComponent* OverlappedComponen
         PrintBehaviorDebug(FString::Printf(TEXT("Enemy BT: Melee Hit %s / Damage %.1f"), *OtherActor->GetName(), AttackDamage), FColor::Red);
     }
 }
+void AEnemyBase::UpdateCombatSlotClaim()
+{
+    if (!CanUseCombatSlotsForCurrentTarget())
+    {
+        ReleaseCombatSlot();
+        return;
+    }
+
+    if (CombatSlotTarget.Get() != TargetActor)
+    {
+        ReleaseCombatSlot();
+    }
+
+    if (HasCombatSlot())
+    {
+        const int32 Ring = CombatSlotIndex / CombatSlotsPerRing;
+        const float SlotRadius = GetCombatSlotRingRadius(Ring);
+        const float MaxAttackSlotRadius = FMath::Max(0.0f, AttackRange - SlotAttackRangePadding);
+        if (SlotRadius > MaxAttackSlotRadius && MaxAttackSlotRadius > 0.0f)
+        {
+            ReleaseCombatSlot();
+        }
+    }
+
+    TryClaimCombatSlot();
+}
+
+void AEnemyBase::ReleaseCombatSlot()
+{
+    AActor* PreviousTarget = CombatSlotTarget.Get();
+    if (!PreviousTarget || CombatSlotIndex == INDEX_NONE)
+    {
+        CombatSlotTarget.Reset();
+        CombatSlotIndex = INDEX_NONE;
+        ResetCombatSlotStuckTracking();
+        return;
+    }
+
+    if (FEnemyCombatSlotGroup* Group = GEnemyCombatSlots.Find(TObjectKey<AActor>(PreviousTarget)))
+    {
+        const int32 Footprint = FMath::Clamp(SlotFootprint, 1, CombatSlotsPerRing);
+        for (int32 Offset = 0; Offset < Footprint; ++Offset)
+        {
+            const int32 ClaimedIndex = CombatSlotIndex + Offset;
+            if (Group->Claims.FindRef(ClaimedIndex).Get() == this)
+            {
+                Group->Claims.Remove(ClaimedIndex);
+            }
+        }
+
+        if (Group->Claims.Num() == 0)
+        {
+            GEnemyCombatSlots.Remove(TObjectKey<AActor>(PreviousTarget));
+        }
+    }
+
+    CombatSlotTarget.Reset();
+    CombatSlotIndex = INDEX_NONE;
+    ResetCombatSlotStuckTracking();
+}
+
+bool AEnemyBase::HasCombatSlot() const
+{
+    return CombatSlotTarget.IsValid() && CombatSlotTarget.Get() == TargetActor && CombatSlotIndex != INDEX_NONE;
+}
+
+float AEnemyBase::GetCombatSlotRingRadius(int32 Ring) const
+{
+    const float RawRadius = SlotFirstRingRadius + SlotRingSpacing * FMath::Max(0, Ring);
+    if (Ring == 0)
+    {
+        const float MaxAttackSlotRadius = FMath::Max(0.0f, AttackRange - SlotAttackRangePadding);
+        if (MaxAttackSlotRadius > 0.0f)
+        {
+            return FMath::Min(RawRadius, MaxAttackSlotRadius);
+        }
+    }
+
+    return RawRadius;
+}
+
+bool AEnemyBase::ProjectCombatSlotLocation(const FVector& RawLocation, FVector& OutLocation) const
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return false;
+    }
+
+    UNavigationSystemV1* NavSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+    if (!NavSystem)
+    {
+        OutLocation = RawLocation;
+        return true;
+    }
+
+    FNavLocation ProjectedLocation;
+    const FVector QueryExtent(SlotNavigationProjectionExtent, SlotNavigationProjectionExtent, SlotNavigationProjectionExtent);
+    if (!NavSystem->ProjectPointToNavigation(RawLocation, ProjectedLocation, QueryExtent))
+    {
+        return false;
+    }
+
+    OutLocation = ProjectedLocation.Location;
+    return true;
+}
+
+FVector AEnemyBase::GetCombatSlotLocation() const
+{
+    if (!HasCombatSlot())
+    {
+        return TargetActor ? TargetActor->GetActorLocation() : GetActorLocation();
+    }
+
+    const int32 Ring = CombatSlotIndex / CombatSlotsPerRing;
+    const int32 SlotInRing = CombatSlotIndex % CombatSlotsPerRing;
+    const FVector RawLocation = TargetActor->GetActorLocation() + GetCombatSlotDirection(SlotInRing) * GetCombatSlotRingRadius(Ring);
+
+    FVector ProjectedLocation;
+    return ProjectCombatSlotLocation(RawLocation, ProjectedLocation) ? ProjectedLocation : RawLocation;
+}
+
+bool AEnemyBase::TryClaimCombatSlot()
+{
+    if (!CanUseCombatSlotsForCurrentTarget())
+    {
+        return false;
+    }
+
+    if (HasCombatSlot())
+    {
+        return true;
+    }
+
+    const TObjectKey<AActor> TargetKey(TargetActor);
+    FEnemyCombatSlotGroup& Group = GEnemyCombatSlots.FindOrAdd(TargetKey);
+    Group.Target = TargetActor;
+
+    const int32 Footprint = FMath::Clamp(SlotFootprint, 1, CombatSlotsPerRing);
+    const int32 RingCount = FMath::Max(1, MaxSlotRings);
+    int32 BestSlotIndex = INDEX_NONE;
+    float BestDistanceSquared = TNumericLimits<float>::Max();
+
+    for (int32 Ring = 0; Ring < RingCount; ++Ring)
+    {
+        for (int32 SlotInRing = 0; SlotInRing < CombatSlotsPerRing; ++SlotInRing)
+        {
+            if (SlotInRing + Footprint > CombatSlotsPerRing)
+            {
+                continue;
+            }
+
+            bool bCanClaim = true;
+            const int32 CandidateIndex = Ring * CombatSlotsPerRing + SlotInRing;
+            for (int32 Offset = 0; Offset < Footprint; ++Offset)
+            {
+                if (IsCombatSlotHeldByAnother(Group.Claims.FindRef(CandidateIndex + Offset), this))
+                {
+                    bCanClaim = false;
+                    break;
+                }
+            }
+
+            if (!bCanClaim)
+            {
+                continue;
+            }
+
+            const FVector RawCandidateLocation = TargetActor->GetActorLocation() + GetCombatSlotDirection(SlotInRing) * GetCombatSlotRingRadius(Ring);
+            FVector CandidateLocation;
+            if (!ProjectCombatSlotLocation(RawCandidateLocation, CandidateLocation))
+            {
+                continue;
+            }
+
+            const float DistanceSquared = FVector::DistSquared2D(GetActorLocation(), CandidateLocation);
+            if (DistanceSquared < BestDistanceSquared)
+            {
+                BestDistanceSquared = DistanceSquared;
+                BestSlotIndex = CandidateIndex;
+            }
+        }
+
+        if (BestSlotIndex != INDEX_NONE)
+        {
+            break;
+        }
+    }
+
+    if (BestSlotIndex == INDEX_NONE)
+    {
+        return false;
+    }
+
+    CombatSlotTarget = TargetActor;
+    CombatSlotIndex = BestSlotIndex;
+    ResetCombatSlotStuckTracking();
+    for (int32 Offset = 0; Offset < Footprint; ++Offset)
+    {
+        Group.Claims.Add(BestSlotIndex + Offset, this);
+    }
+
+    return true;
+}
+
+bool AEnemyBase::CanUseCombatSlotsForCurrentTarget() const
+{
+    if (!bUseCombatSlots || bIsDead || !HasTarget() || CombatSlotReclaimBlockTimer > 0.0f)
+    {
+        return false;
+    }
+
+    return FVector::DistSquared2D(GetActorLocation(), TargetActor->GetActorLocation()) <= FMath::Square(SlotClaimDistance);
+}
+
+void AEnemyBase::UpdateCombatSlotStuck(float DeltaTime)
+{
+    if (!HasCombatSlot() || bIsDead || bIsAttacking || bMovementPausedForMontage)
+    {
+        ResetCombatSlotStuckTracking();
+        return;
+    }
+
+    const float DistanceToSlot = FVector::Dist2D(GetActorLocation(), GetCombatSlotLocation());
+    if (DistanceToSlot <= SlotMoveAcceptanceRadius + SlotStuckProgressTolerance)
+    {
+        ResetCombatSlotStuckTracking();
+        return;
+    }
+
+    const bool bMovingSlowly = GetVelocity().Size2D() <= SlotStuckVelocityThreshold;
+    const bool bMadeProgress = CombatSlotLastDistance < 0.0f || CombatSlotLastDistance - DistanceToSlot > SlotStuckProgressTolerance;
+    CombatSlotStuckTimer = (bMovingSlowly && !bMadeProgress) ? CombatSlotStuckTimer + DeltaTime : 0.0f;
+    CombatSlotLastDistance = DistanceToSlot;
+
+    if (CombatSlotStuckTimer >= SlotStuckTimeout)
+    {
+        ReleaseCombatSlot();
+        CombatSlotReclaimBlockTimer = SlotReclaimDelay;
+        MoveRequestTimer = 0.0f;
+        PrintBehaviorDebug(TEXT("Enemy BT: Reclaim Slot - Stuck"), FColor::Orange);
+    }
+}
+
+void AEnemyBase::ResetCombatSlotStuckTracking()
+{
+    CombatSlotStuckTimer = 0.0f;
+    CombatSlotLastDistance = -1.0f;
+}
+
+void AEnemyBase::DrawCombatSlotsDebug() const
+{
+    if (!bDrawCombatSlots || !bUseCombatSlots || bIsDead || !HasTarget())
+    {
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    const TObjectKey<AActor> TargetKey(TargetActor);
+    const FEnemyCombatSlotGroup* Group = GEnemyCombatSlots.Find(TargetKey);
+    const int32 RingCount = FMath::Max(1, MaxSlotRings);
+    const FVector DebugOffset(0.0f, 0.0f, CombatSlotDebugZOffset);
+
+    for (int32 Ring = 0; Ring < RingCount; ++Ring)
+    {
+        for (int32 SlotInRing = 0; SlotInRing < CombatSlotsPerRing; ++SlotInRing)
+        {
+            const int32 SlotIndex = Ring * CombatSlotsPerRing + SlotInRing;
+            const FVector RawSlotLocation = TargetActor->GetActorLocation() + GetCombatSlotDirection(SlotInRing) * GetCombatSlotRingRadius(Ring);
+            FVector SlotLocation;
+            const bool bHasNavSlot = ProjectCombatSlotLocation(RawSlotLocation, SlotLocation);
+            SlotLocation = (bHasNavSlot ? SlotLocation : RawSlotLocation) + DebugOffset;
+
+            FColor SlotColor = bHasNavSlot ? FColor::Green : FColor::Silver;
+            if (Group)
+            {
+                AEnemyBase* ClaimOwner = Group->Claims.FindRef(SlotIndex).Get();
+                if (IsValid(ClaimOwner))
+                {
+                    SlotColor = ClaimOwner == this ? FColor::Blue : FColor::Red;
+                }
+            }
+
+            DrawDebugSphere(World, SlotLocation, CombatSlotDebugSphereRadius, 16, SlotColor, false, 0.0f, 0, 2.0f);
+        }
+    }
+}
 void AEnemyBase::MoveToTarget()
 {
     if (bMovementPausedForMontage || bIsAttacking || !HasTarget())
@@ -470,13 +808,22 @@ void AEnemyBase::MoveToTarget()
         return;
     }
 
+    UpdateCombatSlotClaim();
+
     if (MoveRequestTimer <= 0.0f)
     {
         MoveRequestTimer = MoveRequestInterval;
 
         if (AAIController* AIController = Cast<AAIController>(GetController()))
         {
-            AIController->MoveToActor(TargetActor, MoveAcceptanceRadius, false, true, true, nullptr, true);
+            if (HasCombatSlot())
+            {
+                AIController->MoveToLocation(GetCombatSlotLocation(), SlotMoveAcceptanceRadius, false, true, true, true, nullptr, true);
+            }
+            else
+            {
+                AIController->MoveToActor(TargetActor, MoveAcceptanceRadius, false, true, true, nullptr, true);
+            }
         }
         else
         {
@@ -485,9 +832,8 @@ void AEnemyBase::MoveToTarget()
         }
     }
 
-    PrintBehaviorDebug(TEXT("Enemy BT: MoveToTarget"), FColor::Yellow);
+    PrintBehaviorDebug(HasCombatSlot() ? TEXT("Enemy BT: MoveToCombatSlot") : TEXT("Enemy BT: MoveToTarget"), FColor::Yellow);
 }
-
 
 void AEnemyBase::PlayEnemySound(USoundBase* Sound) const
 {
@@ -532,6 +878,7 @@ void AEnemyBase::Die()
     }
 
     bIsDead = true;
+    ReleaseCombatSlot();
     PlayEnemySound(DieSound);
     bIsAttacking = false;
     EndAttackHitWindow();
@@ -874,6 +1221,11 @@ void AEnemyBase::UpdateTarget()
         }
     }
 
+    if (TargetActor != BestTarget)
+    {
+        ReleaseCombatSlot();
+    }
+
     TargetActor = BestTarget;
 }
 
@@ -925,6 +1277,11 @@ void AEnemyBase::ReceiveCallTarget(AActor* NewTarget)
     if (bIsDead)
     {
         return;
+    }
+
+    if (TargetActor != NewTarget)
+    {
+        ReleaseCombatSlot();
     }
 
     TargetActor = NewTarget;
