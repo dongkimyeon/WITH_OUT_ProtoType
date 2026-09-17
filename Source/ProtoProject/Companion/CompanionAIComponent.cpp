@@ -33,6 +33,20 @@ namespace
 		0,
 		TEXT("1이면 Companion의 FollowDistance(초록)/AttackRange(빨강)/SightRadius(하늘) 반경을 구체로 표시한다."),
 		ECVF_Cheat);
+
+	// 자유 포지셔닝 추종 내부 상수.
+	constexpr float FollowMovingSpeedThreshold = 50.0f;   // 이 속도 초과면 플레이어가 이동 중
+	constexpr float FollowValidateInterval = 0.3f;        // 현재 자리 유효성 재검사 주기
+	constexpr float FollowRepickCooldown = 0.4f;          // 자리 재선택 최소 간격(핑퐁 방지)
+	constexpr float FollowArrivalTolerance = 60.0f;       // AcceptRadius + 에이전트 반경 여유
+	constexpr float FollowRepathDistance = 60.0f;         // 자리가 이만큼 움직이면 이동 재요청
+	constexpr float FollowStuckMinDistance = 150.0f;      // 자리에서 이보다 멀 때만 정체 감지
+	constexpr float FollowRejectDuration = 4.0f;
+	constexpr float FollowRejectRadius = 150.0f;
+	constexpr float FollowStuckFallbackDuration = 3.0f;   // 연속 정체 시 직접 추적으로 전환하는 시간
+	constexpr float FollowNoSlotFallbackDuration = 1.5f;  // 유효 자리가 없을 때 직접 추적 시간
+	constexpr float FollowCatchUpDeadZone = 100.0f;
+	constexpr int32 FollowCandidateAngleCount = 12;
 }
 
 using FCompanionBTNode = TBTNode<UCompanionAIComponent>;
@@ -62,6 +76,15 @@ void UCompanionAIComponent::BeginPlay()
 		PerceptionComponent = Owner->FindComponentByClass<UCompanionPerceptionComponent>();
 		InventoryComponent = Owner->FindComponentByClass<UInventoryGridComponent>();
 	}
+
+	if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
+	{
+		if (UCharacterMovementComponent* MovementComponent = OwnerCharacter->GetCharacterMovement())
+		{
+			DefaultMaxWalkSpeed = MovementComponent->MaxWalkSpeed;
+		}
+	}
+	FollowNoiseSeed = FMath::FRandRange(0.0f, 1000.0f);
 
 	if (PerceptionComponent.IsValid())
 	{
@@ -143,9 +166,14 @@ void UCompanionAIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		}
 	}
 
+	bFollowTickedThisFrame = false;
 	if (BehaviorTreeRoot.IsValid())
 	{
 		BehaviorTreeRoot->Tick(this, DeltaTime);
+	}
+	if (!bFollowTickedThisFrame)
+	{
+		RestoreDefaultMoveSpeed();
 	}
 
 	if (CVarCompanionDebugDraw.GetValueOnGameThread() != 0)
@@ -215,28 +243,9 @@ void UCompanionAIComponent::RequestAiming()
 
 bool UCompanionAIComponent::ShouldSprintWhileFollowing() const
 {
-	const AActor* Owner = GetOwner();
-	const APawn* Player = CachedPlayerPawn.Get();
-	if (!bFollowEnabled || bHasCommandedDestination || bCombatEngaged || bExploring || !Owner || !Player)
-	{
-		bFollowSprintActive = false;
-		return false;
-	}
-
-	const float DistanceSquared = FVector::DistSquared(Owner->GetActorLocation(), Player->GetActorLocation());
-	const float StartDistance = FMath::Max(FollowSprintDistance, FollowSprintStopDistance);
-	const float StopDistance = FMath::Min(FollowSprintDistance, FollowSprintStopDistance);
-
-	if (DistanceSquared >= FMath::Square(StartDistance))
-	{
-		bFollowSprintActive = true;
-	}
-	else if (DistanceSquared <= FMath::Square(StopDistance))
-	{
-		bFollowSprintActive = false;
-	}
-
-	return bFollowSprintActive;
+	// 달리기 여부는 DoFollow(ApplyFollowSpeed)가 실제 이동 속도 기준으로 갱신한다.
+	// 추종 속도 제어가 꺼져 있으면(추종 외 상태) 달리기 아님.
+	return bFollowSpeedApplied && bFollowSprintActive;
 }
 float UCompanionAIComponent::GetEffectiveFollowDistance() const
 {
@@ -1046,26 +1055,437 @@ EBTNodeResult UCompanionAIComponent::DoFollow(float DeltaTime)
 
 	APawn* Player = CachedPlayerPawn.Get();
 	AActor* Owner = GetOwner();
-	if (!Player || !Owner)
+	UWorld* World = GetWorld();
+	if (!Player || !Owner || !World)
 	{
 		return EBTNodeResult::Running;
 	}
 
-	const float EffectiveFollowDistance = GetEffectiveFollowDistance();
-	const float DistSq = FVector::DistSquared(Owner->GetActorLocation(), Player->GetActorLocation());
-	if (DistSq > FMath::Square(EffectiveFollowDistance))
+	bFollowTickedThisFrame = true;
+	const float Now = World->GetTimeSeconds();
+
+	// 다른 상태(전투/명령/탐색)에 있다가 막 돌아왔으면 자리 선택을 처음부터 다시 한다.
+	if (LastFollowTickTime < 0.0 || (Now - LastFollowTickTime) > 0.5)
 	{
-		RequestMoveToActor(Player, EffectiveFollowDistance);
+		bHasFollowSlot = false;
+		bFollowMoveIssued = false;
+		FollowStuckCount = 0;
+		FollowFallbackEndTime = 0.0f;
+		PlayerStillElapsed = 0.0f;
+		bIdleLookActive = false;
+		FollowHeadingYaw = static_cast<float>(Player->GetActorRotation().Yaw);
 	}
-	else if (DistSq < FMath::Square(MinFollowDistance))
+	LastFollowTickTime = Now;
+
+	const FVector OwnerLocation = Owner->GetActorLocation();
+	const FVector PlayerLocation = Player->GetActorLocation();
+	FVector PlayerVelocity = Player->GetVelocity();
+	PlayerVelocity.Z = 0.0f;
+	const float PlayerSpeed = static_cast<float>(PlayerVelocity.Size());
+	const bool bPlayerMoving = PlayerSpeed > FollowMovingSpeedThreshold;
+
+	PlayerStillElapsed = bPlayerMoving ? 0.0f : PlayerStillElapsed + DeltaTime;
+	const bool bIdleMode = PlayerStillElapsed >= IdleSettleDelay;
+
+	// 플레이어 진행 방향(자리 각도의 기준축). 멈춰 있으면 마지막 방향을 유지한다.
+	if (bPlayerMoving)
 	{
-		if (AAIController* AIController = GetAIController())
+		const FRotator CurrentHeading(0.0f, FollowHeadingYaw, 0.0f);
+		const FRotator TargetHeading(0.0f, PlayerVelocity.Rotation().Yaw, 0.0f);
+		FollowHeadingYaw = static_cast<float>(FMath::RInterpTo(CurrentHeading, TargetHeading, DeltaTime, FollowHeadingInterpSpeed).Yaw);
+	}
+
+	// 도넛 중심 = 플레이어 예측 위치(내비메시 투영). 실패하면 현재 위치로.
+	UNavigationSystemV1* NavSystem = UNavigationSystemV1::GetCurrent(World);
+	const FVector ProjectExtent(100.0f, 100.0f, 300.0f);
+	FNavLocation CenterNav;
+	const bool bHasCenter = NavSystem
+		&& (NavSystem->ProjectPointToNavigation(PlayerLocation + PlayerVelocity * FollowPredictionTime, CenterNav, ProjectExtent)
+			|| NavSystem->ProjectPointToNavigation(PlayerLocation, CenterNav, ProjectExtent));
+
+	// 폴백: 자리를 잡을 수 없거나 연속 정체 직후엔 예전 방식(플레이어에게 직접 접근).
+	if (!bHasCenter || Now < FollowFallbackEndTime)
+	{
+		const float EffectiveFollowDistance = GetEffectiveFollowDistance();
+		const float DistToPlayer = static_cast<float>(FVector::Dist2D(OwnerLocation, PlayerLocation));
+		if (DistToPlayer > EffectiveFollowDistance)
 		{
-			AIController->StopMovement();
+			RequestMoveToActor(Player, EffectiveFollowDistance);
+		}
+		bFollowMoveIssued = false;
+		ApplyFollowSpeed(DeltaTime, FMath::Max(0.0f, DistToPlayer - EffectiveFollowDistance), PlayerSpeed, bPlayerMoving);
+		return EBTNodeResult::Running;
+	}
+
+	// ── 자리 유지/재선택 판단 ──
+	bool bNeedPick = !bHasFollowSlot || Now >= FollowSlotExpireTime || bIdleMode != bFollowSlotIsIdle;
+
+	FollowValidateTimer -= DeltaTime;
+	if (!bNeedPick && FollowValidateTimer <= 0.0f)
+	{
+		FollowValidateTimer = FollowValidateInterval;
+
+		// 자리는 플레이어 기준 (각도, 반경)이라 플레이어가 움직이면 월드 좌표도 같이 옮겨진다.
+		FVector Spot;
+		if (ComputeFollowSpot(CenterNav.Location, FollowSlotAngle, FollowSlotRadius, bPlayerMoving, Spot))
+		{
+			FollowSpotLocation = Spot;
+		}
+		else
+		{
+			bNeedPick = true; // 벽에 막혔거나 플레이어 진행 경로에 걸림 -> 비켜선다.
+		}
+
+		// 플레이어가 이쪽으로 다가오며 너무 가까워지면 비켜선다.
+		const FVector PlayerToOwner = OwnerLocation - PlayerLocation;
+		if (bPlayerMoving
+			&& PlayerToOwner.SizeSquared2D() < FMath::Square(MinFollowDistance)
+			&& FVector::DotProduct(PlayerVelocity, PlayerToOwner) > 0.0f)
+		{
+			bNeedPick = true;
 		}
 	}
 
+	if (bNeedPick && (Now - FollowLastPickTime) >= FollowRepickCooldown)
+	{
+		FollowLastPickTime = Now;
+		FollowValidateTimer = FollowValidateInterval;
+		if (!PickFollowSlot(CenterNav.Location, bPlayerMoving, bIdleMode))
+		{
+			UE_LOG(LogCompanionAI, Verbose, TEXT("[AI] 추종 자리 후보 없음 - 잠시 직접 추적"));
+			bHasFollowSlot = false;
+			FollowFallbackEndTime = Now + FollowNoSlotFallbackDuration;
+			return EBTNodeResult::Running;
+		}
+	}
+
+	if (!bHasFollowSlot)
+	{
+		return EBTNodeResult::Running;
+	}
+
+	// ── 자리로 이동 ──
+	const float DistToSpot = static_cast<float>(FVector::Dist2D(OwnerLocation, FollowSpotLocation));
+	const bool bArrived = DistToSpot <= FollowSpotAcceptRadius + FollowArrivalTolerance;
+
+	AAIController* AIController = GetAIController();
+	const bool bPathIdle = AIController && AIController->GetMoveStatus() == EPathFollowingStatus::Idle;
+	// 플레이어가 이동 중이면 자리도 계속 움직이므로 도착 여부와 무관하게 따라간다(멈칫거림 방지).
+	if ((!bArrived || bPlayerMoving) && MoveRequestTimer <= 0.0f
+		&& (!bFollowMoveIssued
+			|| FVector::Dist2D(FollowSpotLocation, LastRequestedFollowSpot) > FollowRepathDistance
+			|| bPathIdle))
+	{
+		RequestMoveToLocation(FollowSpotLocation, FollowSpotAcceptRadius);
+		LastRequestedFollowSpot = FollowSpotLocation;
+		bFollowMoveIssued = true;
+	}
+
+	// 좁은 곳에서 막히면: 그 자리를 잠시 포기하고 다른 자리를 고른다. 두 번 연속이면 직접 추적으로.
+	if (!bArrived && DistToSpot > FollowStuckMinDistance)
+	{
+		if (TickStuckDetection(DeltaTime))
+		{
+			ResetStuckDetection();
+			FollowRejectedSpots.Emplace(FollowSpotLocation, Now + FollowRejectDuration);
+			bHasFollowSlot = false;
+			bFollowMoveIssued = false;
+			FollowLastPickTime = -FLT_MAX;
+
+			if (++FollowStuckCount >= 2)
+			{
+				UE_LOG(LogCompanionAI, Log, TEXT("[AI] 추종 중 연속 정체 - %.1f초간 직접 추적"), FollowStuckFallbackDuration);
+				FollowStuckCount = 0;
+				FollowFallbackEndTime = Now + FollowStuckFallbackDuration;
+			}
+			else
+			{
+				UE_LOG(LogCompanionAI, Log, TEXT("[AI] 추종 중 정체 - 다른 자리 선택"));
+			}
+			return EBTNodeResult::Running;
+		}
+	}
+	else if (bArrived)
+	{
+		FollowStuckCount = 0;
+	}
+
+	ApplyFollowSpeed(DeltaTime, DistToSpot, PlayerSpeed, bPlayerMoving);
+
+	if (bIdleMode && bArrived)
+	{
+		TickIdleLook(DeltaTime, Player);
+	}
+	else
+	{
+		bIdleLookActive = false;
+	}
+
+	if (CVarCompanionDebugDraw.GetValueOnGameThread() != 0)
+	{
+		DrawDebugSphere(World, FollowSpotLocation, 35.0f, 8, bIdleMode ? FColor::Blue : FColor::Yellow, false, -1.0f, 0, 2.0f);
+		DrawDebugLine(World, OwnerLocation, FollowSpotLocation, FColor::Yellow, false, -1.0f, 0, 1.0f);
+	}
+
 	return EBTNodeResult::Running;
+}
+
+bool UCompanionAIComponent::ComputeFollowSpot(const FVector& Center, float Angle, float Radius, bool bPlayerMoving, FVector& OutSpot) const
+{
+	UWorld* World = GetWorld();
+	UNavigationSystemV1* NavSystem = World ? UNavigationSystemV1::GetCurrent(World) : nullptr;
+	if (!NavSystem)
+	{
+		return false;
+	}
+
+	const FVector Direction = FRotator(0.0f, FollowHeadingYaw + Angle, 0.0f).Vector();
+	FNavLocation NavLoc;
+	if (!NavSystem->ProjectPointToNavigation(Center + Direction * Radius, NavLoc, FVector(80.0f, 80.0f, 250.0f)))
+	{
+		return false;
+	}
+	const FVector Spot = NavLoc.Location;
+
+	// 투영이 플레이어 쪽으로 크게 끌려왔으면 버린다.
+	if (FVector::Dist2D(Spot, Center) < FMath::Min(FollowRingMinRadius, FollowRingMaxRadius) * 0.6f)
+	{
+		return false;
+	}
+
+	// 플레이어 위치에서 그 자리까지 내비메시 위로 곧게 이어져야 한다. 좁은 통로에서는 옆/앞 자리가
+	// 여기서 걸러져 자연스럽게 뒤쪽 자리만 남는다(벽 너머/다른 층 자리도 제외).
+	FVector HitLocation;
+	if (UNavigationSystemV1::NavigationRaycast(World, Center, Spot, HitLocation))
+	{
+		return false;
+	}
+
+	// 이동 중인 플레이어의 진행 경로 위에는 서지 않는다.
+	if (bPlayerMoving)
+	{
+		const FVector Local = FRotator(0.0f, FollowHeadingYaw, 0.0f).UnrotateVector(Spot - Center);
+		if (Local.X > -50.0f && Local.X < FollowPathBlockLength && FMath::Abs(Local.Y) < FollowPathBlockHalfWidth)
+		{
+			return false;
+		}
+	}
+
+	const float Now = World->GetTimeSeconds();
+	for (const TPair<FVector, float>& Rejected : FollowRejectedSpots)
+	{
+		if (Rejected.Value > Now && FVector::DistSquared2D(Spot, Rejected.Key) < FMath::Square(FollowRejectRadius))
+		{
+			return false;
+		}
+	}
+
+	OutSpot = Spot;
+	return true;
+}
+
+bool UCompanionAIComponent::PickFollowSlot(const FVector& Center, bool bPlayerMoving, bool bIdleMode)
+{
+	const AActor* Owner = GetOwner();
+	UWorld* World = GetWorld();
+	if (!Owner || !World)
+	{
+		return false;
+	}
+
+	const float Now = World->GetTimeSeconds();
+	FollowRejectedSpots.RemoveAll([Now](const TPair<FVector, float>& Rejected)
+	{
+		return Rejected.Value <= Now;
+	});
+
+	const float MinRadius = FMath::Min(FollowRingMinRadius, FollowRingMaxRadius);
+	const float MaxRadius = FMath::Max(FollowRingMinRadius, FollowRingMaxRadius);
+	const float MidRadius = (MinRadius + MaxRadius) * 0.5f;
+	const float RadiusRange = FMath::Max(MaxRadius - MinRadius, 1.0f);
+	const float CandidateRadii[] = { FMath::Lerp(MinRadius, MaxRadius, 0.25f), FMath::Lerp(MinRadius, MaxRadius, 0.75f) };
+
+	// 시간에 따라 천천히 흔들리는 선호 방향(진행 방향 기준, 0=앞). 같은 길을 걸어도 매번 위치가 달라진다.
+	const float Noise = FMath::Clamp(FMath::PerlinNoise1D(Now * FollowPreferenceDriftSpeed + FollowNoiseSeed) * 1.8f, -1.0f, 1.0f);
+	const float PreferredAngle = Noise * 180.0f;
+
+	const FVector OwnerLocation = Owner->GetActorLocation();
+	const bool bDebugDraw = CVarCompanionDebugDraw.GetValueOnGameThread() != 0;
+
+	FCollisionQueryParams WallParams(TEXT("CompanionIdleWall"), false, Owner);
+	if (const APawn* Player = CachedPlayerPawn.Get())
+	{
+		WallParams.AddIgnoredActor(Player);
+	}
+
+	float BestScore = -FLT_MAX;
+	float BestAngle = 0.0f;
+	float BestRadius = 0.0f;
+	FVector BestSpot = FVector::ZeroVector;
+	bool bFound = false;
+
+	for (int32 Index = 0; Index < FollowCandidateAngleCount; ++Index)
+	{
+		const float Angle = -180.0f + Index * (360.0f / FollowCandidateAngleCount);
+		for (const float Radius : CandidateRadii)
+		{
+			FVector Spot;
+			const bool bValid = ComputeFollowSpot(Center, Angle, Radius, bPlayerMoving, Spot);
+			if (bDebugDraw)
+			{
+				const FVector DrawLocation = bValid ? Spot : Center + FRotator(0.0f, FollowHeadingYaw + Angle, 0.0f).Vector() * Radius;
+				DrawDebugSphere(World, DrawLocation, 15.0f, 6, bValid ? FColor::Green : FColor::Red, false, 0.5f, 0, 1.0f);
+			}
+			if (!bValid)
+			{
+				continue;
+			}
+
+			float Score = 0.0f;
+			// 지금 위치에서 가까운 자리 선호 - 괜히 플레이어를 가로질러 반대편으로 가지 않게.
+			Score -= static_cast<float>(FVector::Dist2D(Spot, OwnerLocation)) * 0.003f;
+			// 선호 방향과 가까울수록 가점. 대기 중엔 약하게(벽 등지기가 우선).
+			Score -= FMath::Abs(FMath::FindDeltaAngleDegrees(Angle, PreferredAngle)) / 180.0f * (bIdleMode ? 0.5f : 2.0f);
+			// 도넛 중간 거리 선호.
+			Score -= FMath::Abs(Radius - MidRadius) / RadiusRange * 0.5f;
+
+			if (bIdleMode)
+			{
+				// 자리 바깥쪽(플레이어 반대편)에 벽이 있으면 가점 - 벽을 등지고 선다.
+				const FVector Outward = (Spot - Center).GetSafeNormal2D();
+				const FVector TraceStart = Spot + FVector(0.0f, 0.0f, 50.0f);
+				FHitResult Hit;
+				if (World->LineTraceSingleByChannel(Hit, TraceStart, TraceStart + Outward * IdleWallProbeDistance, ECC_Visibility, WallParams))
+				{
+					Score += 1.5f;
+				}
+			}
+
+			Score += FMath::FRandRange(0.0f, 0.3f);
+
+			if (Score > BestScore)
+			{
+				BestScore = Score;
+				BestAngle = Angle;
+				BestRadius = Radius;
+				BestSpot = Spot;
+				bFound = true;
+			}
+		}
+	}
+
+	if (!bFound)
+	{
+		return false;
+	}
+
+	FollowSlotAngle = BestAngle;
+	FollowSlotRadius = BestRadius;
+	FollowSpotLocation = BestSpot;
+	bHasFollowSlot = true;
+	bFollowSlotIsIdle = bIdleMode;
+	bFollowMoveIssued = false;
+	FollowSlotExpireTime = Now + (bIdleMode
+		? FMath::FRandRange(IdleSlotHoldTimeMin, IdleSlotHoldTimeMax)
+		: FMath::FRandRange(FollowSlotHoldTimeMin, FollowSlotHoldTimeMax));
+
+	UE_LOG(LogCompanionAI, Verbose, TEXT("[AI] 추종 자리 선택: 각도 %.0f 반경 %.0f (선호 %.0f, 대기=%d)"),
+		BestAngle, BestRadius, PreferredAngle, bIdleMode);
+	return true;
+}
+
+void UCompanionAIComponent::ApplyFollowSpeed(float DeltaTime, float DistToSpot, float PlayerSpeed, bool bPlayerMoving)
+{
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	UCharacterMovementComponent* MovementComponent = OwnerCharacter ? OwnerCharacter->GetCharacterMovement() : nullptr;
+	if (!MovementComponent)
+	{
+		return;
+	}
+
+	if (!bFollowSpeedApplied)
+	{
+		bFollowSpeedApplied = true;
+		CurrentFollowSpeed = FMath::Max(static_cast<float>(MovementComponent->Velocity.Size2D()), FollowWalkSpeed * 0.4f);
+	}
+
+	float TargetSpeed;
+	if (bPlayerMoving)
+	{
+		// 플레이어 속도에 맞추고, 자리에서 뒤처진 만큼 더 빠르게.
+		TargetSpeed = PlayerSpeed + FMath::Max(0.0f, DistToSpot - FollowCatchUpDeadZone) * FollowCatchUpGain;
+	}
+	else
+	{
+		// 플레이어가 서 있으면 걷기 속도로 가다가 도착 직전에 감속.
+		const float ArrivalScale = FMath::Lerp(0.4f, 1.0f,
+			FMath::Clamp(DistToSpot / FMath::Max(FollowArrivalSlowRadius, 1.0f), 0.0f, 1.0f));
+		TargetSpeed = FollowWalkSpeed * ArrivalScale
+			+ FMath::Max(0.0f, DistToSpot - FollowRingMaxRadius) * FollowCatchUpGain;
+	}
+	TargetSpeed = FMath::Clamp(TargetSpeed, FollowWalkSpeed * 0.4f, FollowSprintSpeed);
+
+	CurrentFollowSpeed = FMath::FInterpTo(CurrentFollowSpeed, TargetSpeed, DeltaTime, FollowSpeedInterpSpeed);
+	MovementComponent->MaxWalkSpeed = CurrentFollowSpeed;
+
+	if (CurrentFollowSpeed >= FollowSprintAnimSpeed)
+	{
+		bFollowSprintActive = true;
+	}
+	else if (CurrentFollowSpeed <= FollowSprintAnimSpeed * 0.85f)
+	{
+		bFollowSprintActive = false;
+	}
+}
+
+void UCompanionAIComponent::RestoreDefaultMoveSpeed()
+{
+	if (!bFollowSpeedApplied)
+	{
+		return;
+	}
+	bFollowSpeedApplied = false;
+	bFollowSprintActive = false;
+
+	if (ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner()))
+	{
+		if (UCharacterMovementComponent* MovementComponent = OwnerCharacter->GetCharacterMovement())
+		{
+			MovementComponent->MaxWalkSpeed = DefaultMaxWalkSpeed;
+		}
+	}
+}
+
+void UCompanionAIComponent::TickIdleLook(float DeltaTime, const APawn* Player)
+{
+	ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
+	if (!OwnerCharacter || !Player)
+	{
+		return;
+	}
+
+	IdleLookTimer -= DeltaTime;
+	if (!bIdleLookActive || IdleLookTimer <= 0.0f)
+	{
+		bIdleLookActive = true;
+		IdleLookTimer = FMath::FRandRange(IdleLookIntervalMin, IdleLookIntervalMax);
+
+		const FVector ToPlayer = Player->GetActorLocation() - OwnerCharacter->GetActorLocation();
+		if (FMath::FRand() < IdleLookAtPlayerChance)
+		{
+			IdleLookYaw = static_cast<float>(ToPlayer.Rotation().Yaw);
+		}
+		else
+		{
+			// 플레이어 반대편(바깥쪽) 기준 좌우로 둘러본다 - 경계하는 느낌.
+			IdleLookYaw = static_cast<float>((-ToPlayer).Rotation().Yaw) + FMath::FRandRange(-100.0f, 100.0f);
+		}
+	}
+
+	// 서 있을 때는 bOrientRotationToMovement가 회전을 덮어쓰지 않으므로 직접 보간한다.
+	const FRotator CurrentRotation = OwnerCharacter->GetActorRotation();
+	const FRotator TargetRotation(CurrentRotation.Pitch, IdleLookYaw, CurrentRotation.Roll);
+	OwnerCharacter->SetActorRotation(FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, IdleLookInterpSpeed));
 }
 
 EBTNodeResult UCompanionAIComponent::DoIdle(float DeltaTime)

@@ -198,6 +198,95 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Combat")
 	float EyeProbeHeight = 60.0f;
 
+	// ── 자유 포지셔닝 추종 ──
+	// 고정 슬롯 대신 플레이어(예측 위치) 주변 도넛 범위에서 자리를 골라 몇 초씩 유지한다.
+	// 자리는 플레이어 진행 방향 기준 (각도, 반경)으로 기억해 플레이어와 함께 움직인다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowRingMinRadius = 180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowRingMaxRadius = 450.0f;
+
+	// 플레이어 속도 x 이 시간만큼 앞을 도넛 중심으로 삼는다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowPredictionTime = 0.6f;
+
+	// 한 번 고른 자리를 유지하는 시간(초) 범위. 이 안에서 랜덤.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowSlotHoldTimeMin = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowSlotHoldTimeMax = 6.0f;
+
+	// 선호 방향(앞/옆/뒤)이 시간에 따라 흔들리는 속도. 작을수록 천천히 바뀐다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowPreferenceDriftSpeed = 0.05f;
+
+	// 플레이어 이동 중 진행 경로(앞쪽 직사각형) 위에는 서지 않는다 - 길 막기/충돌 방지.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowPathBlockLength = 450.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowPathBlockHalfWidth = 100.0f;
+
+	// 플레이어 진행 방향 추정치의 보간 속도(급회전 시 자리가 확 돌지 않게).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowHeadingInterpSpeed = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowSpotAcceptRadius = 50.0f;
+
+	// 추종 중 이동 속도. 플레이어 속도에 맞추고, 자리에서 멀면 FollowSprintSpeed까지 올린다.
+	// (AProtoCharacter 기본값: 걷기 300 / 달리기 600)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowWalkSpeed = 300.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowSprintSpeed = 650.0f;
+
+	// 이동 속도가 이 값 이상이면 bIsSprint(달리기 애니메이션)를 켠다(끌 때는 85%).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowSprintAnimSpeed = 450.0f;
+
+	// 자리와의 거리(데드존 100 초과분) 1당 더해지는 추격 속도.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowCatchUpGain = 1.5f;
+
+	// 플레이어가 멈춰 있을 때 자리 도착 전 이 거리부터 감속한다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowArrivalSlowRadius = 200.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow")
+	float FollowSpeedInterpSpeed = 3.0f;
+
+	// 플레이어가 이 시간(초) 이상 멈춰 있으면 대기 자리(벽 등진 곳 선호)를 잡는다.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow|Idle")
+	float IdleSettleDelay = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow|Idle")
+	float IdleSlotHoldTimeMin = 8.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow|Idle")
+	float IdleSlotHoldTimeMax = 15.0f;
+
+	// 대기 중 시선을 새로 돌리는 간격(초) 범위.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow|Idle")
+	float IdleLookIntervalMin = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow|Idle")
+	float IdleLookIntervalMax = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow|Idle")
+	float IdleLookInterpSpeed = 3.0f;
+
+	// 시선을 돌릴 때 플레이어 쪽을 볼 확률(나머지는 바깥쪽 주변).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow|Idle")
+	float IdleLookAtPlayerChance = 0.3f;
+
+	// 대기 자리 후보의 바깥쪽으로 이 거리 안에 벽이 있으면 가점(벽을 등지고 선다).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Companion|Follow|Idle")
+	float IdleWallProbeDistance = 150.0f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -262,6 +351,37 @@ private:
 	// 마지막 평가 시점의 적 위치 - 적이 StrafeDistance 이상 이동하면 즉시 재평가한다.
 	FVector TacticalEvalEnemyLocation = FVector::ZeroVector;
 
+	// 자유 포지셔닝 추종 상태.
+	bool bFollowTickedThisFrame = false;
+	bool bFollowSpeedApplied = false;
+	float DefaultMaxWalkSpeed = 0.0f;
+	float CurrentFollowSpeed = 0.0f;
+	double LastFollowTickTime = -1.0;
+	float FollowNoiseSeed = 0.0f;
+	float FollowHeadingYaw = 0.0f;
+	float PlayerStillElapsed = 0.0f;
+
+	bool bHasFollowSlot = false;
+	bool bFollowSlotIsIdle = false;
+	float FollowSlotAngle = 0.0f;   // 플레이어 진행 방향 기준(0=앞)
+	float FollowSlotRadius = 0.0f;
+	float FollowSlotExpireTime = 0.0f;
+	float FollowLastPickTime = -FLT_MAX;
+	float FollowValidateTimer = 0.0f;
+	FVector FollowSpotLocation = FVector::ZeroVector;
+
+	bool bFollowMoveIssued = false;
+	FVector LastRequestedFollowSpot = FVector::ZeroVector;
+
+	int32 FollowStuckCount = 0;
+	float FollowFallbackEndTime = 0.0f;
+	// 정체로 포기한 자리(월드 좌표, 만료 시각) - 잠시 재선택하지 않는다.
+	TArray<TPair<FVector, float>> FollowRejectedSpots;
+
+	bool bIdleLookActive = false;
+	float IdleLookTimer = 0.0f;
+	float IdleLookYaw = 0.0f;
+
 	void BuildBehaviorTree();
 	AAIController* GetAIController();
 
@@ -323,6 +443,22 @@ private:
 
 	// 명령 이동을 포기한다: 상태 초기화 + StopMovement + OnMoveCommandBlocked 브로드캐스트.
 	void AbandonCommandedMove();
+
+	// 도넛 후보(각도 x 반경)를 점수화해 추종 자리를 고른다. 유효 후보가 없으면 false.
+	bool PickFollowSlot(const FVector& Center, bool bPlayerMoving, bool bIdleMode);
+
+	// (각도, 반경) 자리를 현재 플레이어 기준 월드 좌표로 계산하고 유효성(내비 투영, 플레이어로부터
+	// 내비메시 직선 연결, 진행 경로 밖, 포기 목록 밖)을 검사한다.
+	bool ComputeFollowSpot(const FVector& Center, float Angle, float Radius, bool bPlayerMoving, FVector& OutSpot) const;
+
+	// 추종 중 MaxWalkSpeed를 플레이어 속도/자리 거리에 맞춰 보간하고 달리기 애니 플래그를 갱신한다.
+	void ApplyFollowSpeed(float DeltaTime, float DistToSpot, float PlayerSpeed, bool bPlayerMoving);
+
+	// 추종이 아닌 상태로 넘어가면 BeginPlay 시점의 MaxWalkSpeed로 되돌린다.
+	void RestoreDefaultMoveSpeed();
+
+	// 대기 자리에 도착한 뒤 주기적으로 주변/플레이어 쪽을 둘러본다.
+	void TickIdleLook(float DeltaTime, const APawn* Player);
 };
 
 
