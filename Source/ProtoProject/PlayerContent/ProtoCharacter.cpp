@@ -440,6 +440,8 @@ void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
     PlayerInputComponent->BindKey(EKeys::LeftShift, IE_Released, this, &AProtoCharacter::StopSprint);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &AProtoCharacter::StartAim);
     PlayerInputComponent->BindKey(EKeys::RightMouseButton, IE_Released, this, &AProtoCharacter::StopAim);
+    PlayerInputComponent->BindKey(EKeys::MouseScrollUp, IE_Pressed, this, &AProtoCharacter::ZoomCameraIn);
+    PlayerInputComponent->BindKey(EKeys::MouseScrollDown, IE_Pressed, this, &AProtoCharacter::ZoomCameraOut);
 
 #if !UE_BUILD_SHIPPING || PROTO_DEBUG_PANEL
     // 이전엔 5/6/7/8/9/0/-/[ 숫자키에 흩어져 있던 디버그 명령들 - 전부 0번 키로 여는 디버그
@@ -938,6 +940,37 @@ void AProtoCharacter::UpdateStamina(float DeltaTime)
     if (StatusComponent->GetStamina() >= StatusComponent->GetMaxStamina())
     {
         bStaminaDepleted = false;
+    }
+}
+
+// 마우스 휠 줌. 조준 중에는 스프링암을 건드리지 않고 값만 바꿔두었다가 조준을 풀 때 반영된다.
+void AProtoCharacter::ZoomCameraIn()
+{
+    ApplyCameraZoom(-CameraZoomStep);
+}
+
+void AProtoCharacter::ZoomCameraOut()
+{
+    ApplyCameraZoom(CameraZoomStep);
+}
+
+void AProtoCharacter::ApplyCameraZoom(float Delta)
+{
+    USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>();
+
+    // 스프링암 길이는 BP에서 정해지고 C++이 시작할 때 맞춰주지 않는다. 3인칭(비조준) 상태면
+    // 지금 실제 길이를 기준으로 삼아야 첫 휠 입력에서 거리가 튀지 않는다.
+    const float Base = (SpringArm && !bIsAiming) ? SpringArm->TargetArmLength : DefaultCameraArmLength;
+    DefaultCameraArmLength = FMath::Clamp(Base + Delta, MinCameraArmLength, MaxCameraArmLength);
+
+    if (bIsAiming)
+    {
+        return;
+    }
+
+    if (SpringArm)
+    {
+        SpringArm->TargetArmLength = DefaultCameraArmLength;
     }
 }
 

@@ -180,6 +180,9 @@ private:
     void StopSprint();
     void StartAim();
     void StopAim();
+    void ZoomCameraIn();
+    void ZoomCameraOut();
+    void ApplyCameraZoom(float Delta);
     void ToggleInventory(const FInputActionValue& Value);
     void Interact(const FInputActionValue& Value);
     void TalkToCompanionPressed(const FInputActionValue& Value);
@@ -625,6 +628,16 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
     float AimCameraArmLength = 150.0f;
+
+    // 마우스 휠 줌. DefaultCameraArmLength를 이 범위 안에서 움직인다(조준 중에는 AimCameraArmLength가 우선).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    float MinCameraArmLength = 150.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    float MaxCameraArmLength = 700.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
+    float CameraZoomStep = 50.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Aim|Camera")
     FVector DefaultCameraRelativeLocation = FVector::ZeroVector;
