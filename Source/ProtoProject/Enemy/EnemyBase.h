@@ -198,6 +198,12 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.1"))
     float SlotRecheckInterval = 0.75f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Performance", meta = (ClampMin = "0.1"))
+    float SlotIdleRecheckInterval = 2.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Performance", meta = (ClampMin = "1.0", Units = "cm"))
+    float SlotRepathDistance = 30.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Stuck", meta = (ClampMin = "0.1"))
     float SlotBlockedRetryDelay = 3.0f;
 
@@ -216,6 +222,9 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Debug")
     bool bDrawCombatSlots = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Debug", meta = (ClampMin = "0.05"))
+    float CombatSlotDebugInterval = 0.25f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Debug", meta = (ClampMin = "0.0"))
     float CombatSlotDebugSphereRadius = 18.0f;
@@ -284,8 +293,9 @@ protected:
     bool ProjectCombatSlotLocation(const FVector& RawLocation, FVector& OutLocation) const;
     bool TryClaimCombatSlot(bool bInnerOnly = false);
     FVector GetRawCombatSlotLocation(int32 Index) const;
-    bool EvaluateCombatSlot(int32 Index, FVector& OutLocation, float& OutPathLength) const;
-    bool FindCombatSlotPath(const FVector& Location, float& OutLength) const;
+    bool EvaluateCombatSlot(int32 Index, FVector& OutLocation) const;
+    bool FindCombatSlotPath(const FVector& Location, float& OutLength, bool* bOutDeferred = nullptr) const;
+    void ResetCombatSlotSearch();
     bool IsCombatSlotAttackReady() const;
     float GetCombatSlotArrivalRadius() const;
     void RejectCombatSlot(const TCHAR* Reason);
@@ -314,6 +324,7 @@ protected:
 
 private:
     friend class FEnemyCombatSlotStateTest;
+    friend class FEnemyCombatSlotBudgetTest;
 
     UFUNCTION()
     void HandleEnemyClaimResult(int32 EnemyId, bool bGranted);
@@ -356,6 +367,9 @@ private:
     float CombatSlotReclaimBlockTimer = 0.0f;
     float CombatSlotRecheckTimer = 0.0f;
     float CombatSlotProjectionTimer = 0.0f;
+    float CombatSlotLastProjectionTime = -1.0f;
+    FVector CombatSlotLastProjectionInput = FVector::ZeroVector;
+    uint32 CombatSlotObservedRevision = 0;
     float CombatSlotWaitStartedAt = 0.0f;
     bool bCombatSlotArrived = false;
     FVector CombatSlotLocation = FVector::ZeroVector;
@@ -363,6 +377,28 @@ private:
     TWeakObjectPtr<AActor> CombatSlotSearchTarget;
     TMap<int32, float> BlockedCombatSlots;
     FString CombatSlotStatus = TEXT("No slot");
+    struct FSlotSearchCandidate
+    {
+        int32 Index = INDEX_NONE;
+        FVector Location = FVector::ZeroVector;
+        float LowerBound = 0.0f;
+    };
+    TArray<FSlotSearchCandidate> CombatSlotCandidates;
+    int32 CombatSlotCandidateCursor = 0;
+    int32 CombatSlotBestCandidate = INDEX_NONE;
+    float CombatSlotBestScore = TNumericLimits<float>::Max();
+    float CombatSlotBestPathLength = 0.0f;
+    FVector CombatSlotBestLocation = FVector::ZeroVector;
+    FVector CombatSlotSearchOrigin = FVector::ZeroVector;
+    FVector CombatSlotSearchTargetOrigin = FVector::ZeroVector;
+    FVector CombatSlotSearchForward = FVector::ForwardVector;
+    bool bCombatSlotSearchPending = false;
+    bool bCombatSlotSearchInnerOnly = false;
+    FVector CombatSlotLastMoveGoal = FVector::ZeroVector;
+    TWeakObjectPtr<AActor> CombatSlotLastMoveTarget;
+    bool bCombatSlotLastMoveWasSlot = false;
+    bool bCombatSlotMoveDeferred = false;
+    mutable float CombatSlotNextDebugTime = 0.0f;
     // Whether THIS client's copy is the one actually running the behavior
     // tree/pathing for this enemy (see HandleEnemyClaimResult). Defaults to
     // true so offline/not-yet-connected play behaves exactly as before this

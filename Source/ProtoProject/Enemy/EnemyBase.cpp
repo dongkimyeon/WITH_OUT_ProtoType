@@ -13,6 +13,8 @@
 #include "NavigationSystem.h"
 #include "NavigationData.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "HAL/IConsoleManager.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "Perception/AIPerceptionStimuliSourceComponent.h"
 #include "Perception/AISense_Sight.h"
 #include "Sound/SoundBase.h"
@@ -45,9 +47,87 @@ namespace
     {
         TWeakObjectPtr<AActor> Target;
         TMap<int32, TWeakObjectPtr<AEnemyBase>> Claims;
+        uint32 Revision = 0;
     };
 
     TMap<TObjectKey<AActor>, FEnemyCombatSlotGroup> GEnemyCombatSlots;
+
+    TAutoConsoleVariable<int32> CVarCombatSlotPathBudget(TEXT("ai.CombatSlots.MaxPathQueriesPerFrame"), 8,
+        TEXT("Maximum slot and chase path requests per world per frame. Minimum 1."));
+    TAutoConsoleVariable<int32> CVarCombatSlotDebug(TEXT("ai.CombatSlots.Debug"), 1,
+        TEXT("Set to 0 to disable all enemy combat-slot debug drawing."));
+
+    struct FCombatSlotQueryBudget
+    {
+        struct FWaiter
+        {
+            TWeakObjectPtr<const AEnemyBase> Enemy;
+            uint64 LastRequestFrame = 0;
+        };
+        uint64 Frame = MAX_uint64;
+        int32 Used = 0;
+        TMap<TWeakObjectPtr<const AEnemyBase>, int32> PerEnemy;
+        TArray<FWaiter> Waiters;
+
+        bool TryConsume(const AEnemyBase* Enemy, uint64 CurrentFrame, int32 Limit)
+        {
+            if (Frame != CurrentFrame)
+            {
+                Frame = CurrentFrame;
+                Used = 0;
+                PerEnemy.Reset();
+            }
+            Waiters.RemoveAll([CurrentFrame](const FWaiter& Waiter)
+            {
+                return !Waiter.Enemy.IsValid() || Waiter.Enemy->IsDead() || CurrentFrame - Waiter.LastRequestFrame > 2;
+            });
+            const TWeakObjectPtr<const AEnemyBase> Key(Enemy);
+            const int32 Existing = Waiters.IndexOfByPredicate([Enemy](const FWaiter& Waiter) { return Waiter.Enemy.Get() == Enemy; });
+            if (Existing == INDEX_NONE)
+            {
+                Waiters.Add({ Key, CurrentFrame });
+            }
+            else
+            {
+                Waiters[Existing].LastRequestFrame = CurrentFrame;
+            }
+            const int32 Next = Waiters.IndexOfByPredicate([this](const FWaiter& Waiter) { return PerEnemy.FindRef(Waiter.Enemy) < 2; });
+            if (Used >= FMath::Max(1, Limit) || Next == INDEX_NONE || Waiters[Next].Enemy != Key)
+            {
+                return false;
+            }
+            Waiters.RemoveAt(Next);
+            ++Used;
+            ++PerEnemy.FindOrAdd(Key);
+            return true;
+        }
+    };
+
+    struct FWorldCombatSlotBudget
+    {
+        TWeakObjectPtr<UWorld> World;
+        FCombatSlotQueryBudget Budget;
+    };
+    TMap<TObjectKey<UWorld>, FWorldCombatSlotBudget> GCombatSlotBudgets;
+
+    bool TryConsumeCombatSlotPathBudget(const AEnemyBase* Enemy)
+    {
+        for (auto It = GCombatSlotBudgets.CreateIterator(); It; ++It)
+        {
+            if (!It.Value().World.IsValid()) { It.RemoveCurrent(); }
+        }
+        UWorld* World = Enemy->GetWorld();
+        FWorldCombatSlotBudget& Entry = GCombatSlotBudgets.FindOrAdd(TObjectKey<UWorld>(World));
+        Entry.World = World;
+        return Entry.Budget.TryConsume(Enemy, GFrameCounter, CVarCombatSlotPathBudget.GetValueOnGameThread());
+    }
+
+    struct FCombatSlotDebugState
+    {
+        TWeakObjectPtr<AActor> Target;
+        float NextDrawTime = 0.0f;
+    };
+    TMap<TObjectKey<AActor>, FCombatSlotDebugState> GCombatSlotDebugStates;
 
     FVector GetCombatSlotDirection(int32 SlotInRing)
     {
@@ -540,13 +620,14 @@ void AEnemyBase::OnAttackBoxBeginOverlap(UPrimitiveComponent* OverlappedComponen
 }
 void AEnemyBase::UpdateCombatSlotClaim()
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(Enemy_CombatSlotUpdate);
     if (CombatSlotSearchTarget.Get() != TargetActor)
     {
         ReleaseCombatSlot();
         CombatSlotSearchTarget = TargetActor;
         BlockedCombatSlots.Empty();
         CombatSlotReclaimBlockTimer = 0.0f;
-        CombatSlotRecheckTimer = 0.0f;
+        CombatSlotRecheckTimer = FMath::FRandRange(0.0f, 0.15f);
         CombatSlotWaitStartedAt = GetWorld()->GetTimeSeconds();
     }
 
@@ -567,21 +648,38 @@ void AEnemyBase::UpdateCombatSlotClaim()
         if (CombatSlotProjectionTimer <= 0.0f)
         {
             CombatSlotProjectionTimer = FMath::Max(0.05f, MoveRequestInterval);
-            FVector UpdatedLocation;
-            if (!ProjectCombatSlotLocation(GetRawCombatSlotLocation(CombatSlotIndex), UpdatedLocation))
+            const FVector RawLocation = GetRawCombatSlotLocation(CombatSlotIndex);
+            if (!RawLocation.Equals(CombatSlotLastProjectionInput, 1.0f) ||
+                GetWorld()->GetTimeSeconds() - CombatSlotLastProjectionTime >= FMath::Max(0.1f, SlotIdleRecheckInterval))
             {
-                RejectCombatSlot(TEXT("Slot left navigation"));
-                return;
+                FVector UpdatedLocation;
+                if (!ProjectCombatSlotLocation(RawLocation, UpdatedLocation))
+                {
+                    RejectCombatSlot(TEXT("Slot left navigation"));
+                    return;
+                }
+                CombatSlotLocation = UpdatedLocation;
+                CombatSlotLastProjectionInput = RawLocation;
+                CombatSlotLastProjectionTime = GetWorld()->GetTimeSeconds();
             }
-            CombatSlotLocation = UpdatedLocation;
         }
         UpdateCombatSlotArrival();
+        if (bCombatSlotArrived && CombatSlotIndex >= CombatSlotsPerRing)
+        {
+            const FEnemyCombatSlotGroup* Group = GEnemyCombatSlots.Find(TObjectKey<AActor>(TargetActor));
+            if (Group && Group->Revision != CombatSlotObservedRevision)
+            {
+                CombatSlotObservedRevision = Group->Revision;
+                CombatSlotRecheckTimer = 0.0f;
+            }
+        }
     }
     if (CombatSlotReclaimBlockTimer > 0.0f || CombatSlotRecheckTimer > 0.0f)
     {
         return;
     }
-    CombatSlotRecheckTimer = FMath::Max(0.1f, SlotRecheckInterval);
+    const float RecheckInterval = bCombatSlotArrived ? SlotIdleRecheckInterval : SlotRecheckInterval;
+    CombatSlotRecheckTimer = FMath::Max(0.1f, RecheckInterval) * FMath::FRandRange(0.85f, 1.15f);
     const float Now = GetWorld()->GetTimeSeconds();
     for (auto It = BlockedCombatSlots.CreateIterator(); It; ++It)
     {
@@ -593,8 +691,7 @@ void AEnemyBase::UpdateCombatSlotClaim()
     if (HasCombatSlot())
     {
         FVector UpdatedLocation;
-        float PathLength = 0.0f;
-        if (!EvaluateCombatSlot(CombatSlotIndex, UpdatedLocation, PathLength))
+        if (!EvaluateCombatSlot(CombatSlotIndex, UpdatedLocation))
         {
             RejectCombatSlot(TEXT("Slot blocked / no complete path"));
             return;
@@ -614,6 +711,8 @@ void AEnemyBase::UpdateCombatSlotClaim()
 
 void AEnemyBase::ReleaseCombatSlot()
 {
+    ResetCombatSlotSearch();
+    bCombatSlotMoveDeferred = false;
     AActor* PreviousTarget = CombatSlotTarget.Get();
     if (!PreviousTarget || CombatSlotIndex == INDEX_NONE)
     {
@@ -626,6 +725,7 @@ void AEnemyBase::ReleaseCombatSlot()
 
     if (FEnemyCombatSlotGroup* Group = GEnemyCombatSlots.Find(TObjectKey<AActor>(PreviousTarget)))
     {
+        ++Group->Revision;
         for (auto It = Group->Claims.CreateIterator(); It; ++It)
         {
             if (!It.Value().IsValid() || It.Value().Get() == this)
@@ -709,14 +809,21 @@ FVector AEnemyBase::GetRawCombatSlotLocation(int32 Index) const
     return Center + Direction.GetSafeNormal() * GetCombatSlotRingRadius(Index / CombatSlotsPerRing);
 }
 
-bool AEnemyBase::FindCombatSlotPath(const FVector& Location, float& OutLength) const
+bool AEnemyBase::FindCombatSlotPath(const FVector& Location, float& OutLength, bool* bOutDeferred) const
 {
+    if (bOutDeferred) { *bOutDeferred = false; }
     UNavigationSystemV1* NavSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
     const ANavigationData* NavData = NavSystem ? NavSystem->GetNavDataForProps(GetNavAgentPropertiesRef(), GetNavAgentLocation()) : nullptr;
     if (!NavData)
     {
         return false;
     }
+    if (!TryConsumeCombatSlotPathBudget(this))
+    {
+        if (bOutDeferred) { *bOutDeferred = true; }
+        return false;
+    }
+    TRACE_CPUPROFILER_EVENT_SCOPE(Enemy_CombatSlotPathQuery);
     FPathFindingQuery Query(GetController(), *NavData, GetNavAgentLocation(), Location);
     Query.SetAllowPartialPaths(false);
     const FPathFindingResult Result = NavSystem->FindPathSync(GetNavAgentPropertiesRef(), Query);
@@ -728,7 +835,7 @@ bool AEnemyBase::FindCombatSlotPath(const FVector& Location, float& OutLength) c
     return true;
 }
 
-bool AEnemyBase::EvaluateCombatSlot(int32 Index, FVector& OutLocation, float& OutPathLength) const
+bool AEnemyBase::EvaluateCombatSlot(int32 Index, FVector& OutLocation) const
 {
     if (!HasTarget())
     {
@@ -791,115 +898,158 @@ bool AEnemyBase::EvaluateCombatSlot(int32 Index, FVector& OutLocation, float& Ou
             }
         }
     }
-    return FindCombatSlotPath(OutLocation, OutPathLength);
+    return true;
+}
+
+void AEnemyBase::ResetCombatSlotSearch()
+{
+    CombatSlotCandidates.Reset();
+    CombatSlotCandidateCursor = 0;
+    CombatSlotBestCandidate = INDEX_NONE;
+    CombatSlotBestScore = TNumericLimits<float>::Max();
+    bCombatSlotSearchPending = false;
 }
 
 bool AEnemyBase::TryClaimCombatSlot(bool bInnerOnly)
 {
-    if (!CanUseCombatSlotsForCurrentTarget())
-    {
-        return false;
-    }
+    TRACE_CPUPROFILER_EVENT_SCOPE(Enemy_CombatSlotSelection);
+    if (!CanUseCombatSlotsForCurrentTarget()) { return false; }
+    if (HasCombatSlot() && !bInnerOnly) { return true; }
 
-    if (HasCombatSlot() && !bInnerOnly)
-    {
-        return true;
-    }
-
-    const TObjectKey<AActor> TargetKey(TargetActor);
-    FEnemyCombatSlotGroup& Group = GEnemyCombatSlots.FindOrAdd(TargetKey);
-    Group.Target = TargetActor;
-
-    const int32 Footprint = FMath::Clamp(SlotFootprint, 1, CombatSlotsPerRing);
-    const int32 RingCount = bInnerOnly ? CombatSlotIndex / CombatSlotsPerRing : FMath::Max(1, MaxSlotRings);
-    int32 BestSlotIndex = INDEX_NONE;
-    float BestPathLength = TNumericLimits<float>::Max();
-    float BestScore = TNumericLimits<float>::Max();
-    FVector BestLocation = FVector::ZeroVector;
-    // Snapshot facing only during selection; rotating the target never relocates an existing reservation.
     const FVector TargetLocation = TargetActor->GetActorLocation();
-    const FVector TargetForward = TargetActor->GetActorForwardVector().GetSafeNormal2D();
     const float FrontPreference = FMath::Max(0.0f, SlotFrontPreference);
-
-    for (int32 Ring = 0; Ring < RingCount; ++Ring)
+    const auto FrontCost = [&](const FVector& Location)
     {
-        for (int32 SlotInRing = 0; SlotInRing < CombatSlotsPerRing; ++SlotInRing)
+        const FVector Direction = (Location - TargetLocation).GetSafeNormal2D();
+        const float Dot = FMath::Clamp(FVector::DotProduct(CombatSlotSearchForward, Direction), -1.0f, 1.0f);
+        return FrontPreference * (1.0f - Dot) * 0.5f;
+    };
+    if (bCombatSlotSearchPending && (bCombatSlotSearchInnerOnly != bInnerOnly ||
+        FVector::DistSquared(TargetLocation, CombatSlotSearchTargetOrigin) > FMath::Square(SlotRepathDistance) ||
+        FVector::DistSquared(GetActorLocation(), CombatSlotSearchOrigin) > FMath::Square(SlotRepathDistance)))
+    {
+        ResetCombatSlotSearch();
+    }
+    if (!bCombatSlotSearchPending)
+    {
+        ResetCombatSlotSearch();
+        bCombatSlotSearchPending = true;
+        bCombatSlotSearchInnerOnly = bInnerOnly;
+        CombatSlotSearchOrigin = GetActorLocation();
+        CombatSlotSearchTargetOrigin = TargetLocation;
+        CombatSlotSearchForward = TargetActor->GetActorForwardVector().GetSafeNormal2D();
+        const int32 RingCount = bInnerOnly ? CombatSlotIndex / CombatSlotsPerRing : FMath::Max(1, MaxSlotRings);
+        for (int32 Index = 0; Index < RingCount * CombatSlotsPerRing; ++Index)
         {
-            const int32 CandidateIndex = Ring * CombatSlotsPerRing + SlotInRing;
-            FVector CandidateLocation;
-            float PathLength = 0.0f;
-            if (!EvaluateCombatSlot(CandidateIndex, CandidateLocation, PathLength))
+            FVector Location;
+            if (EvaluateCombatSlot(Index, Location))
             {
-                continue;
+                CombatSlotCandidates.Add({ Index, Location,
+                    static_cast<float>(FVector::Dist2D(GetActorLocation(), Location)) + FrontCost(Location) });
             }
-            // Give a settled, older waiter first refusal, but only if it can reach this vacancy.
-            bool bOlderWaiter = false;
-            for (const auto& Claim : Group.Claims)
+        }
+        // Order cheap estimates first, while preserving the inner-ring priority.
+        CombatSlotCandidates.Sort([](const FSlotSearchCandidate& A, const FSlotSearchCandidate& B)
+        {
+            const int32 RingA = A.Index / CombatSlotsPerRing;
+            const int32 RingB = B.Index / CombatSlotsPerRing;
+            if (RingA != RingB) { return RingA < RingB; }
+            return A.LowerBound == B.LowerBound ? A.Index < B.Index : A.LowerBound < B.LowerBound;
+        });
+    }
+
+    while (CombatSlotCandidateCursor < CombatSlotCandidates.Num())
+    {
+        const FSlotSearchCandidate& Candidate = CombatSlotCandidates[CombatSlotCandidateCursor];
+        if (CombatSlotBestCandidate != INDEX_NONE && Candidate.Index / CombatSlotsPerRing > CombatSlotBestCandidate / CombatSlotsPerRing)
+        {
+            break;
+        }
+        FVector Location;
+        if (!EvaluateCombatSlot(Candidate.Index, Location))
+        {
+            ++CombatSlotCandidateCursor;
+            continue;
+        }
+        const float Penalty = FrontCost(Location);
+        if (FVector::Dist2D(GetActorLocation(), Location) + Penalty >= CombatSlotBestScore)
+        {
+            ++CombatSlotCandidateCursor;
+            continue;
+        }
+        // An older waiter can use its own proven candidate; never pathfind on its behalf.
+        bool bOlderWaiter = false;
+        if (const FEnemyCombatSlotGroup* Group = GEnemyCombatSlots.Find(TObjectKey<AActor>(TargetActor)))
+        {
+            for (const auto& Claim : Group->Claims)
             {
-                AEnemyBase* Other = Claim.Value.Get();
-                if (!Other || Other == this || Other->IsDead() || !Other->bCombatSlotArrived ||
-                    Other->CombatSlotIndex / CombatSlotsPerRing <= Ring ||
-                    Other->CombatSlotWaitStartedAt >= CombatSlotWaitStartedAt)
-                {
-                    continue;
-                }
-                FVector OtherLocation;
-                float OtherLength = 0.0f;
-                if (Other->EvaluateCombatSlot(CandidateIndex, OtherLocation, OtherLength))
+                const AEnemyBase* Other = Claim.Value.Get();
+                if (Other && Other != this && !Other->IsDead() && Other->bCombatSlotArrived &&
+                    Other->bCombatSlotSearchPending && Other->CombatSlotBestCandidate == Candidate.Index &&
+                    Other->CombatSlotWaitStartedAt < CombatSlotWaitStartedAt)
                 {
                     bOlderWaiter = true;
                     break;
                 }
             }
-            const FVector SlotDirection = (CandidateLocation - TargetLocation).GetSafeNormal2D();
-            const float FrontDot = FMath::Clamp(FVector::DotProduct(TargetForward, SlotDirection), -1.0f, 1.0f);
-            const float Score = PathLength + FrontPreference * (1.0f - FrontDot) * 0.5f;
-            if (!bOlderWaiter && Score < BestScore)
-            {
-                BestScore = Score;
-                BestPathLength = PathLength;
-                BestSlotIndex = CandidateIndex;
-                BestLocation = CandidateLocation;
-            }
         }
-
-        if (BestSlotIndex != INDEX_NONE)
+        if (bOlderWaiter) { ++CombatSlotCandidateCursor; continue; }
+        float Length = 0.0f;
+        bool bDeferred = false;
+        const bool bReachable = FindCombatSlotPath(Location, Length, &bDeferred);
+        if (bDeferred)
         {
-            break;
+            // Preserve all progress and reservations; exhausted CPU budget is not a blocked path.
+            CombatSlotRecheckTimer = 0.0f;
+            CombatSlotStatus = TEXT("Waiting: path query budget");
+            return false;
+        }
+        ++CombatSlotCandidateCursor;
+        if (bReachable && Length + Penalty < CombatSlotBestScore)
+        {
+            CombatSlotBestCandidate = Candidate.Index;
+            CombatSlotBestScore = Length + Penalty;
+            CombatSlotBestPathLength = Length;
+            CombatSlotBestLocation = Location;
         }
     }
 
-    if (BestSlotIndex == INDEX_NONE)
+    if (CombatSlotBestCandidate == INDEX_NONE)
     {
-        if (!HasCombatSlot())
-        {
-            CombatSlotStatus = TEXT("Waiting: no reachable free slot");
-        }
-        if (Group.Claims.IsEmpty())
-        {
-            GEnemyCombatSlots.Remove(TargetKey);
-        }
+        ResetCombatSlotSearch();
+        if (!HasCombatSlot()) { CombatSlotStatus = TEXT("Waiting: no reachable free slot"); }
         return false;
     }
-
+    FVector FinalLocation;
+    if (!EvaluateCombatSlot(CombatSlotBestCandidate, FinalLocation) ||
+        FVector::DistSquared(FinalLocation, CombatSlotBestLocation) > FMath::Square(SlotRepathDistance))
+    {
+        ResetCombatSlotSearch();
+        CombatSlotRecheckTimer = 0.0f;
+        return false;
+    }
+    const int32 ChosenIndex = CombatSlotBestCandidate;
+    const float ChosenPathLength = CombatSlotBestPathLength;
     ReleaseCombatSlot();
-    FEnemyCombatSlotGroup& NewGroup = GEnemyCombatSlots.FindOrAdd(TargetKey);
-    NewGroup.Target = TargetActor;
+    FEnemyCombatSlotGroup& Group = GEnemyCombatSlots.FindOrAdd(TObjectKey<AActor>(TargetActor));
+    Group.Target = TargetActor;
     CombatSlotTarget = TargetActor;
-    CombatSlotIndex = BestSlotIndex;
-    CombatSlotLocation = BestLocation;
+    CombatSlotIndex = ChosenIndex;
+    CombatSlotLocation = FinalLocation;
+    CombatSlotLastProjectionInput = GetRawCombatSlotLocation(ChosenIndex);
+    CombatSlotLastProjectionTime = GetWorld()->GetTimeSeconds();
     CombatSlotProjectionTimer = FMath::Max(0.05f, MoveRequestInterval);
     bCombatSlotArrived = false;
     MoveRequestTimer = 0.0f;
     CombatSlotStatus = TEXT("Approaching slot");
     ResetCombatSlotStuckTracking();
-    CombatSlotLastDistance = BestPathLength;
-    for (int32 Offset = 0; Offset < Footprint; ++Offset)
+    CombatSlotLastDistance = ChosenPathLength;
+    for (int32 Offset = 0; Offset < FMath::Clamp(SlotFootprint, 1, CombatSlotsPerRing); ++Offset)
     {
-        const int32 Cell = BestSlotIndex / CombatSlotsPerRing * CombatSlotsPerRing + (BestSlotIndex + Offset) % CombatSlotsPerRing;
-        NewGroup.Claims.Add(Cell, this);
+        const int32 Cell = ChosenIndex / CombatSlotsPerRing * CombatSlotsPerRing + (ChosenIndex + Offset) % CombatSlotsPerRing;
+        Group.Claims.Add(Cell, this);
     }
-
+    CombatSlotObservedRevision = ++Group.Revision;
     return true;
 }
 
@@ -999,7 +1149,7 @@ void AEnemyBase::RejectCombatSlot(const TCHAR* Reason)
 
 void AEnemyBase::UpdateCombatSlotStuck(float DeltaTime)
 {
-    if (!HasCombatSlot() || bCombatSlotArrived || bIsDead || bIsAttacking || bMovementPausedForMontage)
+    if (!HasCombatSlot() || bCombatSlotArrived || bCombatSlotMoveDeferred || bIsDead || bIsAttacking || bMovementPausedForMontage)
     {
         ResetCombatSlotStuckTracking();
         return;
@@ -1010,13 +1160,8 @@ void AEnemyBase::UpdateCombatSlotStuck(float DeltaTime)
     {
         return;
     }
-    // Measure a time window, not per-frame distance; curved paths can initially move away from the goal.
-    float RemainingLength = 0.0f;
-    if (!FindCombatSlotPath(GetCombatSlotLocation(), RemainingLength))
-    {
-        RejectCombatSlot(TEXT("No complete path"));
-        return;
-    }
+    // Position change also counts as progress on a curved path; do not pathfind just to detect a stall.
+    const float RemainingLength = FVector::Dist2D(GetActorLocation(), GetCombatSlotLocation());
     const bool bMadeProgress = CombatSlotLastDistance >= 0.0f &&
         CombatSlotLastDistance - RemainingLength > SlotStuckProgressTolerance;
     const bool bChangedPosition = FVector::Dist2D(GetActorLocation(), CombatSlotProgressLocation) > SlotStuckProgressTolerance;
@@ -1040,7 +1185,7 @@ void AEnemyBase::ResetCombatSlotStuckTracking()
 
 void AEnemyBase::DrawCombatSlotsDebug() const
 {
-    if (!bDrawCombatSlots || !bUseCombatSlots || bIsDead || !HasTarget())
+    if (!bDrawCombatSlots || CVarCombatSlotDebug.GetValueOnGameThread() == 0 || !bUseCombatSlots || bIsDead || !HasTarget())
     {
         return;
     }
@@ -1050,44 +1195,55 @@ void AEnemyBase::DrawCombatSlotsDebug() const
     {
         return;
     }
+    const float Now = World->GetTimeSeconds();
+    if (Now < CombatSlotNextDebugTime) { return; }
+    TRACE_CPUPROFILER_EVENT_SCOPE(Enemy_CombatSlotDebug);
+    const float Interval = FMath::Max(0.05f, CombatSlotDebugInterval);
+    CombatSlotNextDebugTime = Now + Interval;
+    for (auto It = GCombatSlotDebugStates.CreateIterator(); It; ++It)
+    {
+        if (!It.Value().Target.IsValid()) { It.RemoveCurrent(); }
+    }
 
     const TObjectKey<AActor> TargetKey(TargetActor);
     const FEnemyCombatSlotGroup* Group = GEnemyCombatSlots.Find(TargetKey);
     const int32 RingCount = FMath::Max(1, MaxSlotRings);
     const FVector DebugOffset(0.0f, 0.0f, CombatSlotDebugZOffset);
 
-    for (int32 Ring = 0; Ring < RingCount; ++Ring)
+    FCombatSlotDebugState& DebugState = GCombatSlotDebugStates.FindOrAdd(TargetKey);
+    DebugState.Target = TargetActor;
+    // The grid is shared by the target, and its geometry stays visible until the next refresh.
+    if (Now >= DebugState.NextDrawTime)
     {
-        for (int32 SlotInRing = 0; SlotInRing < CombatSlotsPerRing; ++SlotInRing)
+        DebugState.NextDrawTime = Now + Interval;
+        const APawn* TargetPawn = Cast<APawn>(TargetActor);
+        const FVector Center = TargetPawn ? TargetPawn->GetNavAgentLocation() : TargetActor->GetActorLocation();
+        for (int32 Ring = 0; Ring < RingCount; ++Ring)
         {
-            const int32 SlotIndex = Ring * CombatSlotsPerRing + SlotInRing;
-            const APawn* TargetPawn = Cast<APawn>(TargetActor);
-            const FVector Center = TargetPawn ? TargetPawn->GetNavAgentLocation() : TargetActor->GetActorLocation();
-            const FVector RawSlotLocation = Center + GetCombatSlotDirection(SlotInRing) * GetCombatSlotRingRadius(Ring);
-            FVector SlotLocation;
-            const bool bHasNavSlot = ProjectCombatSlotLocation(RawSlotLocation, SlotLocation);
-            SlotLocation = (bHasNavSlot ? SlotLocation : RawSlotLocation) + DebugOffset;
-
-            FColor SlotColor = bHasNavSlot ? FColor::Green : FColor::Silver;
-            if (Group)
+            for (int32 SlotInRing = 0; SlotInRing < CombatSlotsPerRing; ++SlotInRing)
             {
-                AEnemyBase* ClaimOwner = Group->Claims.FindRef(SlotIndex).Get();
-                if (IsValid(ClaimOwner))
+                const int32 SlotIndex = Ring * CombatSlotsPerRing + SlotInRing;
+                const FVector RawSlotLocation = Center + GetCombatSlotDirection(SlotInRing) * GetCombatSlotRingRadius(Ring);
+                FVector SlotLocation;
+                const bool bHasNavSlot = ProjectCombatSlotLocation(RawSlotLocation, SlotLocation);
+                SlotLocation = (bHasNavSlot ? SlotLocation : RawSlotLocation) + DebugOffset;
+                FColor SlotColor = bHasNavSlot ? FColor::Green : FColor::Silver;
+                if (Group)
                 {
-                    SlotColor = ClaimOwner == this ? FColor::Blue : FColor::Red;
+                    AEnemyBase* ClaimOwner = Group->Claims.FindRef(SlotIndex).Get();
+                    if (IsValid(ClaimOwner)) { SlotColor = FColor::Red; }
                 }
+                DrawDebugSphere(World, SlotLocation, CombatSlotDebugSphereRadius, 8, SlotColor, false, Interval, 0, 2.0f);
             }
-
-            DrawDebugSphere(World, SlotLocation, CombatSlotDebugSphereRadius, 16, SlotColor, false, 0.0f, 0, 2.0f);
         }
     }
     if (HasCombatSlot())
     {
-        DrawDebugLine(World, GetActorLocation(), GetCombatSlotLocation() + DebugOffset, FColor::Cyan, false, 0.0f, 0, 2.0f);
-        DrawDebugSphere(World, GetCombatSlotLocation() + DebugOffset, GetCombatSlotArrivalRadius(), 12, FColor::Cyan, false, 0.0f);
+        DrawDebugLine(World, GetActorLocation(), GetCombatSlotLocation() + DebugOffset, FColor::Cyan, false, Interval, 0, 2.0f);
+        DrawDebugSphere(World, GetCombatSlotLocation() + DebugOffset, GetCombatSlotArrivalRadius(), 8, FColor::Cyan, false, Interval);
     }
     const FString Label = FString::Printf(TEXT("Slot %d | %s"), CombatSlotIndex, *CombatSlotStatus);
-    DrawDebugString(World, GetActorLocation() + FVector(0.0f, 0.0f, 110.0f), Label, nullptr, FColor::White, 0.0f, true);
+    DrawDebugString(World, GetActorLocation() + FVector(0.0f, 0.0f, 110.0f), Label, nullptr, FColor::White, Interval, true);
 }
 void AEnemyBase::MoveToTarget()
 {
@@ -1129,6 +1285,25 @@ void AEnemyBase::MoveToTarget()
 
         if (AAIController* AIController = Cast<AAIController>(GetController()))
         {
+            const bool bSlotMove = HasCombatSlot();
+            const FVector Goal = bSlotMove ? GetCombatSlotLocation() : TargetActor->GetActorLocation();
+            const bool bSameRequest = CombatSlotLastMoveTarget.Get() == TargetActor && bCombatSlotLastMoveWasSlot == bSlotMove &&
+                (!bSlotMove || FVector::DistSquared(Goal, CombatSlotLastMoveGoal) <= FMath::Square(SlotRepathDistance));
+            if (bSameRequest && AIController->GetMoveStatus() == EPathFollowingStatus::Moving)
+            {
+                bCombatSlotMoveDeferred = false;
+                return;
+            }
+            if (!TryConsumeCombatSlotPathBudget(this))
+            {
+                bCombatSlotMoveDeferred = true;
+                MoveRequestTimer = 0.0f;
+                return;
+            }
+            bCombatSlotMoveDeferred = false;
+            CombatSlotLastMoveTarget = TargetActor;
+            bCombatSlotLastMoveWasSlot = bSlotMove;
+            CombatSlotLastMoveGoal = Goal;
             if (HasCombatSlot())
             {
                 const EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(
@@ -1627,6 +1802,57 @@ void AEnemyBase::PrintBehaviorDebug(const FString& Message, const FColor& Color)
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnemyCombatSlotBudgetTest, "ProtoProject.Enemy.CombatSlotBudget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FEnemyCombatSlotBudgetTest::RunTest(const FString& Parameters)
+{
+    const UWorld::InitializationValues Init = UWorld::InitializationValues().AllowAudioPlayback(false)
+        .CreateNavigation(false).CreateAISystem(false).CreatePhysicsScene(true).ShouldSimulatePhysics(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Init);
+    if (!TestNotNull(TEXT("Budget test world"), World)) { return false; }
+    FActorSpawnParameters Params;
+    Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    AEnemyBase* A = World->SpawnActor<AEnemyBase>(FVector::ZeroVector, FRotator::ZeroRotator, Params);
+    AEnemyBase* B = World->SpawnActor<AEnemyBase>(FVector(500.0f, 0.0f, 0.0f), FRotator::ZeroRotator, Params);
+    AEnemyBase* C = World->SpawnActor<AEnemyBase>(FVector(1000.0f, 0.0f, 0.0f), FRotator::ZeroRotator, Params);
+    if (!TestNotNull(TEXT("Enemy A"), A) || !TestNotNull(TEXT("Enemy B"), B) || !TestNotNull(TEXT("Enemy C"), C))
+    {
+        World->DestroyWorld(false);
+        return false;
+    }
+    FCombatSlotQueryBudget Budget;
+    TestTrue(TEXT("First query permitted"), Budget.TryConsume(A, 100, 3));
+    TestTrue(TEXT("Second query permitted"), Budget.TryConsume(A, 100, 3));
+    TestFalse(TEXT("One enemy cannot consume more than two queries in a frame"), Budget.TryConsume(A, 100, 3));
+    TestTrue(TEXT("Another enemy can use remaining capacity"), Budget.TryConsume(B, 100, 3));
+    TestFalse(TEXT("World limit defers further queries"), Budget.TryConsume(C, 100, 3));
+    TestEqual(TEXT("No budget overrun"), Budget.Used, 3);
+    TestTrue(TEXT("Frame advance replenishes budget"), Budget.TryConsume(A, 101, 3));
+    TestFalse(TEXT("Earlier queued enemy gets its turn before a repeat caller"), Budget.TryConsume(A, 101, 3));
+    TestTrue(TEXT("Queued enemy progresses"), Budget.TryConsume(C, 101, 3));
+    TestTrue(TEXT("Deferred repeat caller then progresses"), Budget.TryConsume(A, 101, 3));
+    TestFalse(TEXT("Further waiter is queued"), Budget.TryConsume(B, 101, 3));
+    TestTrue(TEXT("Inactive waiters cannot block the queue forever"), Budget.TryConsume(A, 105, 3));
+
+    A->bEnableBehaviorDebug = false;
+    A->TargetActor = B;
+    A->CombatSlotTarget = B;
+    A->CombatSlotIndex = 0;
+    A->CombatSlotLocation = FVector(200.0f, 0.0f, 0.0f);
+    A->bCombatSlotMoveDeferred = true;
+    A->UpdateCombatSlotStuck(10.0f);
+    TestTrue(TEXT("Budget wait must retain the reserved slot"), A->HasCombatSlot());
+    TestTrue(TEXT("Budget wait must not blacklist a valid slot"), A->BlockedCombatSlots.IsEmpty());
+    A->bCombatSlotMoveDeferred = false;
+    A->UpdateCombatSlotStuck(A->SlotStuckTimeout + 0.1f);
+    TestFalse(TEXT("Actual immobility still releases the slot without pathfinding"), A->HasCombatSlot());
+    TestTrue(TEXT("Actual immobility still excludes the failed slot"), A->BlockedCombatSlots.Contains(0));
+    A->ReleaseCombatSlot();
+    World->DestroyWorld(false);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEnemyCombatSlotStateTest, "ProtoProject.Enemy.CombatSlotState",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
