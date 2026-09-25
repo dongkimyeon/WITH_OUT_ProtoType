@@ -182,6 +182,22 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Stuck", meta = (ClampMin = "0.0"))
     float SlotReclaimDelay = 0.35f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.1"))
+    float SlotRecheckInterval = 0.75f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot|Stuck", meta = (ClampMin = "0.1"))
+    float SlotBlockedRetryDelay = 3.0f;
+
+    // Resume movement only after leaving the arrival radius by this margin.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0"))
+    float SlotDepartureMargin = 40.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0", ClampMax = "180.0"))
+    float SlotAttackFacingAngle = 60.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.1"))
+    float SlotFacingInterpSpeed = 8.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "1"))
     int32 MaxSlotRings = 6;
 
@@ -253,7 +269,14 @@ protected:
     FVector GetCombatSlotLocation() const;
     float GetCombatSlotRingRadius(int32 Ring) const;
     bool ProjectCombatSlotLocation(const FVector& RawLocation, FVector& OutLocation) const;
-    bool TryClaimCombatSlot();
+    bool TryClaimCombatSlot(bool bInnerOnly = false);
+    FVector GetRawCombatSlotLocation(int32 Index) const;
+    bool EvaluateCombatSlot(int32 Index, FVector& OutLocation, float& OutPathLength) const;
+    bool FindCombatSlotPath(const FVector& Location, float& OutLength) const;
+    bool IsCombatSlotAttackReady() const;
+    float GetCombatSlotArrivalRadius() const;
+    void RejectCombatSlot(const TCHAR* Reason);
+    void UpdateCombatSlotArrival();
     bool CanUseCombatSlotsForCurrentTarget() const;
     void UpdateCombatSlotStuck(float DeltaTime);
     void ResetCombatSlotStuckTracking();
@@ -277,6 +300,8 @@ protected:
     int32 GetEnemyId() const;
 
 private:
+    friend class FEnemyCombatSlotStateTest;
+
     UFUNCTION()
     void HandleEnemyClaimResult(int32 EnemyId, bool bGranted);
 
@@ -316,6 +341,15 @@ private:
     float CombatSlotStuckTimer = 0.0f;
     float CombatSlotLastDistance = -1.0f;
     float CombatSlotReclaimBlockTimer = 0.0f;
+    float CombatSlotRecheckTimer = 0.0f;
+    float CombatSlotProjectionTimer = 0.0f;
+    float CombatSlotWaitStartedAt = 0.0f;
+    bool bCombatSlotArrived = false;
+    FVector CombatSlotLocation = FVector::ZeroVector;
+    FVector CombatSlotProgressLocation = FVector::ZeroVector;
+    TWeakObjectPtr<AActor> CombatSlotSearchTarget;
+    TMap<int32, float> BlockedCombatSlots;
+    FString CombatSlotStatus = TEXT("No slot");
     // Whether THIS client's copy is the one actually running the behavior
     // tree/pathing for this enemy (see HandleEnemyClaimResult). Defaults to
     // true so offline/not-yet-connected play behaves exactly as before this
