@@ -146,6 +146,7 @@ void AEnemyBase::BeginPlay()
     Super::BeginPlay();
 
     CurrentHealth = MaxHealth;
+    bUseControllerRotationYaw = false;
 
     // Apply after Blueprint defaults, including any extra collision components added by enemy variants.
     TInlineComponentArray<UPrimitiveComponent*> CollisionComponents;
@@ -158,6 +159,9 @@ void AEnemyBase::BeginPlay()
     if (UCharacterMovementComponent* Movement = GetCharacterMovement())
     {
         Movement->MaxWalkSpeed = MoveSpeed;
+        Movement->bUseControllerDesiredRotation = false;
+        Movement->bOrientRotationToMovement = bIsNetworkOwner;
+        Movement->RotationRate = FRotator(0.0f, FMath::Max(1.0f, MoveTurnRate), 0.0f);
         DefaultMaxAcceleration = Movement->MaxAcceleration;
     }
 
@@ -230,6 +234,15 @@ void AEnemyBase::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
+    // Controller yaw must not snap the body or compete with slot/network facing.
+    bUseControllerRotationYaw = false;
+    if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+    {
+        Movement->bUseControllerDesiredRotation = false;
+        Movement->bOrientRotationToMovement = bIsNetworkOwner && !bIsDead && !bIsAttacking && !bMovementPausedForMontage;
+        Movement->RotationRate = FRotator(0.0f, FMath::Max(1.0f, MoveTurnRate), 0.0f);
+    }
+
     if (!bIsNetworkOwner)
     {
         // Another client (or the server) owns this enemy's AI -- no local
@@ -245,7 +258,8 @@ void AEnemyBase::Tick(float DeltaTime)
             // so this doesn't spin the long way when Yaw wraps.
             const FRotator NewRotation = FMath::RInterpTo(
                 GetActorRotation(), MirroredTargetRotation, DeltaTime, MirroredRotationInterpSpeed);
-            SetActorRotation(NewRotation);
+            const float TurnRate = bIsAttacking || bMovementPausedForMontage ? FacingTurnRate : MoveTurnRate;
+            SetActorRotation(FMath::RInterpConstantTo(GetActorRotation(), NewRotation, DeltaTime, FMath::Max(1.0f, TurnRate)));
 
             // Same gate MoveToTarget() already applies for the locally-
             // driven (bIsNetworkOwner) path -- without it, this mirror kept
@@ -800,7 +814,12 @@ bool AEnemyBase::TryClaimCombatSlot(bool bInnerOnly)
     const int32 RingCount = bInnerOnly ? CombatSlotIndex / CombatSlotsPerRing : FMath::Max(1, MaxSlotRings);
     int32 BestSlotIndex = INDEX_NONE;
     float BestPathLength = TNumericLimits<float>::Max();
+    float BestScore = TNumericLimits<float>::Max();
     FVector BestLocation = FVector::ZeroVector;
+    // Snapshot facing only during selection; rotating the target never relocates an existing reservation.
+    const FVector TargetLocation = TargetActor->GetActorLocation();
+    const FVector TargetForward = TargetActor->GetActorForwardVector().GetSafeNormal2D();
+    const float FrontPreference = FMath::Max(0.0f, SlotFrontPreference);
 
     for (int32 Ring = 0; Ring < RingCount; ++Ring)
     {
@@ -832,8 +851,12 @@ bool AEnemyBase::TryClaimCombatSlot(bool bInnerOnly)
                     break;
                 }
             }
-            if (!bOlderWaiter && PathLength < BestPathLength)
+            const FVector SlotDirection = (CandidateLocation - TargetLocation).GetSafeNormal2D();
+            const float FrontDot = FMath::Clamp(FVector::DotProduct(TargetForward, SlotDirection), -1.0f, 1.0f);
+            const float Score = PathLength + FrontPreference * (1.0f - FrontDot) * 0.5f;
+            if (!bOlderWaiter && Score < BestScore)
             {
+                BestScore = Score;
                 BestPathLength = PathLength;
                 BestSlotIndex = CandidateIndex;
                 BestLocation = CandidateLocation;
@@ -1084,8 +1107,14 @@ void AEnemyBase::MoveToTarget()
         {
             AIController->StopMovement();
         }
+        if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+        {
+            Movement->bOrientRotationToMovement = false;
+        }
         const FRotator Facing(0.0f, (TargetActor->GetActorLocation() - GetActorLocation()).Rotation().Yaw, 0.0f);
-        SetActorRotation(FMath::RInterpTo(GetActorRotation(), Facing, GetWorld()->GetDeltaSeconds(), SlotFacingInterpSpeed));
+        const float DeltaTime = GetWorld()->GetDeltaSeconds();
+        const FRotator SmoothedFacing = FMath::RInterpTo(GetActorRotation(), Facing, DeltaTime, SlotFacingInterpSpeed);
+        SetActorRotation(FMath::RInterpConstantTo(GetActorRotation(), SmoothedFacing, DeltaTime, FMath::Max(1.0f, FacingTurnRate)));
         if (HasCombatSlot() && CombatSlotIndex < CombatSlotsPerRing)
         {
             CombatSlotStatus = !IsTargetInAttackRange() ? TEXT("Out of attack range") :

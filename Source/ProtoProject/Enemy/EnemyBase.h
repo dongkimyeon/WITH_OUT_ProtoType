@@ -144,12 +144,25 @@ protected:
     // 걷는 좀비는 낮게, 뛰는 좀비는 높게 잡아 타입별 이동속도를 구분한다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|AI")
     float MoveSpeed = 300.0f;
+
+    // Maximum yaw change in degrees per second while following a path.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Rotation", meta = (ClampMin = "1.0", UIMax = "720.0"))
+    float MoveTurnRate = 180.0f;
+
+    // Maximum yaw change in degrees per second when facing the target from a slot.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Rotation", meta = (ClampMin = "1.0", UIMax = "720.0"))
+    float FacingTurnRate = 120.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot")
     bool bUseCombatSlots = true;
 
     // Target distance where the enemy stops chasing the actor directly and reserves a surrounding combat slot.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0"))
     float SlotClaimDistance = 650.0f;
+
+    // Added path cost in cm: zero in front, half at the sides, full behind. Only used when selecting a new slot.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "0.0", Units = "cm", ToolTip = "Preference for slots in front of the target actor. Rear slots add this much path cost; side slots add half. Zero selects by path length only. Existing reservations are not changed by target rotation."))
+    float SlotFrontPreference = 250.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy|Combat Slot", meta = (ClampMin = "1"))
     int32 SlotFootprint = 1;
