@@ -4,8 +4,10 @@
 #   또는 Output Log (Python 모드)에서:  py "Tools/PixelArtPostProcess/create_pixel_art_pp.py"
 #
 # 생성물 (/Game/PostProcess/PixelArt):
-#   M_PP_PixelArt              - 부모 머티리얼 (Custom HLSL = PixelArt.hlsl)
-#   MI_PixelArt_Natural        - 원본 색감 + 디더
+#   M_PP_PixelArt              - 부모 머티리얼 (Custom HLSL = PixelArt.hlsl), 기본값 = Painterly 룩
+#   MI_PixelArt_Painterly      - 면 평탄화 + 원래 색 약한 단계화 + 은은한 외곽선 (회화풍 픽셀아트)
+#   MI_PixelArt_Retro          - 면 평탄화 + Resurrect 64색 팔레트 + 외곽선 (레트로 도트)
+#   MI_PixelArt_Natural        - 원본 색감 + 약한 디더 (자연스러운 픽셀)
 #   MI_PixelArt_Handheld       - 노랑-보라 그라디언트 (GBA 레퍼런스)
 #   MI_PixelArt_NavyOutline    - 남색 팔레트 + 외곽선 (고양이 레퍼런스)
 #   MI_PixelArt_Night          - 어두운 남색 야간 (가로등 레퍼런스)
@@ -33,13 +35,23 @@ def hex_to_linear(hex_str):
 
 # name -> default value (custom node input order follows this list)
 SCALAR_PARAMS = [
-    ("PixelSize", 4.0),
-    ("ColorSteps", 6.0),
-    ("DitherStrength", 1.0),
-    ("Saturation", 1.0),
+    ("PixelSize", 5.0),
+    ("ColorSteps", 20.0),
+    ("DitherStrength", 0.0),
+    ("Saturation", 1.15),
+    ("Gamma", 1.05),
+    ("Contrast", 1.15),
+    ("Sharpen", 0.4),
     ("PaletteMix", 0.0),
-    ("OutlineStrength", 0.0),
+    ("Smoothing", 0.7),
+    ("FixedPalette", 0.0),
+    ("OutlineStrength", 0.6),
     ("OutlineThreshold", 0.05),
+    ("NormalEdgeStrength", 0.25),
+    ("ToneStrength", 0.3),
+    ("HazeStart", 4000.0),
+    ("HazeDistance", 10000.0),
+    ("HazeMax", 0.25),
 ]
 VECTOR_PARAMS = [
     ("Pal0", hex_to_linear("#0f0f1b")),
@@ -47,25 +59,40 @@ VECTOR_PARAMS = [
     ("Pal2", hex_to_linear("#c6b7be")),
     ("Pal3", hex_to_linear("#fafbf6")),
     ("OutlineColor", hex_to_linear("#0b0b14")),
+    ("ShadowTint", hex_to_linear("#68868c")),
+    ("HighlightTint", hex_to_linear("#8a8676")),
+    ("HazeColor", hex_to_linear("#b4c2c4")),
 ]
 
+# 기존 4종은 FixedPalette/외곽선/Gamma를 꺼서 이전 룩 유지 (Smoothing만 적용)
+OFF = {"FixedPalette": 0, "OutlineStrength": 0, "NormalEdgeStrength": 0, "Gamma": 1.0, "Contrast": 1.0, "Sharpen": 0, "Smoothing": 1.0, "ToneStrength": 0, "HazeMax": 0}
+
 PRESETS = {
+    "MI_PixelArt_Painterly": {
+        "scalars": {},
+        "vectors": {},
+    },
+    "MI_PixelArt_Retro": {
+        "scalars": {"PixelSize": 5, "Saturation": 1.3, "Gamma": 1.25, "FixedPalette": 1, "Contrast": 1.0, "Sharpen": 0, "Smoothing": 1.0, "ToneStrength": 0, "HazeMax": 0,
+                    "OutlineStrength": 0.8, "NormalEdgeStrength": 0.3},
+        "vectors": {},
+    },
     "MI_PixelArt_Natural": {
-        "scalars": {"PixelSize": 4, "ColorSteps": 8, "DitherStrength": 0.8, "PaletteMix": 0.0},
+        "scalars": {**OFF, "PixelSize": 4, "ColorSteps": 24, "DitherStrength": 0.25, "PaletteMix": 0.0},
         "vectors": {},
     },
     "MI_PixelArt_Handheld": {
-        "scalars": {"PixelSize": 5, "ColorSteps": 7, "DitherStrength": 1.0, "PaletteMix": 1.0},
+        "scalars": {**OFF, "PixelSize": 5, "ColorSteps": 10, "DitherStrength": 0.5, "PaletteMix": 1.0},
         "vectors": {"Pal0": "#1b1124", "Pal1": "#5b4a8a", "Pal2": "#a99bd6", "Pal3": "#d6dc8a"},
     },
     "MI_PixelArt_NavyOutline": {
-        "scalars": {"PixelSize": 6, "ColorSteps": 5, "DitherStrength": 0.6, "PaletteMix": 1.0,
+        "scalars": {**OFF, "PixelSize": 6, "ColorSteps": 8, "DitherStrength": 0.4, "PaletteMix": 1.0,
                     "OutlineStrength": 1.0, "OutlineThreshold": 0.04},
         "vectors": {"Pal0": "#14152b", "Pal1": "#2e3560", "Pal2": "#56659a", "Pal3": "#8fa0c8",
                     "OutlineColor": "#0e0f1f"},
     },
     "MI_PixelArt_Night": {
-        "scalars": {"PixelSize": 3, "ColorSteps": 6, "DitherStrength": 1.0, "Saturation": 1.2,
+        "scalars": {**OFF, "PixelSize": 4, "ColorSteps": 10, "DitherStrength": 0.5, "Saturation": 1.2,
                     "PaletteMix": 0.85},
         "vectors": {"Pal0": "#000000", "Pal1": "#1c1f5e", "Pal2": "#5a5fb0", "Pal3": "#f1e4f4"},
     },
@@ -95,7 +122,7 @@ def build_material():
     custom.set_editor_property("description", "PixelArt")
 
     input_names = (["UV"] + [n for n, _ in SCALAR_PARAMS] + [n for n, _ in VECTOR_PARAMS]
-                   + ["DummyColor", "DummyDepth"])
+                   + ["DummyColor", "DummyDepth", "DummyNormal"])
     inputs = []
     for n in input_names:
         ci = unreal.CustomInput()
@@ -121,9 +148,10 @@ def build_material():
         node.set_editor_property("default_value", value)
         MEL.connect_material_expressions(node, "", custom, name)
 
-    # SceneTexture nodes make the material bind PostProcessInput0 / SceneDepth for SceneTextureLookup()
+    # SceneTexture nodes make the material bind PostProcessInput0 / SceneDepth / WorldNormal for SceneTextureLookup()
     for input_name, tex_id, offset in (("DummyColor", unreal.SceneTextureId.PPI_POST_PROCESS_INPUT0, 0),
-                                       ("DummyDepth", unreal.SceneTextureId.PPI_SCENE_DEPTH, 120)):
+                                       ("DummyDepth", unreal.SceneTextureId.PPI_SCENE_DEPTH, 120),
+                                       ("DummyNormal", unreal.SceneTextureId.PPI_WORLD_NORMAL, 240)):
         node = MEL.create_material_expression(mat, unreal.MaterialExpressionSceneTexture, -800, y + 200 + offset)
         node.set_editor_property("scene_texture_id", tex_id)
         MEL.connect_material_expressions(node, "Color", custom, input_name)
