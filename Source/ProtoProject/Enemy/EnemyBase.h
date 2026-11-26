@@ -12,6 +12,7 @@ class UAnimMontage;
 class UBoxComponent;
 class UItemDataBase;
 class USoundBase;
+class UEnemyImpactComponent;
 
 UCLASS()
 class PROTOPROJECT_API AEnemyBase : public ACharacter
@@ -54,6 +55,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Enemy|AI")
     virtual void OnHit(float DamageAmount);
+
+    UFUNCTION(BlueprintCallable, Category = "Enemy|Combat")
+    void TakeEnemyPointDamage(float DamageAmount, const FHitResult& Hit, FVector ShotDirection);
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Enemy|Combat")
+    TObjectPtr<UEnemyImpactComponent> ImpactEffects;
 
     UFUNCTION(BlueprintPure, Category = "Enemy|Stats")
     bool IsDead() const { return bIsDead; }

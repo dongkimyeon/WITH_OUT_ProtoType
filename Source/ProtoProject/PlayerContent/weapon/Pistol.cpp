@@ -248,7 +248,7 @@ void APistol::Fire()
 
         if (HitEnemy)
         {
-            HitEnemy->TakeEnemyDamage(10.0f);
+            HitEnemy->TakeEnemyPointDamage(10.0f, FireHit, (FireEnd - MuzzleStart).GetSafeNormal());
 
             if (BloodHitEffect)
             {

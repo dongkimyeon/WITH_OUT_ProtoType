@@ -1,4 +1,5 @@
 #include "EnemyBase.h"
+#include "EnemyImpactComponent.h"
 
 #include "AIController.h"
 #include "Animation/AnimInstance.h"
@@ -155,6 +156,7 @@ namespace
 }
 AEnemyBase::AEnemyBase()
 {
+    ImpactEffects = CreateDefaultSubobject<UEnemyImpactComponent>(TEXT("ImpactEffects"));
     PrimaryActorTick.bCanEverTick = true;
 
     AIControllerClass = AAIController::StaticClass();
@@ -1371,6 +1373,8 @@ void AEnemyBase::Die()
     }
 
     bIsDead = true;
+    if (ImpactEffects)
+        ImpactEffects->NotifyDeath();
     ReleaseCombatSlot();
     PlayEnemySound(DieSound);
     bIsAttacking = false;
@@ -1483,6 +1487,15 @@ void AEnemyBase::TakeEnemyDamage(float DamageAmount)
 void AEnemyBase::OnHit(float DamageAmount)
 {
     TakeEnemyDamage(DamageAmount);
+}
+
+void AEnemyBase::TakeEnemyPointDamage(float DamageAmount, const FHitResult& Hit, FVector ShotDirection)
+{
+    if (DamageAmount <= 0.0f || bIsDead)
+        return;
+    TakeEnemyDamage(DamageAmount);
+    if (ImpactEffects && !bIsDead)
+        ImpactEffects->PlayHitReaction(Hit, ShotDirection);
 }
 
 int32 AEnemyBase::GetEnemyId() const
