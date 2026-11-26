@@ -85,3 +85,20 @@ Tools/nvigi_pack_1_6_0/
 Tools/STT_Bridge/data/**
 !Tools/STT_Bridge/data/**/
 !Tools/STT_Bridge/data/**/download.bat
+# Local Codex/editor backup files
+.codex-backup/
+
+# Python virtual environments and caches
+Tools/TTS_Bridge/.venv/
+Tools/TTS_Bridge/venv/
+**/.venv/
+**/venv/
+__pycache__/
+*.pyc
+
+# Local packaged build output
+/Windows/
+
+# IDE workspace state
+.vscode/
+.idea/
