@@ -10,7 +10,7 @@ public class ProtoProject : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "AIModule", "GameplayTags", "NavigationSystem" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "Sockets", "Networking", "AssetRegistry", "HTTP", "Json", "JsonUtilities", "AudioCaptureCore", "ImageWrapper", "MoviePlayer" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "Sockets", "Networking", "AssetRegistry", "HTTP", "Json", "JsonUtilities", "AudioCaptureCore", "ImageWrapper", "MoviePlayer", "EnemyCombatFX" });
 
 		// 0번 키 디버그 패널(ProtoDebugPanel)을 Shipping 패키징에서도 열 수 있게 하는 스위치.
 		// 패널 코드는 원래 !UE_BUILD_SHIPPING으로만 막혀 있어서 Shipping 빌드에선 키 바인딩째로

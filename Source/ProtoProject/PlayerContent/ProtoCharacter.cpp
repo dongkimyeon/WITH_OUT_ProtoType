@@ -1,6 +1,9 @@
 ﻿#include "ProtoCharacter.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "InputMappingContext.h"
+#include "InputAction.h"
+#include "UObject/UnrealType.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -111,6 +114,12 @@ void AProtoCharacter::Tick(float DeltaTime)
     {
         TrySetupLocalPlayerOnce();
     }
+    if (bUseCMCLocomotion && RuntimeCMCInputContexts.IsEmpty())
+    {
+        if (APlayerController* PC = Cast<APlayerController>(Controller))
+            if (auto* Input = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
+                SetupCMCLocomotionInput(Input);
+    }
 
     // 사망 후에는 래그돌 상태이므로 무기 IK/스왑/네트워크 위치 전송을 멈춘다.
     if (bIsDead)
@@ -170,6 +179,7 @@ void AProtoCharacter::Tick(float DeltaTime)
     }
 #endif
     UpdateStamina(DeltaTime);
+    if (bUseCMCLocomotion) SyncCMCLocomotionState();
 
     /*-------------------
      네트워킹: 위치 브로드캐스트 (NetSyncInterval 간격으로 주기 전송)
@@ -236,7 +246,10 @@ void AProtoCharacter::BeginPlay()
     {
         if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
         {
-            Subsystem->AddMappingContext(DefaultMappingContext, 0);
+            if (bUseCMCLocomotion)
+                SetupCMCLocomotionInput(Subsystem);
+            else if (DefaultMappingContext)
+                Subsystem->AddMappingContext(DefaultMappingContext, 0);
             if (CompanionMappingContext)
             {
                 Subsystem->AddMappingContext(CompanionMappingContext, 0);
@@ -401,18 +414,81 @@ bool AProtoCharacter::TrySetupLocalPlayerOnce()
     return true;
 }
 
+void AProtoCharacter::SetupCMCLocomotionInput(UEnhancedInputLocalPlayerSubsystem* Subsystem)
+{
+    CMCInputSubsystem = Subsystem;
+    // Clone mappings per pawn: inventory and companion inputs stay in the prototype,
+    // while the template owns movement, traversal and its camera.
+    if (DefaultMappingContext)
+    {
+        UInputMappingContext* Legacy = DuplicateObject<UInputMappingContext>(DefaultMappingContext, this);
+        for (const UInputAction* Action : {MoveAction, LookAction, JumpAction, SprintAction})
+            if (Action) Legacy->UnmapAllKeysFromAction(Action);
+        RuntimeCMCInputContexts.Add(Legacy);
+        Subsystem->RemoveMappingContext(DefaultMappingContext);
+        Subsystem->AddMappingContext(Legacy, 0);
+    }
+    UInputMappingContext* Source = LoadObject<UInputMappingContext>(nullptr, TEXT("/CMCIntegration/Input/IMC_Sandbox.IMC_Sandbox"));
+    if (!Source) return;
+    UInputMappingContext* Locomotion = DuplicateObject<UInputMappingContext>(Source, this);
+    const TSet<FName> Reserved = {TEXT("IA_Interact"), TEXT("IA_Takedown"), TEXT("IA_Sprint"), TEXT("IA_Aim"),
+        TEXT("IA_NextPawn"), TEXT("IA_NextVisualOverride"), TEXT("IA_TeleportToTarget"), TEXT("IA_TriggerRagdoll")};
+    const auto Mappings = Locomotion->GetMappings();
+    for (const FEnhancedActionKeyMapping& Mapping : Mappings)
+        if (Mapping.Action && Reserved.Contains(Mapping.Action->GetFName()))
+            Locomotion->UnmapAllKeysFromAction(Mapping.Action);
+    RuntimeCMCInputContexts.Add(Locomotion);
+    Subsystem->RemoveMappingContext(Source);
+    Subsystem->AddMappingContext(Locomotion, 0);
+    // The sample controller normally calls this on possession. The prototype
+    // keeps its existing controller, so initialize the template camera here.
+    if (UFunction* SetupCamera = FindFunction(TEXT("SetupCamera")))
+        if (SetupCamera->ParmsSize == 0) ProcessEvent(SetupCamera, nullptr);
+    GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = true;
+    TInlineComponentArray<UActorComponent*> Components(this);
+    for (UActorComponent* Component : Components)
+    {
+        if (Component->GetClass()->GetName().Contains(TEXT("AC_PreCMCTick")))
+            Component->AddTickPrerequisiteActor(this);
+    }
+    if (auto* LegacyCamera = FindFProperty<FObjectPropertyBase>(GetClass(), TEXT("Camera")))
+        if (auto* Camera = Cast<UCameraComponent>(LegacyCamera->GetObjectPropertyValue_InContainer(this)))
+            Camera->Deactivate();
+    SyncCMCLocomotionState();
+}
+
+void AProtoCharacter::SyncCMCLocomotionState()
+{
+    // This is a vendor-authored user-defined struct, not a native C++ type.
+    if (FStructProperty* Input = FindFProperty<FStructProperty>(GetClass(), TEXT("CharacterInputState")))
+    {
+        void* State = Input->ContainerPtrToValuePtr<void>(this);
+        for (TFieldIterator<FProperty> It(Input->Struct); It; ++It)
+        {
+            FBoolProperty* Flag = CastField<FBoolProperty>(*It);
+            if (!Flag) continue;
+            const FString Name = Flag->GetAuthoredName();
+            if (Name.Contains(TEXT("Sprint"))) Flag->SetPropertyValue_InContainer(State, bIsSprint);
+            if (Name.Contains(TEXT("Aim"))) Flag->SetPropertyValue_InContainer(State, bIsAiming);
+        }
+    }
+}
+
 void AProtoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
     if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
     {
-        EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Move);
-        EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Look);
-        EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
-        EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
-        EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &AProtoCharacter::Sprint);
-        EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AProtoCharacter::Sprint);
+        if (!bUseCMCLocomotion)
+        {
+            EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Move);
+            EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AProtoCharacter::Look);
+            EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+            EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+            EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Started, this, &AProtoCharacter::Sprint);
+            EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &AProtoCharacter::Sprint);
+        }
         EnhancedInputComponent->BindAction(ToggleInventoryAction, ETriggerEvent::Started, this, &AProtoCharacter::ToggleInventory);
 
         if (InteractAction)
@@ -894,13 +970,13 @@ void AProtoCharacter::StartSprint()
     if (StatusComponent && !StatusComponent->CanSprint()) return;
 
     bIsSprint = true;
-    GetCharacterMovement()->MaxWalkSpeed = SprintWalkSpeed;
+    if (!bUseCMCLocomotion) GetCharacterMovement()->MaxWalkSpeed = SprintWalkSpeed;
 }
 
 void AProtoCharacter::StopSprint()
 {
     bIsSprint = false;
-    GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+    if (!bUseCMCLocomotion) GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
 }
 
 void AProtoCharacter::UpdateStamina(float DeltaTime)
@@ -956,6 +1032,7 @@ void AProtoCharacter::ZoomCameraOut()
 
 void AProtoCharacter::ApplyCameraZoom(float Delta)
 {
+    if (bUseCMCLocomotion) return;
     USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>();
 
     // 스프링암 길이는 BP에서 정해지고 C++이 시작할 때 맞춰주지 않는다. 3인칭(비조준) 상태면
@@ -977,6 +1054,7 @@ void AProtoCharacter::ApplyCameraZoom(float Delta)
 void AProtoCharacter::StartAim()
 {
     bIsAiming = true;
+    if (bUseCMCLocomotion) { SyncCMCLocomotionState(); return; }
 
     if (USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>())
     {
@@ -996,6 +1074,7 @@ void AProtoCharacter::StartAim()
 void AProtoCharacter::StopAim()
 {
     bIsAiming = false;
+    if (bUseCMCLocomotion) { SyncCMCLocomotionState(); return; }
 
     if (USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>())
     {
@@ -2675,6 +2754,11 @@ void AProtoCharacter::RestoreEquipmentAndQuickSlots(const TArray<FProtoEquipment
 
 void AProtoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if (auto* Input = CMCInputSubsystem.Get())
+        for (UInputMappingContext* Context : RuntimeCMCInputContexts)
+            Input->RemoveMappingContext(Context);
+    RuntimeCMCInputContexts.Reset();
+    CMCInputSubsystem.Reset();
     // 사망으로 인한 레벨 이동이면 위치/시선/무기/인벤토리를 다음 레벨로 이월하지 않는다.
     // 허브에서 PlayerStart + 기본 스탯(체력100/감염0/허기·갈증100)으로 새로 시작한다.
     // (인벤토리는 WipeCarriedInventoryOnDeath에서 이미 비우고 서버에도 빈 상태로 저장됨)

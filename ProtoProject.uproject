@@ -7,13 +7,21 @@
 		{
 			"Name": "ProtoProject",
 			"Type": "Runtime",
-			"LoadingPhase": "Default",
+			"LoadingPhase": "PostDefault",
 			"AdditionalDependencies": [
 				"Engine"
 			]
 		}
 	],
 	"Plugins": [
+		{
+			"Name": "CMCIntegration",
+			"Enabled": true
+		},
+		{
+			"Name": "EnemyCombatFX",
+			"Enabled": true
+		},
 		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
@@ -58,7 +66,7 @@
 		},
 		{
 			"Name": "AsyncLoadingScreen",
-			"Enabled": true,
+			"Enabled": false,
 			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/01f39767dc6b4290877f38365787cbf8"
 		}
 	]

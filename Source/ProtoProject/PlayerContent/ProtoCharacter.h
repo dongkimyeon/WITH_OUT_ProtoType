@@ -47,6 +47,9 @@ class PROTOPROJECT_API AProtoCharacter : public ACharacter
 public:
     AProtoCharacter();
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement|CMC")
+    bool bUseCMCLocomotion = false;
+
     // 명시적으로 선언해서 .cpp(ProtoDebugPanel.h가 완전히 포함된 곳)에서만 정의한다 - 헤더에는
     // SProtoDebugPanel을 전방 선언만 해뒀는데, 소멸자가 암시적으로 생성되면 이 클래스를 생성/파괴
     // 하는 다른 모든 TU에서 TSharedPtr<SProtoDebugPanel> 멤버를 파괴하려다 불완전 타입 에러가 난다.
@@ -73,6 +76,14 @@ protected:
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+    void SetupCMCLocomotionInput(class UEnhancedInputLocalPlayerSubsystem* Subsystem);
+    void SyncCMCLocomotionState();
+
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<UInputMappingContext>> RuntimeCMCInputContexts;
+
+    TWeakObjectPtr<UEnhancedInputLocalPlayerSubsystem> CMCInputSubsystem;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"))
     UInputMappingContext* DefaultMappingContext;
 
